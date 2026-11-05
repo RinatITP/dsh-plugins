@@ -1,0 +1,68 @@
+{
+  "name": "dsh-mcp-guard",
+  "version": "0.1.0",
+  "description": "Security-first MCP server manager for DeepSeek Harness: review, enable and audit MCP servers from the Web settings UI.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Rinat Fathutdinov",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RinatITP/dsh-plugins.git",
+    "directory": "packages/dsh-mcp-guard"
+  },
+  "bugs": {
+    "url": "https://github.com/RinatITP/dsh-plugins/issues"
+  },
+  "homepage": "https://github.com/RinatITP/dsh-plugins/tree/main/packages/dsh-mcp-guard#readme",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "lib",
+    "locale/*.json",
+    "cordis.patch.yml",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "engines": {
+    "node": ">=22.19.0",
+    "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+  },
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "mcp",
+    "mcp-client",
+    "security"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/dsh-mcp-client": "0.2.2-rc.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-mcp-client": {
+      "optional": true
+    }
+  }
+}

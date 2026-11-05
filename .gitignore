@@ -1,0 +1,28 @@
+# Dependencies (the repository itself is dependency-free; local experiments may not be)
+node_modules/
+
+# Packed plugin artifacts
+*.tgz
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test coverage output
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+pnpm-debug.log*
+
+# Local environment files (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Editor/IDE local state
+.idea/
+.vscode/
+*.swp
+*~

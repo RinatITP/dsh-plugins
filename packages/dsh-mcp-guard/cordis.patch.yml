@@ -1,0 +1,6 @@
+# Bundle patch for dsh-mcp-guard.
+# One Host row; its configuration (the managed server list) is stored by the
+# user's profile patch through the official configEditor when the UI saves.
+- insert:
+    - id: dsh-mcp-guard
+      name: dsh-mcp-guard

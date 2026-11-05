@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: tests and validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Unit tests
+        run: node --test packages/dsh-mcp-guard/test/*.test.mjs
+
+      - name: Repository validation
+        run: node scripts/validate.mjs
+
+      - name: Syntax check client.js
+        run: node --check packages/dsh-mcp-guard/client.js
+
+      - name: Syntax check index.js
+        run: node --check packages/dsh-mcp-guard/index.js

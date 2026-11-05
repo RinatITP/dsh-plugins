@@ -1,0 +1,40 @@
+# NOTICE
+
+This repository is maintained by Rinat Fathutdinov. It is an independent
+open-source project, not an official DeepSeek repository.
+
+## Third-party attribution
+
+The design of `dsh-mcp-guard` was informed by publicly available DeepSeek Harness
+plugins. Those projects are credited below as design inspiration. Their names and
+trademarks remain the property of their respective owners; this project is not
+affiliated with, sponsored by or endorsed by them. No third-party trademarks are
+used as the name or branding of this project.
+
+| Project | Author / repository | License | Relationship |
+|---|---|---|---|
+| `@fegnze/dsh-mcp-manager` | fegnze — <https://github.com/fegnze/dsh-mcp-manager> | MIT | Design inspiration: MCP management through the official client and profile configuration, fail-closed import, write-only secrets. |
+| `dsh-mcp-registry` | drscrewdriver — <https://github.com/drscrewdriver/dsh-mcp-registry> | MIT | Design inspiration: governed MCP registry, risk/authorization stance, plaintext-HTTP loopback default. |
+| `@moon16u/dsh-mcp-console` | moon16u — <https://github.com/moon16u/dsh-pouch> (`packages/dsh-mcp-console`) | MIT | Design inspiration: management console over the official MCP client, zero MCP protocol code in the plugin. |
+
+## Official DeepSeek Harness packages
+
+`dsh-mcp-guard` is built on official DeepSeek Harness extension points and uses
+the official MCP client from the running host as an optional peer dependency:
+
+- `@deepseek-ai/dsh-mcp-client` — official MCP client bridge, license MIT,
+  <https://github.com/deepseek-ai/deepseek-harness> (`packages/mcp/mcp-client`).
+  Connections, process spawning, reconnection, tool discovery and
+  `mcp__<server>__<tool>` naming are owned by this package.
+- Other `@deepseek-ai/dsh-*` packages are used at runtime by the host and are not
+  vendored, copied or redistributed in this repository.
+
+"DeepSeek", "DeepSeek Harness" and "DSH" are names/trademarks of their respective
+owners and are used here only to describe compatibility.
+
+## Repository content
+
+Original code, documentation, icon and tests in this repository are licensed under
+the MIT license in [`LICENSE`](LICENSE), © 2026 Rinat Fathutdinov. Nothing in this
+NOTICE grants rights to third-party trademarks or to third-party code beyond what
+those projects' own licenses allow.

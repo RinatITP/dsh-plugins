@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none" role="img" aria-label="MCP Guard">
+  <defs>
+    <linearGradient id="mcpg-shield" x1="60" y1="38" x2="204" y2="226" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1F6FEB"/>
+      <stop offset="0.55" stop-color="#2E5BFF"/>
+      <stop offset="1" stop-color="#7A4CFF"/>
+    </linearGradient>
+    <linearGradient id="mcpg-inner" x1="88" y1="60" x2="172" y2="204" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.06"/>
+    </linearGradient>
+    <radialGradient id="mcpg-glow" cx="128" cy="96" r="96" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A9C4FF" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#A9C4FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="#0B1220"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#mcpg-glow)"/>
+  <path d="M128 24 212 55v75c0 48-33.6 82.9-84 107-50.4-24.1-84-59-84-107V55l84-31Z" fill="url(#mcpg-shield)"/>
+  <path d="M128 40 196 65v64c0 39.5-27.8 68.6-68 89-40.2-20.4-68-49.5-68-89V65l68-25Z" stroke="url(#mcpg-inner)" stroke-width="3" fill="none"/>
+  <g stroke="#EAF1FF" stroke-width="7" stroke-linecap="round">
+    <path d="M128 100v28" stroke-opacity="0.9"/>
+    <path d="M112 128 90 146" stroke-opacity="0.85"/>
+    <path d="M144 128l22 18" stroke-opacity="0.85"/>
+  </g>
+  <g fill="#EAF1FF">
+    <circle cx="128" cy="86" r="17"/>
+    <circle cx="86" cy="158" r="14" fill-opacity="0.96"/>
+    <circle cx="170" cy="158" r="14" fill-opacity="0.96"/>
+    <circle cx="128" cy="132" r="12" fill-opacity="0.92"/>
+  </g>
+  <g fill="#0B1220">
+    <circle cx="128" cy="86" r="6.5"/>
+    <circle cx="86" cy="158" r="5.5"/>
+    <circle cx="170" cy="158" r="5.5"/>
+    <circle cx="128" cy="132" r="4.5"/>
+  </g>
+  <path d="M106 196c6.5 6.4 13.8 9.9 22 12 8.2-2.1 15.5-5.6 22-12" stroke="#EAF1FF" stroke-opacity="0.55" stroke-width="6" stroke-linecap="round" fill="none"/>
+</svg>
