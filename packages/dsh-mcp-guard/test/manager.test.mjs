@@ -61,7 +61,7 @@ const storedStdio = (overrides = {}) => ({
 
 test.beforeEach(() => resetManagerState());
 
-test('list projects managed servers without values, args or secrets', async () => {
+test('list projects managed servers with execution coordinates but without env/header values', async () => {
   const { manager } = harness({
     servers: [
       {
@@ -100,14 +100,20 @@ test('list projects managed servers without values, args or secrets', async () =
   assert.equal(alpha.reconnect.enabled, false);
   assert.equal(alpha.argumentCount, 2);
   assert.equal(alpha.highestRisk, 'medium');
+  // Execution coordinates are visible to the authenticated settings UI.
+  assert.equal(alpha.command, '/usr/local/bin/node');
+  assert.deepEqual(alpha.args, ['--token', 'sk-live-DEADBEEFDEADBEEF']);
+  assert.equal(alpha.cwd, '');
   const bravo = view.servers.find((server) => server.serverName === 'bravo');
   assert.equal(bravo.endpoint, 'https://example.com');
+  assert.equal(bravo.url, 'https://example.com/mcp');
   assert.equal(view.external[0].source, 'external');
   assert.deepEqual(view.tools.byServer.alpha.sort(), ['mcp__alpha__fetch', 'mcp__alpha__search']);
-  // Secrets never appear in the whole browser projection.
+  // Env/header VALUES never appear in the browser projection.
   const serialized = JSON.stringify(view);
-  assert.ok(!serialized.includes('sk-live-DEADBEEFDEADBEEF'));
-  assert.ok(!serialized.includes('GITHUB_TOKEN:'));
+  assert.ok(!serialized.includes('GITHUB_TOKEN":'));
+  assert.ok(!serialized.includes('PLAIN":'));
+  assert.ok(!serialized.includes('sk-live-DEADBEEFDEADBEEF"') || alpha.risk.some((item) => item.code === 'risk.secretInArgs'));
   assert.equal(view.profileName, 'test-profile');
 });
 

@@ -100,7 +100,11 @@ network in plaintext HTTP headers.
 **Controls.**
 - **Write-only API contract:** env/header values are never returned; the snapshot
   and analysis results contain **key names only**. Editing uses per-key `keep`
-  semantics so a value can be preserved without revealing it.
+  semantics so a value can be preserved without revealing it. Execution
+  coordinates (`command`, `args`, `cwd`, `url`) are deliberately visible in the
+  authenticated local settings UI (needed to display and edit a server); they are
+  not classified as secret values, but secret-shaped argv entries are flagged by
+  the risk analysis.
 - Error responses are stable, value-free codes (`{ code, path? }`), never upstream
   text; risk `params` may contain a key name or safe command basename, never a
   value.
@@ -371,6 +375,11 @@ as a hard sandbox against a compromised host.
 8. **Audit is bounded and not tamper-evident**; it is a review aid.
 9. **UI verification is pending**; security-relevant rendering behaviour relies on
    code/tests, not on an observed interaction.
+10. **Execution coordinates are visible in the local UI**: `command`, `args`,
+    `cwd` and the server `url` appear on the settings page and in form prefill.
+    Treat tokens passed as CLI arguments or URL query parameters as exposed to
+    anyone who can view the authenticated DSH window (prefer env/header
+    references where the server supports them).
 10. **Version exemptions** can install a plugin not validated for the running DSH
     and are an explicit risk acceptance; this project does not recommend them.
 

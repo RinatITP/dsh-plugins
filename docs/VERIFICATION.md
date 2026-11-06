@@ -73,6 +73,22 @@ process spawn, tool registration and teardown. It does **not** exercise a save
 through `configEditor` from the browser UI (that path is covered by manager
 unit tests and uses the documented `ctx.fiber.entry` + `editor.edit` pattern).
 
+## Redesign pass (2026-11-06)
+
+After the initial Host verification, the settings page was restyled to the
+Z.ai (GLM) MCP Servers visual language (scope pill, search, grouped rows,
+Form/JSON pill tabs, full-configuration JSON tab) on top of the same Host
+contract. Three reference screenshots were used as the design source; they are
+not shipped with the repository.
+
+Host-side support added for this pass: the `ServerView` now also carries
+`command`, `args`, `cwd` (stdio) and `url` (streamable-http) so the list can
+render a command line and the editor can prefill the form instead of being
+lossy. Env/header **values** are still write-only; this visibility is
+documented in [`API-CONTRACT.md`](API-CONTRACT.md) and
+[`SECURITY-MODEL.md`](SECURITY-MODEL.md). The visible consequence was not
+inspected in a browser — see below.
+
 ## Not verified
 
 - **Visual rendering / console of the settings page.** The build environment had

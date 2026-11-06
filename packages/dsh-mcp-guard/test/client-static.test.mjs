@@ -206,9 +206,79 @@ test('HTTP transport uses the exact route, header, credentials and actions', () 
 });
 
 test('write-only secret handling is present', () => {
-  assert.match(clientSource, /type: 'password'/);
-  assert.ok(clientSource.includes("keep: true"));
+  // Env/header values are edited as JSON text with keep-on-empty semantics; the
+  // client never renders a stored secret and sends {key, keep:true} for blanks.
+  assert.ok(clientSource.includes('keep: true'));
+  assert.ok(clientSource.includes('entriesToPayload'));
+  assert.ok(clientSource.includes('jsonTextToEntries'));
   assert.ok(clientSource.includes('clearAck'));
+  assert.match(clientSource, /stored === true && \(entry\.value === undefined \|\| entry\.value === ''\)/);
+  assert.match(clientSource, /value: '', stored: true/);
+});
+
+test('Z.ai-style list markup is present (title, scope pill, search, groups, rows)', () => {
+  assert.match(clientSource, /className: 'mcpg-page-title'/);
+  assert.match(clientSource, /mcpg-scope-pill/);
+  assert.ok(clientSource.includes("'list.scope'"));
+  assert.ok(clientSource.includes("'list.scopeUser'"));
+  assert.ok(clientSource.includes("'list.scopeProjects'"));
+  assert.ok(clientSource.includes("'list.scopeComingSoon'"));
+  assert.match(clientSource, /className: 'mcpg-search-input'/);
+  assert.ok(clientSource.includes("'list.search'"));
+  assert.match(clientSource, /className: 'mcpg-group-title'/);
+  assert.ok(clientSource.includes("'list.installed'"));
+  assert.match(clientSource, /className: 'mcpg-row'/);
+  assert.match(clientSource, /className: 'mcpg-row-icon'/);
+  assert.match(clientSource, /className: 'mcpg-row-sub-text'/);
+  assert.match(clientSource, /className: 'mcpg-row-end'/);
+  assert.ok(clientSource.includes("'list.new'"));
+  assert.ok(clientSource.includes("'list.importMenu'"));
+  assert.ok(clientSource.includes("'list.exportMenu'"));
+  assert.ok(clientSource.includes("'list.noResults'"));
+  assert.ok(clientSource.includes("'page.external'"));
+  assert.ok(clientSource.includes("'list.externalHint'"));
+});
+
+test('list subtitle and edit prefill use the new non-secret Host fields defensively', () => {
+  // Subtitle: command/args for stdio, url for streamable-http, with endpoint fallback.
+  assert.match(clientSource, /typeof server\.command === 'string'/);
+  assert.match(clientSource, /Array\.isArray\(server\.args\)/);
+  assert.match(clientSource, /typeof server\.url === 'string'/);
+  assert.match(clientSource, /serverSubtitle/);
+  assert.ok(clientSource.includes("'stdio · '"));
+  assert.ok(clientSource.includes("'streamable-http · '"));
+  // Edit prefill from ServerView when the Host provides it.
+  assert.match(clientSource, /draft\.argsText = server\.args\.map/);
+  assert.match(clientSource, /draft\.command = server\.command/);
+  assert.match(clientSource, /draft\.url = server\.url/);
+  assert.match(clientSource, /draft\.cwd = server\.cwd/);
+  assert.match(clientSource, /serverHasDetails/);
+});
+
+test('Z.ai-style form and JSON tabs are present (breadcrumbs, card, segmented tabs)', () => {
+  assert.match(clientSource, /className: 'mcpg-breadcrumbs'/);
+  assert.match(clientSource, /className: 'mcpg-crumb-current'/);
+  assert.match(clientSource, /className: 'mcpg-form-title'/);
+  assert.match(clientSource, /className: 'mcpg-form-subtitle'/);
+  assert.match(clientSource, /className: 'mcpg-card mcpg-form-card'/);
+  assert.match(clientSource, /className: 'mcpg-form-footer'/);
+  assert.match(clientSource, /className: 'mcpg-tabs'/);
+  assert.ok(clientSource.includes("'form.fullConfiguration'"));
+  assert.ok(clientSource.includes("'form.subtitleCreate'"));
+  assert.ok(clientSource.includes("'form.newTitle'"));
+  assert.ok(clientSource.includes("'form.envOptional'"));
+  assert.ok(clientSource.includes("'form.headersOptional'"));
+  assert.ok(clientSource.includes("'form.envJsonHint'"));
+  assert.ok(clientSource.includes("'form.jsonHintLong'"));
+  assert.ok(clientSource.includes("'form.protocolAuto'"));
+  assert.ok(clientSource.includes("Auto (recommended)"));
+  assert.ok(clientSource.includes("stdio (local command)"));
+});
+
+test('JSON tab accepts both server-key and mcpServers envelopes', () => {
+  assert.match(clientSource, /isPlainObject\(parsed\.mcpServers\)/);
+  assert.ok(clientSource.includes('You can paste'));
+  assert.ok(clientSource.includes("'form.jsonHintLong'"));
 });
 
 test('style is a single injected style element owned by the plugin with token-only colors', () => {

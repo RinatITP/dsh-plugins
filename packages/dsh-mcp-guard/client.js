@@ -2,19 +2,23 @@
  * dsh-mcp-guard — Client (browser) half.
  *
  * Registers one `settings.section` page (id `mcp-guard`, order 22) into the DSH
- * Web settings UI. The page is a thin, fail-closed manager over the Host HTTP
- * endpoint `/api/dsh-mcp-guard`:
+ * Web settings UI. The presentation is a close adaptation of the Z.ai (GLM)
+ * "MCP Servers" settings design (list with search/scope pill/row cards, Form and
+ * JSON tabs with one bordered card, breadcrumbs), while the behaviour stays the
+ * fail-closed security manager over the Host HTTP endpoint:
  *
- *  - managed servers list (cards) + read-only "managed by other plugins" rows;
+ *  - managed servers list (rows) + read-only "managed by other plugins" group;
  *  - Add/Edit form with Form | JSON tabs, debounced `analyze` validation,
  *    risk findings and an argv/endpoint preview;
  *  - enable confirmation with an execution preview and an explicit risk
  *    acknowledgement for high/critical findings;
  *  - delete / disable confirmation, strict JSON import preview, redacted export;
- *  - per-server tool list and an audit log.
+ *  - per-server tool list, last check and an audit log.
  *
  * Secrets are write-only: the API never returns env/header values and this file
- * never mirrors them. All copy goes through a local English/Russian dictionary
+ * never mirrors them. The list subtitle and the edit prefill use the non-secret
+ * execution coordinates of `ServerView` (`command`/`args`/`cwd`/`url`) when the
+ * Host provides them. All copy goes through a local English/Russian dictionary
  * (also registered with `ctx.locale`). Styles are one injected `<style>` with
  * `data-plugin="dsh-mcp-guard"`; only `--dsw-alias-*` theme tokens are used for
  * color. No DOM is written outside this plugin's own slot sub-tree.
@@ -39,7 +43,6 @@ window.__ModuleLoader__.load({
     const ANALYZE_DEBOUNCE_MS = 350;
 
     const SERVER_NAME_RE = /^[A-Za-z0-9_-]{1,32}$/;
-    const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
     const RISK_ORDER = { info: 0, low: 1, medium: 2, high: 3, critical: 4 };
 
     const TRANSPORT_STDIO = 'stdio';
@@ -170,6 +173,24 @@ window.__ModuleLoader__.load({
       return '"' + value.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
     }
 
+    /** True when the Host snapshot carries non-secret execution coordinates. */
+    function serverHasDetails(server) {
+      return Boolean(server) && (typeof server.command === 'string' || typeof server.url === 'string');
+    }
+
+    /** Z.ai-style command/endpoint line for one managed server row. */
+    function serverSubtitle(server) {
+      if (!server) return '';
+      if (server.transport === TRANSPORT_HTTP) {
+        const url = typeof server.url === 'string' && server.url !== '' ? server.url : server.endpoint;
+        return 'streamable-http · ' + (url || '—');
+      }
+      const command =
+        typeof server.command === 'string' && server.command !== '' ? server.command : server.endpoint || '—';
+      const args = Array.isArray(server.args) ? server.args : [];
+      return ['stdio · ' + command, ...args].join(' ');
+    }
+
     /* ------------------------------------------------------------------ */
     /* Dictionaries (English + Russian)                                    */
     /* ------------------------------------------------------------------ */
@@ -194,10 +215,6 @@ window.__ModuleLoader__.load({
       'page.audit': 'Audit log',
       'page.auditEmpty': 'No audit entries yet.',
       'page.empty': 'No MCP servers are managed yet. Add one to start.',
-      'action.copy': 'Copy',
-      'action.close': 'Close',
-      'action.edit': 'Edit',
-      'action.delete': 'Delete',
       'page.neverChecked': 'Never checked',
       'page.checkOk': 'Last check OK',
       'page.checkFailed': 'Last check failed',
@@ -210,12 +227,37 @@ window.__ModuleLoader__.load({
       'page.timeout': 'Timeout',
       'page.tools': 'Tools',
       'page.args': 'Arguments',
+      'action.copy': 'Copy',
+      'action.close': 'Close',
+      'action.edit': 'Edit',
+      'action.delete': 'Delete',
+      'list.search': 'Search MCP servers...',
+      'list.searchAria': 'Search MCP servers',
+      'list.scope': 'This computer · User',
+      'list.scopeUser': 'This computer: User',
+      'list.scopeProjects': 'Projects',
+      'list.scopeComingSoon': 'Coming soon',
+      'list.scopeAria': 'Switch scope',
+      'list.scopeLabel': 'Scope',
+      'list.mcp': 'MCP',
+      'list.installed': 'Installed',
+      'list.externalHint': 'Provided by another plugin or a hand-written profile entry — read-only.',
+      'list.noResults': 'No MCP servers match your search.',
+      'list.new': 'New',
+      'list.more': 'More actions',
+      'list.importMenu': 'Import…',
+      'list.exportMenu': 'Export…',
+      'list.riskBadge': 'Risk: {level}',
+      'list.secretsBadge': 'Contains secret values',
+      'list.statusAria': 'Status: {status}',
+      'list.tools': '{count} tools',
+      'list.auditTitle': 'Audit log',
       'status.enabled': 'Enabled',
       'status.disabled': 'Disabled',
       'transport.stdio': 'stdio',
       'transport.http': 'streamable-http',
-      'transport.stdioLong': 'stdio (local process)',
-      'transport.httpLong': 'streamable-http (remote URL)',
+      'transport.stdioLong': 'stdio (local command)',
+      'transport.httpLong': 'Streamable HTTP',
       'notice.savedCreate': 'Server saved disabled. Review it and enable when ready.',
       'notice.savedUpdate': 'Changes saved. The server stays disabled until you enable it again.',
       'notice.imported': '{count} server(s) imported disabled.',
@@ -238,42 +280,61 @@ window.__ModuleLoader__.load({
       'error.detail': 'Field: {path}',
       'form.titleCreate': 'Add MCP server',
       'form.titleEdit': 'Edit {name}',
+      'form.newTitle': 'New MCP server',
+      'form.subtitleCreate': 'Fill in the new MCP configuration, then save to return to the list.',
+      'form.subtitleEdit': 'Update the MCP configuration, then save to return to the list.',
       'form.back': 'Back to list',
       'form.name': 'Name',
       'form.nameHint': 'Letters, digits, _ and - only; 1–32 characters.',
-      'form.editNotice':
-        'For security, the stored command, arguments, URL and secret values are not returned. Re-enter the command and arguments (or the URL) completely; secret values are kept by key when their value field is left blank.',
-      'form.scope': 'Scope: this plugin manages MCP servers in profile {profile}. Every save is disabled until you enable it after review.',
+      'form.namePlaceholder': 'my-mcp-server',
+      'form.nameLocked': 'The server name cannot be changed after creation.',
       'form.type': 'Type',
-      'form.timeout': 'Timeout, ms',
+      'form.typeStdio': 'stdio (local command)',
+      'form.typeHttp': 'Streamable HTTP',
+      'form.timeout': 'Timeout MS',
+      'form.timeoutPlaceholder': '60000',
       'form.timeoutHint': 'Per-call timeout, 1000–600000 ms.',
       'form.protocol': 'Protocol version',
-      'form.protocolAuto': 'Auto (official client)',
+      'form.protocolAuto': 'Auto (recommended)',
       'form.command': 'Command',
+      'form.commandPlaceholder': 'npx',
       'form.commandHint': 'Executable or path; it is spawned directly, without a shell.',
-      'form.commandEditHint':
-        'The stored command is not returned (displayed endpoint: {endpoint}). Re-enter it.',
       'form.args': 'Arguments',
+      'form.argsLabel': 'Arguments (space separated)',
+      'form.argsPlaceholder': '-y @modelcontextprotocol/server-memory',
       'form.argsHint':
         'Space- or newline-separated. Single and double quotes group one argument; nothing is evaluated.',
-      'form.argsEditHint':
-        'For security, stored arguments are not returned ({count}). Re-enter the full argument list.',
       'form.cwd': 'Working directory',
       'form.cwdHint': 'Optional absolute path.',
       'form.url': 'URL',
       'form.urlHint': 'Full URL including path, for example https://host.example/mcp.',
       'form.env': 'Environment variables',
-      'form.envHint': 'Values are write-only: stored values are never shown again.',
+      'form.envOptional': 'Environment variables (optional)',
       'form.headers': 'Headers',
-      'form.headersHint': 'Values are write-only: stored values are never shown again.',
-      'form.kvKey': 'Key',
-      'form.kvValue': 'Value (write-only)',
-      'form.kvStored': 'stored — leave blank to keep',
-      'form.kvKeepHint': 'Leave a stored value blank to keep it.',
-      'form.kvNone': 'No entries yet.',
-      'form.kvAddEnv': 'Add variable',
-      'form.kvAddHeader': 'Add header',
-      'form.kvRemove': 'Remove',
+      'form.headersOptional': 'Headers (optional)',
+      'form.envJsonHint':
+        'Stored values are never shown. Leave an existing key empty to keep its value, set a value to replace it, or remove the key to delete it.',
+      'form.envJsonInvalid': 'Environment variables must be a JSON object with string values.',
+      'form.headersJsonInvalid': 'Headers must be a JSON object with string values.',
+      'form.envPlaceholder': '{\n  "MY_API_KEY": "your-key"\n}',
+      'form.headersPlaceholder': '{\n  "Authorization": "Bearer …"\n}',
+      'form.fullConfiguration': 'Full configuration',
+      'form.tabForm': 'Form',
+      'form.tabJson': 'JSON',
+      'form.tabsLabel': 'Configuration editor',
+      'form.jsonHint':
+        'Editable configuration for this draft. Stored secrets appear blank; advanced options stay on the Form tab.',
+      'form.jsonHintLong':
+        'You can paste {"server-name": {...}} or {"mcpServers": {"server-name": {...}}}.',
+      'form.jsonInvalid': 'Invalid JSON.',
+      'form.jsonShape': 'Expected a single server configuration object.',
+      'form.jsonUnknownField': 'Unsupported field in the JSON configuration.',
+      'form.clearSecrets': 'Stored secret values will be deleted for: {keys}',
+      'form.clearAck': 'I understand these stored values will be deleted.',
+      'form.saveDisabled': 'Save becomes available when the draft passes validation.',
+      'form.save': 'Save',
+      'form.cancel': 'Cancel',
+      'form.required': 'Required',
       'form.advanced': 'Advanced',
       'form.reconnectEnabled': 'Reconnect automatically',
       'form.reconnectAttempts': 'Max reconnect attempts',
@@ -282,21 +343,10 @@ window.__ModuleLoader__.load({
       'form.allowPlainHttp': 'Allow plaintext HTTP to a non-loopback host',
       'form.allowPlainHttpWarning':
         'Only enable this for a trusted host you control: the connection will be unencrypted.',
-      'form.tabForm': 'Form',
-      'form.tabJson': 'JSON',
-      'form.tabsLabel': 'Server editor',
-      'form.jsonHint':
-        'Editable mcpServers entry for this draft. Stored secrets appear as placeholders; advanced options stay on the Form tab.',
-      'form.jsonInvalid': 'Invalid JSON.',
-      'form.jsonShape': 'Expected a single mcpServers entry object.',
-      'form.jsonUnknownField': 'Unsupported field in the JSON entry.',
-      'form.clearSecrets': 'Stored secret values will be deleted for: {keys}',
-      'form.clearAck': 'I understand these stored values will be deleted.',
-      'form.saveDisabled': 'Save becomes available when the draft passes validation.',
-      'form.save': 'Save',
-      'form.cancel': 'Cancel',
-      'form.nameLocked': 'The server name cannot be changed after creation.',
-      'form.required': 'Required',
+      'form.analysis': 'Analysis',
+      'form.analysisValid': 'Configuration is valid.',
+      'form.editNotice':
+        'For security, the stored command, arguments, URL and secret values are not returned by this Host version. Re-enter the command and arguments (or the URL) completely; secret values are kept by key when their value is left empty.',
       'analyze.pending': 'Validating…',
       'analyze.valid': 'Configuration is valid.',
       'analyze.problems': 'Validation problems',
@@ -305,7 +355,7 @@ window.__ModuleLoader__.load({
       'analyze.argv': 'Command that will run (no shell):',
       'analyze.endpoint': 'Endpoint:',
       'analyze.risks': 'Risk findings',
-      'analyze.secretsNote': 'Secret values are never displayed; blank stored values are kept.',
+      'analyze.secretsNote': 'Secret values are never displayed; empty stored values are kept.',
       'preview.cwd': 'Working directory: {cwd}',
       'preview.hostDefault': 'host default',
       'preview.envKeys': 'Environment keys',
@@ -377,7 +427,6 @@ window.__ModuleLoader__.load({
       'a11y.delete': 'Delete server {name}',
       'a11y.check': 'Check server {name}',
       'a11y.refresh': 'Refresh server list',
-      'a11y.removeEntry': 'Remove entry {key}',
       'a11y.toolsOf': 'Registered tools for {name}',
       'a11y.riskOf': 'Risk findings for {name}',
       'a11y.riskLevel': 'Risk level',
@@ -388,6 +437,13 @@ window.__ModuleLoader__.load({
       'a11y.formTab': 'Form editor',
       'a11y.jsonTab': 'JSON editor',
       'a11y.transportGroup': 'Transport type',
+      'a11y.openServer': 'Open server {name}',
+      'a11y.rowMenu': 'Actions for {name}',
+      'a11y.newServer': 'Add MCP server',
+      'a11y.importServers': 'Import MCP servers',
+      'a11y.exportServers': 'Export MCP servers',
+      'a11y.scopePill': 'Scope selector',
+      'a11y.selectIcon': 'Select',
       'error.NAME_INVALID': 'Server name may contain only letters, digits, _ and - (1–32 characters).',
       'error.NAME_CONFLICT': 'This name is already used by another MCP server.',
       'error.TRANSPORT_INVALID': 'Unsupported transport. Choose stdio or streamable-http.',
@@ -453,7 +509,7 @@ window.__ModuleLoader__.load({
 
     const DICT_RU = {
       'nav.label': 'MCP-серверы',
-      'page.intro': 'Проверяйте, включайте и отслеживайте MCP-серверы, которыми управляет этот плагин.',
+      'page.intro': 'Просматривайте, включайте и отслеживайте MCP-серверы, которыми управляет этот плагин.',
       'page.profile': 'Профиль: {name}',
       'page.refresh': 'Обновить',
       'page.add': 'Добавить сервер',
@@ -471,10 +527,6 @@ window.__ModuleLoader__.load({
       'page.audit': 'Журнал аудита',
       'page.auditEmpty': 'Записей пока нет.',
       'page.empty': 'Управляемых MCP-серверов пока нет. Добавьте первый.',
-      'action.copy': 'Копировать',
-      'action.close': 'Закрыть',
-      'action.edit': 'Изменить',
-      'action.delete': 'Удалить',
       'page.neverChecked': 'Не проверялся',
       'page.checkOk': 'Последняя проверка успешна',
       'page.checkFailed': 'Последняя проверка не удалась',
@@ -487,12 +539,37 @@ window.__ModuleLoader__.load({
       'page.timeout': 'Таймаут',
       'page.tools': 'Инструменты',
       'page.args': 'Аргументы',
+      'action.copy': 'Копировать',
+      'action.close': 'Закрыть',
+      'action.edit': 'Изменить',
+      'action.delete': 'Удалить',
+      'list.search': 'Поиск MCP-серверов…',
+      'list.searchAria': 'Поиск MCP-серверов',
+      'list.scope': 'Этот компьютер · Пользователь',
+      'list.scopeUser': 'Этот компьютер: Пользователь',
+      'list.scopeProjects': 'Проекты',
+      'list.scopeComingSoon': 'Скоро',
+      'list.scopeAria': 'Сменить область',
+      'list.scopeLabel': 'Область',
+      'list.mcp': 'MCP',
+      'list.installed': 'Установленные',
+      'list.externalHint': 'Предоставлен другим плагином или ручной записью профиля — только чтение.',
+      'list.noResults': 'Нет MCP-серверов, соответствующих поиску.',
+      'list.new': 'Новый',
+      'list.more': 'Ещё действия',
+      'list.importMenu': 'Импорт…',
+      'list.exportMenu': 'Экспорт…',
+      'list.riskBadge': 'Риск: {level}',
+      'list.secretsBadge': 'Содержит значения секретов',
+      'list.statusAria': 'Статус: {status}',
+      'list.tools': 'Инструментов: {count}',
+      'list.auditTitle': 'Журнал аудита',
       'status.enabled': 'Включён',
       'status.disabled': 'Отключён',
       'transport.stdio': 'stdio',
       'transport.http': 'streamable-http',
-      'transport.stdioLong': 'stdio (локальный процесс)',
-      'transport.httpLong': 'streamable-http (удалённый URL)',
+      'transport.stdioLong': 'stdio (локальная команда)',
+      'transport.httpLong': 'Streamable HTTP',
       'notice.savedCreate': 'Сервер сохранён отключённым. Проверьте его и включите, когда будете готовы.',
       'notice.savedUpdate': 'Изменения сохранены. Сервер останется отключённым, пока вы его не включите.',
       'notice.imported': 'Импортировано серверов (отключены): {count}.',
@@ -515,42 +592,61 @@ window.__ModuleLoader__.load({
       'error.detail': 'Поле: {path}',
       'form.titleCreate': 'Добавление MCP-сервера',
       'form.titleEdit': 'Изменение сервера {name}',
+      'form.newTitle': 'Новый MCP-сервер',
+      'form.subtitleCreate': 'Заполните конфигурацию нового MCP-сервера и сохраните, чтобы вернуться к списку.',
+      'form.subtitleEdit': 'Обновите конфигурацию MCP-сервера и сохраните, чтобы вернуться к списку.',
       'form.back': 'Назад к списку',
       'form.name': 'Имя',
       'form.nameHint': 'Только латинские буквы, цифры, _ и -; 1–32 символа.',
-      'form.editNotice':
-        'В целях безопасности сохранённые команда, аргументы, URL и значения секретов не возвращаются. Введите команду и аргументы (или URL) полностью заново; значения секретов сохраняются по ключам, если поле значения оставить пустым.',
-      'form.scope': 'Область: плагин управляет MCP-серверами в профиле {profile}. Любое сохранение выполняется отключённым — включайте после проверки.',
+      'form.namePlaceholder': 'my-mcp-server',
+      'form.nameLocked': 'Имя сервера нельзя изменить после создания.',
       'form.type': 'Тип',
+      'form.typeStdio': 'stdio (локальная команда)',
+      'form.typeHttp': 'Streamable HTTP',
       'form.timeout': 'Таймаут, мс',
+      'form.timeoutPlaceholder': '60000',
       'form.timeoutHint': 'Таймаут вызова, 1000–600000 мс.',
       'form.protocol': 'Версия протокола',
-      'form.protocolAuto': 'Авто (официальный клиент)',
+      'form.protocolAuto': 'Авто (рекомендуется)',
       'form.command': 'Команда',
+      'form.commandPlaceholder': 'npx',
       'form.commandHint': 'Исполняемый файл или путь; запускается напрямую, без shell.',
-      'form.commandEditHint':
-        'Сохранённая команда не возвращается (показан эндпоинт: {endpoint}). Введите её заново.',
       'form.args': 'Аргументы',
+      'form.argsLabel': 'Аргументы (через пробел)',
+      'form.argsPlaceholder': '-y @modelcontextprotocol/server-memory',
       'form.argsHint':
         'Разделяются пробелом или переводом строки. Одинарные и двойные кавычки группируют один аргумент; ничего не вычисляется.',
-      'form.argsEditHint':
-        'В целях безопасности сохранённые аргументы не возвращаются ({count}). Введите полный список аргументов заново.',
       'form.cwd': 'Рабочий каталог',
       'form.cwdHint': 'Необязательный абсолютный путь.',
       'form.url': 'URL',
       'form.urlHint': 'Полный URL, включая путь, например https://host.example/mcp.',
       'form.env': 'Переменные окружения',
-      'form.envHint': 'Значения только для записи: сохранённые значения больше не показываются.',
+      'form.envOptional': 'Переменные окружения (необязательно)',
       'form.headers': 'Заголовки',
-      'form.headersHint': 'Значения только для записи: сохранённые значения больше не показываются.',
-      'form.kvKey': 'Ключ',
-      'form.kvValue': 'Значение (только запись)',
-      'form.kvStored': 'сохранено — оставьте пустым, чтобы сохранить',
-      'form.kvKeepHint': 'Пустое значение сохранённого ключа означает «оставить как есть».',
-      'form.kvNone': 'Записей пока нет.',
-      'form.kvAddEnv': 'Добавить переменную',
-      'form.kvAddHeader': 'Добавить заголовок',
-      'form.kvRemove': 'Удалить',
+      'form.headersOptional': 'Заголовки (необязательно)',
+      'form.envJsonHint':
+        'Сохранённые значения не показываются. Оставьте существующий ключ пустым, чтобы сохранить значение, задайте значение для замены или удалите ключ, чтобы удалить его.',
+      'form.envJsonInvalid': 'Переменные окружения должны быть JSON-объектом со строковыми значениями.',
+      'form.headersJsonInvalid': 'Заголовки должны быть JSON-объектом со строковыми значениями.',
+      'form.envPlaceholder': '{\n  "MY_API_KEY": "your-key"\n}',
+      'form.headersPlaceholder': '{\n  "Authorization": "Bearer …"\n}',
+      'form.fullConfiguration': 'Полная конфигурация',
+      'form.tabForm': 'Форма',
+      'form.tabJson': 'JSON',
+      'form.tabsLabel': 'Редактор конфигурации',
+      'form.jsonHint':
+        'Редактируемая конфигурация черновика. Сохранённые секреты показаны пустыми; дополнительные параметры остаются на вкладке «Форма».',
+      'form.jsonHintLong':
+        'Можно вставить {"server-name": {...}} или {"mcpServers": {"server-name": {...}}}.',
+      'form.jsonInvalid': 'Некорректный JSON.',
+      'form.jsonShape': 'Ожидается объект конфигурации одного сервера.',
+      'form.jsonUnknownField': 'Неподдерживаемое поле в JSON-конфигурации.',
+      'form.clearSecrets': 'Сохранённые значения секретов будут удалены для ключей: {keys}',
+      'form.clearAck': 'Я понимаю, что эти сохранённые значения будут удалены.',
+      'form.saveDisabled': 'Сохранение станет доступно, когда черновик пройдёт проверку.',
+      'form.save': 'Сохранить',
+      'form.cancel': 'Отмена',
+      'form.required': 'Обязательно',
       'form.advanced': 'Дополнительно',
       'form.reconnectEnabled': 'Переподключаться автоматически',
       'form.reconnectAttempts': 'Максимум попыток переподключения',
@@ -559,21 +655,10 @@ window.__ModuleLoader__.load({
       'form.allowPlainHttp': 'Разрешить plaintext HTTP не на loopback',
       'form.allowPlainHttpWarning':
         'Включайте только для доверенного хоста под вашим контролем: соединение будет незашифрованным.',
-      'form.tabForm': 'Форма',
-      'form.tabJson': 'JSON',
-      'form.tabsLabel': 'Редактор сервера',
-      'form.jsonHint':
-        'Редактируемая запись mcpServers для этого черновика. Сохранённые секреты показаны заглушками; дополнительные параметры остаются на вкладке «Форма».',
-      'form.jsonInvalid': 'Некорректный JSON.',
-      'form.jsonShape': 'Ожидается объект mcpServers с одной записью.',
-      'form.jsonUnknownField': 'Неподдерживаемое поле в JSON-записи.',
-      'form.clearSecrets': 'Сохранённые значения секретов будут удалены для ключей: {keys}',
-      'form.clearAck': 'Я понимаю, что эти сохранённые значения будут удалены.',
-      'form.saveDisabled': 'Сохранение станет доступно, когда черновик пройдёт проверку.',
-      'form.save': 'Сохранить',
-      'form.cancel': 'Отмена',
-      'form.nameLocked': 'Имя сервера нельзя изменить после создания.',
-      'form.required': 'Обязательно',
+      'form.analysis': 'Проверка',
+      'form.analysisValid': 'Конфигурация корректна.',
+      'form.editNotice':
+        'В целях безопасности эта версия Host не возвращает сохранённые команду, аргументы, URL и значения секретов. Введите команду и аргументы (или URL) полностью заново; значения секретов сохраняются по ключам, если поле значения оставить пустым.',
       'analyze.pending': 'Проверка…',
       'analyze.valid': 'Конфигурация корректна.',
       'analyze.problems': 'Проблемы проверки',
@@ -655,7 +740,6 @@ window.__ModuleLoader__.load({
       'a11y.delete': 'Удалить сервер {name}',
       'a11y.check': 'Проверить сервер {name}',
       'a11y.refresh': 'Обновить список серверов',
-      'a11y.removeEntry': 'Удалить запись {key}',
       'a11y.toolsOf': 'Зарегистрированные инструменты для {name}',
       'a11y.riskOf': 'Найденные риски для {name}',
       'a11y.riskLevel': 'Уровень риска',
@@ -666,6 +750,13 @@ window.__ModuleLoader__.load({
       'a11y.formTab': 'Редактор формы',
       'a11y.jsonTab': 'Редактор JSON',
       'a11y.transportGroup': 'Тип транспорта',
+      'a11y.openServer': 'Открыть сервер {name}',
+      'a11y.rowMenu': 'Действия для {name}',
+      'a11y.newServer': 'Добавить MCP-сервер',
+      'a11y.importServers': 'Импорт MCP-серверов',
+      'a11y.exportServers': 'Экспорт MCP-серверов',
+      'a11y.scopePill': 'Выбор области',
+      'a11y.selectIcon': 'Выбрать',
       'error.NAME_INVALID': 'Имя сервера может содержать только латинские буквы, цифры, _ и - (1–32 символа).',
       'error.NAME_CONFLICT': 'Это имя уже используется другим MCP-сервером.',
       'error.TRANSPORT_INVALID': 'Неподдерживаемый транспорт. Выберите stdio или streamable-http.',
@@ -739,56 +830,90 @@ window.__ModuleLoader__.load({
     /* ------------------------------------------------------------------ */
 
     const STYLES = `
-.mcpg-section{box-sizing:border-box;display:flex;flex-direction:column;gap:12px;width:100%;max-width:760px;color:var(--dsw-alias-label-primary);font-size:14px;line-height:22px}
-.mcpg-title{margin:0;font-size:20px;font-weight:500;line-height:28px}
-.mcpg-h2{margin:0;font-size:18px;font-weight:600;line-height:26px}
-.mcpg-intro{margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-tertiary)}
-.mcpg-head{display:flex;flex-direction:column;gap:4px;min-width:0}
-.mcpg-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.mcpg-page{box-sizing:border-box;display:flex;flex-direction:column;gap:18px;width:100%;max-width:960px;color:var(--dsw-alias-label-primary);font-size:14px;line-height:22px}
+.mcpg-page-title{margin:0;font-size:28px;font-weight:600;line-height:36px;letter-spacing:-.01em}
+.mcpg-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-width:0}
 .mcpg-grow{flex:1 1 auto}
-.mcpg-sectionline{display:flex;align-items:baseline;gap:8px;margin-top:8px}
-.mcpg-h3{margin:0;font-size:14px;font-weight:600;line-height:20px}
-.mcpg-count{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
-.mcpg-empty{margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-tertiary)}
-.mcpg-btn{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 14px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;cursor:pointer;white-space:nowrap;text-decoration:none}
-.mcpg-btn:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
-.mcpg-btn:active:not(:disabled){background:var(--dsw-alias-interactive-bg-active)}
-.mcpg-btn:disabled{opacity:.4;cursor:not-allowed}
-.mcpg-btn:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
-.mcpg-btn-outline{box-shadow:inset 0 0 0 .5px var(--dsw-alias-border-l3)}
-.mcpg-btn-primary{background:var(--dsw-alias-button-primary-fill);color:var(--dsw-alias-label-primary-foreground)}
-.mcpg-btn-primary:hover:not(:disabled){background:var(--dsw-alias-button-primary-hover)}
-.mcpg-btn-danger{color:var(--dsw-alias-state-error-primary);box-shadow:inset 0 0 0 .5px var(--dsw-alias-border-l3)}
-.mcpg-btn-danger:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent)}
-.mcpg-btn-sm{height:28px;padding:0 10px;font-size:12px;line-height:18px;border-radius:6px}
-.mcpg-btn-icon{width:30px;height:30px;padding:0;border-radius:8px}
-.mcpg-tag{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:1px 8px;font-size:11px;line-height:17px;font-weight:500;white-space:nowrap;border:.5px solid transparent;box-sizing:border-box}
-.mcpg-tag-neutral{background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary)}
-.mcpg-tag-quiet{color:var(--dsw-alias-label-tertiary);border-color:var(--dsw-alias-border-l3)}
-.mcpg-tag-success{background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 12%,transparent);color:var(--dsw-alias-state-success-primary)}
-.mcpg-tag-warning{background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 14%,transparent);color:var(--dsw-alias-state-warn-primary)}
-.mcpg-tag-danger{background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 12%,transparent);color:var(--dsw-alias-state-error-primary)}
-.mcpg-tag-info{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 12%,transparent);color:var(--dsw-alias-state-business-primary)}
-.mcpg-cards{display:flex;flex-direction:column;gap:10px}
-.mcpg-card{box-sizing:border-box;display:flex;flex-direction:column;gap:10px;border:.5px solid var(--dsw-alias-settings-card-stroke);border-radius:12px;background:var(--dsw-alias-settings-card-fill);padding:12px 14px}
-.mcpg-rowline{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-.mcpg-main{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 auto}
-.mcpg-nameline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
-.mcpg-name{font-size:14px;font-weight:600;line-height:20px;overflow-wrap:anywhere}
-.mcpg-meta{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);overflow-wrap:anywhere}
-.mcpg-meta-strong{color:var(--dsw-alias-label-secondary)}
-.mcpg-actions{display:flex;align-items:center;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end}
-.mcpg-actions-end{display:flex;align-items:center;gap:8px;justify-content:flex-end}
-.mcpg-switch{box-sizing:border-box;position:relative;flex:0 0 auto;width:36px;height:20px;padding:2px;border:0;border-radius:999px;background:var(--dsw-alias-border-l3);cursor:pointer}
-.mcpg-switch[aria-checked="true"]{background:var(--dsw-alias-brand-primary)}
+.mcpg-scope-wrap{position:relative;display:inline-flex}
+.mcpg-scope-pill{box-sizing:border-box;display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px;border:.5px solid var(--dsw-alias-border-l3);border-radius:999px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;cursor:pointer;white-space:nowrap}
+.mcpg-scope-pill:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
+.mcpg-scope-pill:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
+.mcpg-scope-pill:disabled{cursor:default;opacity:.5}
+.mcpg-scope-text{overflow:hidden;text-overflow:ellipsis}
+.mcpg-scope-chevron{flex:none;color:var(--dsw-alias-label-tertiary)}
+.mcpg-toolbar-divider{flex:none;width:1px;height:20px;background:var(--dsw-alias-border-l3);border-radius:1px}
+.mcpg-mcp-count{display:inline-flex;align-items:baseline;gap:6px;font-size:14px;line-height:20px;color:var(--dsw-alias-label-primary)}
+.mcpg-mcp-count b{font-weight:600}
+.mcpg-mcp-count span{color:var(--dsw-alias-label-tertiary);font-size:13px}
+.mcpg-search{position:relative;flex:0 1 260px;min-width:150px;margin-left:auto}
+.mcpg-search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--dsw-alias-label-tertiary);pointer-events:none;display:flex}
+.mcpg-search-input{box-sizing:border-box;width:100%;height:40px;padding:0 12px 0 36px;border:.5px solid var(--dsw-alias-border-l3);border-radius:10px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px}
+.mcpg-search-input::placeholder{color:var(--dsw-alias-label-tertiary)}
+.mcpg-search-input:focus-visible{outline:none;border-color:var(--dsw-alias-state-business-primary)}
+.mcpg-group-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;margin-top:2px}
+.mcpg-group-title{margin:0;display:inline-flex;align-items:baseline;gap:8px;font-size:15px;font-weight:600;line-height:22px}
+.mcpg-group-count{color:var(--dsw-alias-label-tertiary);font-weight:500;font-size:13px}
+.mcpg-group-actions{display:inline-flex;align-items:center;gap:8px;margin-left:auto;flex:none}
+.mcpg-icon-btn{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border:.5px solid var(--dsw-alias-border-l3);border-radius:999px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer}
+.mcpg-icon-btn:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.mcpg-icon-btn:active:not(:disabled){background:var(--dsw-alias-interactive-bg-active)}
+.mcpg-icon-btn:disabled{opacity:.4;cursor:not-allowed}
+.mcpg-icon-btn:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
+.mcpg-group{box-sizing:border-box;border:.5px solid var(--dsw-alias-settings-card-stroke);border-radius:12px;background:var(--dsw-alias-settings-card-fill)}
+.mcpg-group>.mcpg-row:first-child{border-top-left-radius:11px;border-top-right-radius:11px}
+.mcpg-group>.mcpg-row:last-child{border-bottom-left-radius:11px;border-bottom-right-radius:11px}
+.mcpg-group-hint{margin:0;padding:0 2px;color:var(--dsw-alias-label-tertiary);font-size:12.5px;line-height:18px}
+.mcpg-row{display:flex;align-items:center;gap:12px;min-height:74px;padding:10px 14px;background:transparent}
+.mcpg-row+.mcpg-row{border-top:.5px solid var(--dsw-alias-border-l2)}
+.mcpg-row:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.mcpg-row-main{box-sizing:border-box;display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 auto;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;border-radius:8px}
+.mcpg-row-main:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:4px}
+.mcpg-row-icon{flex:none;display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;border:.5px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary)}
+.mcpg-row-text{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto}
+.mcpg-row-name{display:flex;align-items:center;gap:6px;min-width:0;font-size:15px;font-weight:600;line-height:20px}
+.mcpg-row-name-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mcpg-row-sub{display:flex;align-items:center;gap:6px;min-width:0;color:var(--dsw-alias-label-tertiary);font-size:12.5px;line-height:18px}
+.mcpg-row-sub-text{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.mcpg-row-sub-note{color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcpg-row-end{display:flex;align-items:center;gap:8px;flex:none}
+.mcpg-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-state-success-primary)}
+.mcpg-dot[data-on="false"]{background:var(--dsw-alias-border-l3)}
+.mcpg-dot[data-warn="true"]{background:var(--dsw-alias-state-warn-primary)}
+.mcpg-mark{display:inline-flex;align-items:center;justify-content:center;flex:none;width:16px;height:16px;opacity:.9}
+.mcpg-mark-risk[data-level="critical"],.mcpg-mark-risk[data-level="high"]{color:var(--dsw-alias-state-error-primary)}
+.mcpg-mark-risk[data-level="medium"]{color:var(--dsw-alias-state-warn-primary)}
+.mcpg-mark-risk[data-level="low"],.mcpg-mark-risk[data-level="info"]{color:var(--dsw-alias-state-business-primary)}
+.mcpg-mark-secret{color:var(--dsw-alias-label-tertiary)}
+.mcpg-tools-note{flex:none;color:var(--dsw-alias-label-tertiary);font-size:11.5px;line-height:16px;white-space:nowrap}
+.mcpg-switch{box-sizing:border-box;position:relative;flex:0 0 auto;width:44px;height:26px;padding:2px;border:0;border-radius:999px;background:var(--dsw-alias-border-l3);cursor:pointer}
+.mcpg-switch[aria-checked="true"]{background:var(--dsw-alias-button-primary-fill)}
 .mcpg-switch:disabled{cursor:default;opacity:.5}
 .mcpg-switch:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
-.mcpg-switch-thumb{display:block;width:16px;height:16px;border-radius:50%;background:var(--dsw-alias-switch-thumb);transition:transform .12s ease}
-.mcpg-switch[aria-checked="true"] .mcpg-switch-thumb{background:var(--dsw-alias-label-primary-foreground);transform:translate(16px)}
-.mcpg-panel{box-sizing:border-box;border:.5px solid var(--dsw-alias-settings-card-stroke);border-radius:12px;background:var(--dsw-alias-settings-card-fill);padding:10px 14px}
-.mcpg-panel>summary{display:flex;align-items:center;gap:8px;min-height:28px;cursor:pointer;font-size:13px;font-weight:500;line-height:20px;list-style:none}
-.mcpg-panel>summary::-webkit-details-marker{display:none}
-.mcpg-panel>summary:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px;border-radius:6px}
+.mcpg-switch-thumb{display:block;width:22px;height:22px;border-radius:50%;background:var(--dsw-alias-switch-thumb);transition:transform .14s ease}
+.mcpg-switch[aria-checked="true"] .mcpg-switch-thumb{background:var(--dsw-alias-label-primary-foreground);transform:translate(18px)}
+.mcpg-menu-wrap{position:relative;display:inline-flex}
+.mcpg-menu{position:absolute;z-index:40;top:calc(100% + 6px);right:0;min-width:190px;box-sizing:border-box;padding:6px;display:flex;flex-direction:column;gap:2px;border:.5px solid var(--dsw-alias-border-l3);border-radius:10px;background:var(--dsw-alias-bg-layer-2);box-shadow:0 10px 30px color-mix(in srgb,var(--dsw-alias-label-primary) 16%,transparent)}
+.mcpg-menu[data-align="left"]{left:0;right:auto}
+.mcpg-menu-label{padding:6px 10px 2px;color:var(--dsw-alias-label-tertiary);font-size:11.5px;line-height:16px}
+.mcpg-menu-item{box-sizing:border-box;display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;text-align:left;cursor:pointer}
+.mcpg-menu-item:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
+.mcpg-menu-item:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:-2px}
+.mcpg-menu-item:disabled{color:var(--dsw-alias-label-tertiary);cursor:default}
+.mcpg-menu-item-danger{color:var(--dsw-alias-state-error-primary)}
+.mcpg-menu-item-icon{display:inline-flex;flex:none;color:var(--dsw-alias-label-tertiary)}
+.mcpg-menu-item-check{margin-left:auto;display:inline-flex;color:var(--dsw-alias-label-primary)}
+.mcpg-menu-note{margin-left:auto;color:var(--dsw-alias-label-tertiary);font-size:11.5px;line-height:16px}
+.mcpg-empty-state{box-sizing:border-box;padding:32px 16px;border:.5px dashed var(--dsw-alias-border-l3);border-radius:12px;text-align:center;color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:20px}
+.mcpg-audit{border:.5px solid var(--dsw-alias-settings-card-stroke);border-radius:12px;background:var(--dsw-alias-settings-card-fill);overflow:hidden}
+.mcpg-audit>summary{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;list-style:none;cursor:pointer;font-size:14px;font-weight:500;line-height:20px}
+.mcpg-audit>summary::-webkit-details-marker{display:none}
+.mcpg-audit>summary:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:-2px}
+.mcpg-audit-chevron{margin-left:auto;display:inline-flex;color:var(--dsw-alias-label-tertiary);transition:transform .15s ease}
+.mcpg-audit[open]>summary .mcpg-audit-chevron{transform:rotate(180deg)}
+.mcpg-auditlist{display:flex;flex-direction:column;margin:0;padding:0 14px 10px;list-style:none}
+.mcpg-auditrow{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:7px 0;border-top:.5px solid var(--dsw-alias-border-l2);font-size:12px;line-height:18px}
+.mcpg-audittime{color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums}
+.mcpg-auditserver{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}
 .mcpg-banner{box-sizing:border-box;display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:10px;font-size:13px;line-height:20px}
 .mcpg-banner-text{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
 .mcpg-banner-detail{color:var(--dsw-alias-label-tertiary);font-size:12px}
@@ -797,59 +922,97 @@ window.__ModuleLoader__.load({
 .mcpg-banner-warning{background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 12%,transparent);color:var(--dsw-alias-state-warn-primary)}
 .mcpg-banner-info{background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary)}
 .mcpg-banner-success{background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 12%,transparent);color:var(--dsw-alias-state-success-primary)}
-.mcpg-form{display:flex;flex-direction:column;gap:12px}
+.mcpg-btn{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 16px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;cursor:pointer;white-space:nowrap;text-decoration:none}
+.mcpg-btn:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
+.mcpg-btn:active:not(:disabled){background:var(--dsw-alias-interactive-bg-active)}
+.mcpg-btn:disabled{opacity:.4;cursor:not-allowed}
+.mcpg-btn:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
+.mcpg-btn-outline{box-shadow:inset 0 0 0 .5px var(--dsw-alias-border-l3)}
+.mcpg-btn-primary{background:var(--dsw-alias-button-primary-fill);color:var(--dsw-alias-label-primary-foreground)}
+.mcpg-btn-primary:hover:not(:disabled){background:var(--dsw-alias-button-primary-hover)}
+.mcpg-btn-ghost{color:var(--dsw-alias-label-secondary)}
+.mcpg-btn-ghost:hover:not(:disabled){color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover)}
+.mcpg-btn-danger{color:var(--dsw-alias-state-error-primary);box-shadow:inset 0 0 0 .5px var(--dsw-alias-border-l3)}
+.mcpg-btn-danger:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent)}
+.mcpg-btn-sm{height:30px;padding:0 12px;font-size:12px;line-height:18px;border-radius:7px}
+.mcpg-breadcrumbs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;font-size:13px;line-height:20px}
+.mcpg-crumb{background:none;border:0;padding:0;font:inherit;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary);cursor:pointer}
+.mcpg-crumb:hover{color:var(--dsw-alias-label-primary)}
+.mcpg-crumb:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px;border-radius:4px}
+.mcpg-crumb-sep{display:inline-flex;color:var(--dsw-alias-label-tertiary)}
+.mcpg-crumb-current{color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}
+.mcpg-form-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.mcpg-form-titles{display:flex;flex-direction:column;gap:4px;min-width:0}
+.mcpg-form-title{margin:0;font-size:24px;font-weight:600;line-height:32px}
+.mcpg-form-subtitle{margin:0;color:var(--dsw-alias-label-tertiary);font-size:14px;line-height:20px}
+.mcpg-tabs{display:inline-flex;gap:2px;padding:3px;border-radius:999px;background:var(--dsw-alias-bg-module-platform);flex:none}
+.mcpg-tab{height:30px;padding:0 16px;border:0;border-radius:999px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;line-height:20px;cursor:pointer}
+.mcpg-tab[aria-selected="true"]{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-weight:500;box-shadow:0 1px 2px color-mix(in srgb,var(--dsw-alias-label-primary) 14%,transparent)}
+.mcpg-tab:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
+.mcpg-card{box-sizing:border-box;border:.5px solid var(--dsw-alias-settings-card-stroke);border-radius:12px;background:var(--dsw-alias-settings-card-fill);padding:20px}
+.mcpg-form-card{display:flex;flex-direction:column;gap:16px}
+.mcpg-form-fields{display:flex;flex-direction:column;gap:14px;min-width:0}
+.mcpg-field-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;min-width:0}
 .mcpg-field{display:flex;flex-direction:column;gap:6px;min-width:0}
-.mcpg-label{font-size:13px;font-weight:500;line-height:20px;color:var(--dsw-alias-label-primary)}
-.mcpg-hint{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);overflow-wrap:anywhere}
-.mcpg-invalid{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary);overflow-wrap:anywhere}
-.mcpg-input,.mcpg-textarea,.mcpg-select{box-sizing:border-box;width:100%;min-height:34px;padding:6px 10px;border:.5px solid var(--dsw-alias-border-l4);border-radius:8px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px}
+.mcpg-field-grow{flex:1 1 240px}
+.mcpg-field-narrow{max-width:320px}
+.mcpg-label{color:var(--dsw-alias-label-primary);font-size:14px;font-weight:500;line-height:20px}
+.mcpg-hint{margin:0;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
+.mcpg-invalid{margin:0;color:var(--dsw-alias-state-error-primary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
+.mcpg-input,.mcpg-select,.mcpg-textarea{box-sizing:border-box;width:100%;border:.5px solid var(--dsw-alias-border-l3);border-radius:8px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:20px}
+.mcpg-input,.mcpg-select{height:40px;padding:0 12px}
+.mcpg-input::placeholder,.mcpg-textarea::placeholder{color:var(--dsw-alias-label-tertiary)}
 .mcpg-input:focus-visible,.mcpg-textarea:focus-visible,.mcpg-select:focus-visible{outline:none;border-color:var(--dsw-alias-state-business-primary)}
 .mcpg-input[aria-invalid="true"],.mcpg-textarea[aria-invalid="true"]{border-color:var(--dsw-alias-state-error-primary)}
-.mcpg-input:disabled,.mcpg-textarea:disabled,.mcpg-select:disabled{color:var(--dsw-alias-label-tertiary);cursor:default}
-.mcpg-textarea{resize:vertical;min-height:76px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:18px}
-.mcpg-textarea-plain{font-family:inherit;font-size:13px;line-height:20px}
-.mcpg-grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
-.mcpg-entryrow{display:flex;align-items:flex-start;gap:8px}
-.mcpg-entryrow .mcpg-input{flex:1 1 auto}
-.mcpg-entryrow-key{flex:0 1 42%}
-.mcpg-code{margin:0;padding:8px 10px;border:.5px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:18px;white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto;max-height:240px}
-.mcpg-inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.mcpg-tabs{display:inline-flex;gap:4px;padding:3px;border-radius:10px;background:var(--dsw-alias-bg-module-platform);align-self:flex-start}
-.mcpg-tab{height:28px;padding:0 14px;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;line-height:20px;cursor:pointer}
-.mcpg-tab[aria-selected="true"]{background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font-weight:500;box-shadow:inset 0 0 0 .5px var(--dsw-alias-border-l3)}
-.mcpg-tab:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:1px}
-.mcpg-segmented{display:inline-flex;gap:4px;padding:3px;border-radius:10px;background:var(--dsw-alias-bg-module-platform);align-self:flex-start}
-.mcpg-segment{height:28px;padding:0 14px;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;line-height:20px;cursor:pointer}
-.mcpg-segment[aria-checked="true"]{background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font-weight:500;box-shadow:inset 0 0 0 .5px var(--dsw-alias-border-l3)}
-.mcpg-segment:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:1px}
-.mcpg-check{display:inline-flex;align-items:flex-start;gap:8px;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary);cursor:pointer}
-.mcpg-check input{flex:0 0 auto;width:16px;height:16px;margin:2px 0 0;accent-color:var(--dsw-alias-brand-primary);cursor:pointer}
-.mcpg-check input:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
-.mcpg-advanced{display:flex;flex-direction:column;gap:12px}
-.mcpg-advanced>summary{margin-bottom:0}
-.mcpg-advanced-body{display:flex;flex-direction:column;gap:12px;padding-top:10px}
+.mcpg-input:disabled,.mcpg-select:disabled{color:var(--dsw-alias-label-tertiary);cursor:default}
+.mcpg-textarea{padding:10px 12px;min-height:76px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:18px}
+.mcpg-select-wrap{position:relative;display:block}
+.mcpg-select{appearance:none;padding-right:34px;cursor:pointer}
+.mcpg-select-chevron{position:absolute;right:13px;top:50%;width:7px;height:7px;border-right:1.5px solid var(--dsw-alias-label-tertiary);border-bottom:1.5px solid var(--dsw-alias-label-tertiary);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+.mcpg-scope-inline{display:inline-flex;align-items:center;gap:8px;flex:none}
+.mcpg-scope-label{color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:20px}
+.mcpg-details{box-sizing:border-box;border:.5px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-layer-1);overflow:hidden}
+.mcpg-details>summary{display:flex;align-items:center;gap:8px;min-height:42px;padding:0 14px;list-style:none;cursor:pointer;color:var(--dsw-alias-label-primary);font-size:13.5px;font-weight:500;line-height:20px}
+.mcpg-details>summary::-webkit-details-marker{display:none}
+.mcpg-details>summary:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:-2px}
+.mcpg-details-chevron{margin-left:auto;display:inline-flex;color:var(--dsw-alias-label-tertiary);transition:transform .15s ease}
+.mcpg-details[open]>summary .mcpg-details-chevron{transform:rotate(180deg)}
+.mcpg-details-body{display:flex;flex-direction:column;gap:12px;padding:0 14px 14px}
+.mcpg-status-tag{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:1px 8px;font-size:11px;line-height:17px;font-weight:500;white-space:nowrap;border:.5px solid transparent;box-sizing:border-box}
+.mcpg-status-tag[data-tone="neutral"]{background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary)}
+.mcpg-status-tag[data-tone="quiet"]{color:var(--dsw-alias-label-tertiary);border-color:var(--dsw-alias-border-l3)}
+.mcpg-status-tag[data-tone="success"]{background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 12%,transparent);color:var(--dsw-alias-state-success-primary)}
+.mcpg-status-tag[data-tone="warning"]{background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 14%,transparent);color:var(--dsw-alias-state-warn-primary)}
+.mcpg-status-tag[data-tone="danger"]{background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 12%,transparent);color:var(--dsw-alias-state-error-primary)}
+.mcpg-status-tag[data-tone="info"]{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 12%,transparent);color:var(--dsw-alias-state-business-primary)}
 .mcpg-risks{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
-.mcpg-risk{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.mcpg-risk{display:flex;align-items:flex-start;gap:8px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
 .mcpg-risk-text{display:flex;flex-direction:column;gap:2px;min-width:0}
-.mcpg-risk-params{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary);overflow-wrap:anywhere}
-.mcpg-preview{display:flex;flex-direction:column;gap:6px}
-.mcpg-preview-label{margin:0;font-size:12px;font-weight:500;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.mcpg-risk-params{color:var(--dsw-alias-label-tertiary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;line-height:16px;overflow-wrap:anywhere}
+.mcpg-preview{display:flex;flex-direction:column;gap:6px;min-width:0}
+.mcpg-preview-label{display:flex;align-items:center;gap:8px;margin:0;color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:500;line-height:18px}
+.mcpg-code{margin:0;padding:9px 11px;border:.5px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:18px;white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto;max-height:220px}
 .mcpg-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none}
 .mcpg-chip{padding:1px 6px;border-radius:6px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;line-height:16px;overflow-wrap:anywhere}
-.mcpg-auditlist{display:flex;flex-direction:column;margin:8px 0 0;padding:0;list-style:none}
-.mcpg-auditrow{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:6px 0;border-top:.5px solid var(--dsw-alias-border-l2);font-size:12px;line-height:18px}
-.mcpg-audittime{color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums}
-.mcpg-auditserver{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}
+.mcpg-form-footer{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding-top:2px}
+.mcpg-analysis-summary-state{margin-left:auto;display:inline-flex;align-items:center;gap:8px}
 .mcpg-modal-root{position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;padding:24px}
 .mcpg-modal-mask{position:absolute;inset:0;background:var(--dsw-alias-bg-mask-1);backdrop-filter:blur(2px)}
 .mcpg-modal{position:relative;z-index:1;box-sizing:border-box;display:flex;flex-direction:column;width:min(600px,100%);max-height:min(760px,calc(100vh - 48px));overflow:hidden;border:.5px solid var(--dsw-alias-border-l3);border-radius:16px;background:var(--dsw-alias-bg-layer-2);box-shadow:0 12px 40px color-mix(in srgb,var(--dsw-alias-label-primary) 20%,transparent)}
 .mcpg-modal:focus{outline:none}
-.mcpg-modal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:20px 14px 10px 22px}
-.mcpg-modal-title{margin:0;font-size:16px;font-weight:500;line-height:24px;color:var(--dsw-alias-label-primary)}
-.mcpg-modal-body{display:flex;flex-direction:column;gap:12px;min-height:0;padding:0 22px;overflow-y:auto;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary)}
+.mcpg-modal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:20px 16px 10px 22px}
+.mcpg-modal-title{margin:0;color:var(--dsw-alias-label-primary);font-size:18px;font-weight:600;line-height:26px}
+.mcpg-modal-body{display:flex;flex-direction:column;gap:12px;min-height:0;padding:0 22px;overflow-y:auto;color:var(--dsw-alias-label-primary);font-size:13px;line-height:20px}
 .mcpg-modal-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:16px 22px 20px}
+.mcpg-check{display:inline-flex;align-items:flex-start;gap:8px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:20px;cursor:pointer}
+.mcpg-check input{flex:0 0 auto;width:16px;height:16px;margin:2px 0 0;accent-color:var(--dsw-alias-brand-primary);cursor:pointer}
+.mcpg-check input:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
 .mcpg-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-@media (max-width:560px){.mcpg-grid2{grid-template-columns:minmax(0,1fr)}.mcpg-rowline{flex-direction:column}.mcpg-actions{align-self:flex-start}}
+.mcpg-mini-row{display:flex;align-items:center;gap:10px;min-width:0}
+.mcpg-mini-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.mcpg-mini-name{font-size:13px;font-weight:600;line-height:18px;overflow-wrap:anywhere}
+.mcpg-mini-meta{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:16px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
+@media (max-width:620px){.mcpg-page-title{font-size:24px;line-height:32px}.mcpg-form-title{font-size:22px;line-height:30px}.mcpg-field-narrow{max-width:none}.mcpg-search{flex:1 1 100%;margin-left:0}.mcpg-card{padding:16px}.mcpg-row{padding:10px 12px}}
 `;
 
     function installStyles() {
@@ -992,6 +1155,176 @@ window.__ModuleLoader__.load({
     }
 
     /* ------------------------------------------------------------------ */
+    /* Icons (currentColor only; no literal colors)                        */
+    /* ------------------------------------------------------------------ */
+
+    function SvgBase({ size, children, viewBox }) {
+      return h(
+        'svg',
+        {
+          width: size,
+          height: size,
+          viewBox: viewBox || '0 0 24 24',
+          fill: 'none',
+          'aria-hidden': 'true',
+          focusable: 'false',
+          style: { display: 'block' },
+        },
+        children,
+      );
+    }
+
+    function MonitorIcon({ size = 14 }) {
+      return h(
+        SvgBase,
+        { size },
+        h('rect', { x: 3, y: 4, width: 18, height: 13, rx: 2, stroke: 'currentColor', strokeWidth: 1.5 }),
+        h('path', { d: 'M8 21h8M12 17v4', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' }),
+      );
+    }
+
+    function SearchIcon({ size = 16 }) {
+      return h(
+        SvgBase,
+        { size },
+        h('circle', { cx: 11, cy: 11, r: 7, stroke: 'currentColor', strokeWidth: 1.6 }),
+        h('path', { d: 'm20 20-3.6-3.6', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' }),
+      );
+    }
+
+    function RefreshIcon({ size = 16 }) {
+      return h(
+        SvgBase,
+        { size },
+        h('path', {
+          d: 'M20 12a8 8 0 1 1-2.35-5.65M20 4v6h-6',
+          stroke: 'currentColor',
+          strokeWidth: 1.6,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+        }),
+      );
+    }
+
+    function PlugIcon({ size = 18 }) {
+      return h(
+        SvgBase,
+        { size },
+        h('path', {
+          d: 'M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0V8ZM12 17v4',
+          stroke: 'currentColor',
+          strokeWidth: 1.6,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+        }),
+      );
+    }
+
+    function GlobeIcon({ size = 18 }) {
+      return h(
+        SvgBase,
+        { size },
+        h('circle', { cx: 12, cy: 12, r: 8, stroke: 'currentColor', strokeWidth: 1.5 }),
+        h('ellipse', { cx: 12, cy: 12, rx: 3.5, ry: 8, stroke: 'currentColor', strokeWidth: 1.5 }),
+        h('path', { d: 'M4 9h16M4 15h16', stroke: 'currentColor', strokeWidth: 1.5 }),
+      );
+    }
+
+    function LockIcon({ size = 16 }) {
+      return h(
+        SvgBase,
+        { size },
+        h('rect', { x: 5, y: 10, width: 14, height: 10, rx: 2, stroke: 'currentColor', strokeWidth: 1.5 }),
+        h('path', { d: 'M8 10V7a4 4 0 0 1 8 0v3', stroke: 'currentColor', strokeWidth: 1.5 }),
+      );
+    }
+
+    function ShieldIcon({ size = 13 }) {
+      return h(
+        SvgBase,
+        { size },
+        h('path', {
+          d: 'M12 3 19 6v5c0 4-2.8 7.2-7 9-4.2-1.8-7-5-7-9V6l7-3Z',
+          stroke: 'currentColor',
+          strokeWidth: 1.6,
+          strokeLinejoin: 'round',
+        }),
+      );
+    }
+
+    function KeyIcon({ size = 13 }) {
+      return h(
+        SvgBase,
+        { size },
+        h('circle', { cx: 8, cy: 15, r: 4, stroke: 'currentColor', strokeWidth: 1.6 }),
+        h('path', { d: 'm11 12 8-8M17 4h3v3', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' }),
+      );
+    }
+
+    function FolderIcon({ size = 15 }) {
+      return h(
+        SvgBase,
+        { size },
+        h('path', {
+          d: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z',
+          stroke: 'currentColor',
+          strokeWidth: 1.5,
+        }),
+      );
+    }
+
+    function UserIcon({ size = 15 }) {
+      return h(
+        SvgBase,
+        { size },
+        h('circle', { cx: 12, cy: 9, r: 3.5, stroke: 'currentColor', strokeWidth: 1.5 }),
+        h('path', { d: 'M5.5 20a6.5 6.5 0 0 1 13 0', stroke: 'currentColor', strokeWidth: 1.5 }),
+      );
+    }
+
+    function CheckIcon({ size = 14 }) {
+      return h(
+        SvgBase,
+        { size },
+        h('path', { d: 'm5 12 4 4L19 6', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }),
+      );
+    }
+
+    function PlusIcon({ size = 14 }) {
+      return h(
+        SvgBase,
+        { size },
+        h('path', { d: 'M12 5v14M5 12h14', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' }),
+      );
+    }
+
+    function ChevronDownIcon({ size = 12 }) {
+      return h(
+        SvgBase,
+        { size },
+        h('path', { d: 'm6 9 6 6 6-6', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }),
+      );
+    }
+
+    function ChevronRightIcon({ size = 12 }) {
+      return h(
+        SvgBase,
+        { size },
+        h('path', { d: 'm9 6 6 6-6 6', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }),
+      );
+    }
+
+    function EllipsisIcon({ size = 16 }) {
+      return h(
+        SvgBase,
+        { size },
+        h('circle', { cx: 5, cy: 12, r: 1.7, fill: 'currentColor' }),
+        h('circle', { cx: 12, cy: 12, r: 1.7, fill: 'currentColor' }),
+        h('circle', { cx: 19, cy: 12, r: 1.7, fill: 'currentColor' }),
+      );
+    }
+
+    /* ------------------------------------------------------------------ */
     /* Primitive components                                                */
     /* ------------------------------------------------------------------ */
 
@@ -1001,6 +1334,7 @@ window.__ModuleLoader__.load({
       if (variant === 'primary') classes.push('mcpg-btn-primary');
       else if (variant === 'outline') classes.push('mcpg-btn-outline');
       else if (variant === 'danger') classes.push('mcpg-btn-danger');
+      else if (variant === 'ghost') classes.push('mcpg-btn-ghost');
       if (size === 'sm') classes.push('mcpg-btn-sm');
       if (className) classes.push(className);
       const elementProps = { ...rest };
@@ -1010,7 +1344,7 @@ window.__ModuleLoader__.load({
     }
 
     function Tag({ tone, children, title }) {
-      return h('span', { className: 'mcpg-tag mcpg-tag-' + (tone || 'neutral'), title }, children);
+      return h('span', { className: 'mcpg-status-tag', 'data-tone': tone || 'neutral', title }, children);
     }
 
     function Switch({ checked, disabled, label, onChange }) {
@@ -1023,7 +1357,8 @@ window.__ModuleLoader__.load({
           'aria-checked': checked ? 'true' : 'false',
           'aria-label': label,
           disabled: disabled === true,
-          onClick: () => {
+          onClick: (event) => {
+            event.stopPropagation();
             if (!disabled) onChange(!checked);
           },
         },
@@ -1047,11 +1382,11 @@ window.__ModuleLoader__.load({
     }
 
     function TextField(props) {
-      const { id, label, value, onChange, hint, errors, placeholder, disabled, type, readOnly, inputMode, min, max, autoComplete } = props;
+      const { id, label, value, onChange, hint, errors, placeholder, disabled, type, readOnly, inputMode, min, max, autoComplete, className } = props;
       const hasError = Boolean(errors && errors.length);
       return h(
         'div',
-        { className: 'mcpg-field' },
+        { className: 'mcpg-field' + (className ? ' ' + className : '') },
         label ? h('label', { className: 'mcpg-label', htmlFor: id }, label) : null,
         h('input', {
           id,
@@ -1082,15 +1417,15 @@ window.__ModuleLoader__.load({
     }
 
     function TextAreaField(props) {
-      const { id, label, value, onChange, hint, errors, rows, monospace, placeholder, ariaLabel } = props;
+      const { id, label, value, onChange, hint, errors, rows, placeholder, ariaLabel, className } = props;
       const hasError = Boolean(errors && errors.length);
       return h(
         'div',
-        { className: 'mcpg-field' },
+        { className: 'mcpg-field' + (className ? ' ' + className : '') },
         label ? h('label', { className: 'mcpg-label', htmlFor: id }, label) : null,
         h('textarea', {
           id,
-          className: 'mcpg-textarea' + (monospace === false ? ' mcpg-textarea-plain' : ''),
+          className: 'mcpg-textarea',
           value: value === undefined || value === null ? '' : String(value),
           rows: rows || 5,
           placeholder: placeholder || undefined,
@@ -1101,6 +1436,42 @@ window.__ModuleLoader__.load({
           'aria-describedby': hasError || hint ? id + '-meta' : undefined,
           onChange: (event) => onChange(event.target.value),
         }),
+        hint || hasError
+          ? h(
+              'div',
+              { id: id + '-meta' },
+              hint ? h('p', { className: 'mcpg-hint' }, hint) : null,
+              hasError ? errors.map((text, index) => h('p', { key: index, className: 'mcpg-invalid' }, text)) : null,
+            )
+          : null,
+      );
+    }
+
+    function SelectField(props) {
+      const { id, label, value, onChange, options, disabled, hint, errors, className } = props;
+      const hasError = Boolean(errors && errors.length);
+      return h(
+        'div',
+        { className: 'mcpg-field' + (className ? ' ' + className : '') },
+        label ? h('label', { className: 'mcpg-label', htmlFor: id }, label) : null,
+        h(
+          'span',
+          { className: 'mcpg-select-wrap' },
+          h(
+            'select',
+            {
+              id,
+              className: 'mcpg-select',
+              value,
+              disabled: disabled === true,
+              'aria-invalid': hasError ? 'true' : undefined,
+              'aria-describedby': hasError || hint ? id + '-meta' : undefined,
+              onChange: (event) => onChange(event.target.value),
+            },
+            options.map((option) => h('option', { key: option.value, value: option.value }, option.label)),
+          ),
+          h('span', { className: 'mcpg-select-chevron', 'aria-hidden': 'true' }),
+        ),
         hint || hasError
           ? h(
               'div',
@@ -1169,24 +1540,40 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function Segmented({ value, onChange, options, label }) {
+    function Menu({ trigger, children, label, align }) {
+      const [open, setOpen] = useState(false);
+      const wrapRef = useRef(null);
+      useEffect(() => {
+        if (!open) return undefined;
+        const onPointerDown = (event) => {
+          const node = wrapRef.current;
+          if (node && !node.contains(event.target)) setOpen(false);
+        };
+        const onKeyDown = (event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            setOpen(false);
+          }
+        };
+        document.addEventListener('pointerdown', onPointerDown, true);
+        document.addEventListener('keydown', onKeyDown, true);
+        return () => {
+          document.removeEventListener('pointerdown', onPointerDown, true);
+          document.removeEventListener('keydown', onKeyDown, true);
+        };
+      }, [open]);
       return h(
         'div',
-        { className: 'mcpg-segmented', role: 'radiogroup', 'aria-label': label },
-        options.map((option) =>
-          h(
-            'button',
-            {
-              key: option.value,
-              type: 'button',
-              role: 'radio',
-              className: 'mcpg-segment',
-              'aria-checked': value === option.value ? 'true' : 'false',
-              onClick: () => onChange(option.value),
-            },
-            option.label,
-          ),
-        ),
+        { className: 'mcpg-menu-wrap', ref: wrapRef },
+        trigger({ open, toggle: () => setOpen((previous) => !previous), close: () => setOpen(false) }),
+        open
+          ? h(
+              'div',
+              { className: 'mcpg-menu', role: 'menu', 'aria-label': label, 'data-align': align || 'right' },
+              children(() => setOpen(false)),
+            )
+          : null,
       );
     }
 
@@ -1194,7 +1581,6 @@ window.__ModuleLoader__.load({
       const titleId = useId ? useId() : 'mcpg-modal-title';
       const dialogRef = useRef(null);
       const onCloseRef = useRef(onClose);
-      // Keep the latest close handler without re-running the focus/Escape effect.
       useEffect(() => {
         onCloseRef.current = onClose;
       }, [onClose]);
@@ -1234,7 +1620,6 @@ window.__ModuleLoader__.load({
               {
                 size: 'sm',
                 variant: 'outline',
-                className: 'mcpg-btn-icon',
                 onClick: onClose,
                 'aria-label': closeLabel,
                 title: closeLabel,
@@ -1249,8 +1634,107 @@ window.__ModuleLoader__.load({
     }
 
     /* ------------------------------------------------------------------ */
-    /* Risk / preview presentation                                         */
+    /* Shared presentation pieces                                          */
     /* ------------------------------------------------------------------ */
+
+    function ScopePill({ runtime }) {
+      return h(Menu, {
+        label: runtime.translate('list.scopeAria'),
+        align: 'left',
+        trigger: ({ open, toggle }) =>
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'mcpg-scope-pill',
+              'aria-haspopup': 'menu',
+              'aria-expanded': open ? 'true' : 'false',
+              'aria-label': runtime.translate('a11y.scopePill'),
+              onClick: toggle,
+            },
+            h(MonitorIcon, null),
+            h('span', { className: 'mcpg-scope-text' }, runtime.translate('list.scope')),
+            h('span', { className: 'mcpg-scope-chevron' }, h(ChevronDownIcon, null)),
+          ),
+        children: (close) => [
+          h('div', { key: 'label', className: 'mcpg-menu-label' }, runtime.translate('list.scopeLabel')),
+          h(
+            'button',
+            {
+              key: 'user',
+              type: 'button',
+              role: 'menuitemradio',
+              'aria-checked': 'true',
+              className: 'mcpg-menu-item',
+              onClick: close,
+            },
+            h('span', { className: 'mcpg-menu-item-icon' }, h(UserIcon, null)),
+            h('span', null, runtime.translate('list.scopeUser')),
+            h('span', { className: 'mcpg-menu-item-check' }, h(CheckIcon, null)),
+          ),
+          h(
+            'button',
+            {
+              key: 'projects',
+              type: 'button',
+              role: 'menuitem',
+              className: 'mcpg-menu-item',
+              disabled: true,
+              title: runtime.translate('list.scopeComingSoon'),
+            },
+            h('span', { className: 'mcpg-menu-item-icon' }, h(FolderIcon, null)),
+            h('span', null, runtime.translate('list.scopeProjects')),
+            h('span', { className: 'mcpg-menu-note' }, runtime.translate('list.scopeComingSoon')),
+          ),
+        ],
+      });
+    }
+
+    function SearchField({ runtime, value, onChange }) {
+      return h(
+        'div',
+        { className: 'mcpg-search' },
+        h('span', { className: 'mcpg-search-icon' }, h(SearchIcon, null)),
+        h('input', {
+          type: 'search',
+          className: 'mcpg-search-input',
+          value,
+          placeholder: runtime.translate('list.search'),
+          'aria-label': runtime.translate('list.searchAria'),
+          spellCheck: 'false',
+          autoComplete: 'off',
+          onChange: (event) => onChange(event.target.value),
+        }),
+      );
+    }
+
+    function StatusDot({ runtime, enabled, lastCheck }) {
+      const failed = lastCheck && typeof lastCheck === 'object' && lastCheck.successful === false;
+      const title = failed
+        ? runtime.translate('page.checkFailed')
+        : runtime.translate('list.statusAria', {
+            status: runtime.translate(enabled ? 'status.enabled' : 'status.disabled'),
+          });
+      return h('span', { className: 'mcpg-dot', 'data-on': enabled ? 'true' : 'false', 'data-warn': failed ? 'true' : 'false', title, 'aria-hidden': 'true' });
+    }
+
+    function RiskMark({ runtime, level }) {
+      if (!level) return null;
+      const label = runtime.translate('list.riskBadge', { level: runtime.levelText(level) });
+      return h(
+        'span',
+        { className: 'mcpg-mark mcpg-mark-risk', 'data-level': level, title: label, role: 'img', 'aria-label': label },
+        h(ShieldIcon, null),
+      );
+    }
+
+    function SecretMark({ runtime }) {
+      return h(
+        'span',
+        { className: 'mcpg-mark mcpg-mark-secret', title: runtime.translate('list.secretsBadge'), role: 'img', 'aria-label': runtime.translate('list.secretsBadge') },
+        h(KeyIcon, null),
+      );
+    }
 
     function RiskList({ runtime, risks, emptyText }) {
       if (!Array.isArray(risks) || risks.length === 0) {
@@ -1316,109 +1800,52 @@ window.__ModuleLoader__.load({
     }
 
     /* ------------------------------------------------------------------ */
-    /* Key/value editor (write-only values)                                */
+    /* Entries <-> JSON text (write-only values)                           */
     /* ------------------------------------------------------------------ */
 
-    function KeyValueEditor(props) {
-      const { runtime, entries, onChange, kind, errors } = props;
-      const isEnv = kind === 'env';
-      const addLabel = isEnv ? runtime.translate('form.kvAddEnv') : runtime.translate('form.kvAddHeader');
-      const keyLabel = runtime.translate('form.kvKey');
-      const valueLabel = runtime.translate('form.kvValue');
-
-      function updateEntry(index, patch) {
-        const next = entries.map((entry, entryIndex) => (entryIndex === index ? { ...entry, ...patch } : entry));
-        onChange(next);
+    function entriesToJsonText(entries) {
+      const record = {};
+      let count = 0;
+      for (const entry of Array.isArray(entries) ? entries : []) {
+        const key = String(entry.key || '').trim();
+        if (key === '') continue;
+        record[key] = typeof entry.value === 'string' ? entry.value : '';
+        count += 1;
       }
-
-      function removeEntry(index) {
-        onChange(entries.filter((entry, entryIndex) => entryIndex !== index));
-      }
-
-      function entryIssues(entry, index) {
-        const messages = [];
-        for (const error of Array.isArray(errors) ? errors : []) {
-          const path = String(error.path || '');
-          const indexed = new RegExp('^' + kind + '\\[(\\d+)\\]').exec(path);
-          if (indexed && Number(indexed[1]) === index) {
-            messages.push(runtime.errorText(error.code));
-            continue;
-          }
-          if (entry.key && path === kind + '.' + entry.key) messages.push(runtime.errorText(error.code));
-        }
-        return messages;
-      }
-
-      return h(
-        'div',
-        { className: 'mcpg-field' },
-        h(
-          'div',
-          { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' } },
-          h('span', { className: 'mcpg-label' }, isEnv ? runtime.translate('form.env') : runtime.translate('form.headers')),
-          h(
-            Button,
-            { size: 'sm', variant: 'outline', onClick: () => onChange([...entries, { key: '', value: '', stored: false }]) },
-            addLabel,
-          ),
-        ),
-        entries.length === 0 ? h('p', { className: 'mcpg-hint' }, runtime.translate('form.kvNone')) : null,
-        entries.map((entry, index) => {
-          const issues = entryIssues(entry, index);
-          const keyId = 'mcpg-' + kind + '-key-' + index;
-          const valueId = 'mcpg-' + kind + '-value-' + index;
-          return h(
-            'div',
-            { key: index, className: 'mcpg-field' },
-            h(
-              'div',
-              { className: 'mcpg-entryrow' },
-              h('input', {
-                id: keyId,
-                className: 'mcpg-input mcpg-entryrow-key',
-                type: 'text',
-                value: entry.key,
-                readOnly: entry.stored === true,
-                placeholder: keyLabel,
-                'aria-label': keyLabel + ' ' + (index + 1),
-                spellCheck: 'false',
-                autoComplete: 'off',
-                onChange: (event) => updateEntry(index, { key: event.target.value }),
-              }),
-              h('input', {
-                id: valueId,
-                className: 'mcpg-input',
-                type: 'password',
-                value: entry.value || '',
-                placeholder: entry.stored === true ? runtime.translate('form.kvStored') : valueLabel,
-                'aria-label': valueLabel + ' ' + (entry.key || index + 1),
-                autoComplete: 'new-password',
-                spellCheck: 'false',
-                'aria-invalid': issues.length ? 'true' : undefined,
-                onChange: (event) => updateEntry(index, { value: event.target.value }),
-              }),
-              h(
-                Button,
-                {
-                  size: 'sm',
-                  variant: 'outline',
-                  className: 'mcpg-btn-icon',
-                  onClick: () => removeEntry(index),
-                  'aria-label': runtime.translate('a11y.removeEntry', { key: entry.key || index + 1 }),
-                  title: runtime.translate('form.kvRemove'),
-                },
-                '✕',
-              ),
-            ),
-            issues.length ? issues.map((text, issueIndex) => h('p', { key: issueIndex, className: 'mcpg-invalid' }, text)) : null,
-          );
-        }),
-      );
+      if (count === 0) return '';
+      return JSON.stringify(record, null, 2);
     }
 
-    function entryPayload(entries, kind, runtime) {
+    /**
+     * Parse an env/header JSON object.
+     * `""` keeps the stored value for an existing key; other strings replace it.
+     */
+    function jsonTextToEntries(text, storedKeys, invalidMessage) {
+      const trimmed = String(text ?? '').trim();
+      if (trimmed === '') return { ok: true, entries: [] };
+      let parsed;
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        return { ok: false, message: invalidMessage };
+      }
+      if (!isPlainObject(parsed)) return { ok: false, message: invalidMessage };
+      const stored = Array.isArray(storedKeys) ? storedKeys : [];
+      const entries = [];
+      for (const [key, value] of Object.entries(parsed)) {
+        if (key === '' || typeof value !== 'string') return { ok: false, message: invalidMessage };
+        if (value === '' && stored.includes(key)) {
+          entries.push({ key, value: '', stored: true });
+        } else {
+          entries.push({ key, value, stored: stored.includes(key) });
+        }
+      }
+      return { ok: true, entries };
+    }
+
+    function entriesToPayload(entries) {
       const payload = [];
-      for (const entry of entries) {
+      for (const entry of Array.isArray(entries) ? entries : []) {
         const key = String(entry.key || '').trim();
         if (key === '') continue;
         if (entry.stored === true && (entry.value === undefined || entry.value === '')) {
@@ -1431,69 +1858,157 @@ window.__ModuleLoader__.load({
     }
 
     /* ------------------------------------------------------------------ */
-    /* List page                                                           */
+    /* List page pieces                                                    */
     /* ------------------------------------------------------------------ */
 
-    function ToolList({ runtime, serverName, tools }) {
-      if (!Array.isArray(tools) || tools.length === 0) return null;
+    function ToolsSection({ runtime, servers }) {
+      const rows = (Array.isArray(servers) ? servers : []).filter(
+        (server) => Array.isArray(server.tools) && server.tools.length > 0,
+      );
+      if (rows.length === 0) return null;
+      const total = rows.reduce((sum, server) => sum + server.tools.length, 0);
       return h(
         'details',
-        { className: 'mcpg-panel' },
-        h('summary', null, runtime.translate('page.tools') + ' (' + tools.length + ')'),
+        { className: 'mcpg-audit' },
         h(
-          'ul',
-          { className: 'mcpg-chips', 'aria-label': runtime.translate('a11y.toolsOf', { name: serverName }) },
-          tools.map((tool) => h('li', { key: tool, className: 'mcpg-chip' }, tool)),
+          'summary',
+          { 'aria-label': runtime.translate('page.tools') },
+          h('span', null, runtime.translate('page.tools')),
+          h('span', { className: 'mcpg-group-count' }, String(total)),
+          h('span', { className: 'mcpg-audit-chevron' }, h(ChevronDownIcon, null)),
+        ),
+        h(
+          'div',
+          { className: 'mcpg-details-body', style: { padding: '0 14px 12px' } },
+          rows.map((serverRow) =>
+            h(
+              'div',
+              { key: serverRow.serverName, className: 'mcpg-preview' },
+              h('p', { className: 'mcpg-preview-label' }, serverRow.serverName),
+              h(
+                'ul',
+                { className: 'mcpg-chips', 'aria-label': runtime.translate('a11y.toolsOf', { name: serverRow.serverName }) },
+                serverRow.tools.map((tool) => h('li', { key: tool, className: 'mcpg-chip' }, tool)),
+              ),
+            ),
+          ),
         ),
       );
     }
 
-    function ServerCard({ runtime, row, busy, officialClient, checking, onToggle, onEdit, onDelete, onCheck }) {
+    function ServerRow({ runtime, row, busy, officialClient, checking, onToggle, onEdit, onDelete, onCheck }) {
       const name = row.serverName || '';
-      const isStdio = row.transport === TRANSPORT_STDIO;
       const toggleDisabled = busy || officialClient !== true || Boolean(row.configurationError);
-      const riskLevel = row.highestRisk;
-      const metaParts = [
-        runtime.translate(isStdio ? 'transport.stdioLong' : 'transport.httpLong'),
-        row.endpoint ? row.endpoint : null,
-        runtime.translate('page.timeout') + ' ' + row.timeoutMs + ' ms',
-        runtime.translate('page.tools') + ': ' + (row.toolCount || 0),
-        row.argumentCount > 0 ? runtime.translate('page.args') + ': ' + row.argumentCount : null,
-      ].filter(Boolean);
-
-      let lastCheckText = runtime.translate('page.neverChecked');
-      let lastCheckTone = 'quiet';
-      if (row.lastCheck && typeof row.lastCheck === 'object') {
-        lastCheckTone = row.lastCheck.successful ? 'success' : 'danger';
-        lastCheckText = (row.lastCheck.successful ? runtime.translate('page.checkOk') : runtime.translate('page.checkFailed')) +
-          (row.lastCheck.at ? ' · ' + formatTimestamp(row.lastCheck.at) : '');
-      }
-
+      const subtitle = serverSubtitle(row);
       return h(
-        'article',
-        { className: 'mcpg-card' },
+        'div',
+        { className: 'mcpg-row' },
         h(
-          'div',
-          { className: 'mcpg-rowline' },
+          'button',
+          {
+            type: 'button',
+            className: 'mcpg-row-main',
+            onClick: () => onEdit(row),
+            'aria-label': runtime.translate('a11y.openServer', { name }),
+          },
           h(
-            'div',
-            { className: 'mcpg-main' },
+            'span',
+            { className: 'mcpg-row-icon' },
+            row.transport === TRANSPORT_HTTP ? h(GlobeIcon, null) : h(PlugIcon, null),
+          ),
+          h(
+            'span',
+            { className: 'mcpg-row-text' },
             h(
-              'div',
-              { className: 'mcpg-nameline' },
-              h('span', { className: 'mcpg-name' }, name),
-              h(Tag, { tone: row.enabled ? 'success' : 'neutral' }, runtime.translate(row.enabled ? 'status.enabled' : 'status.disabled')),
-              riskLevel ? h(Tag, { tone: riskTone(riskLevel) }, runtime.levelText(riskLevel)) : null,
-              row.hasSecrets ? h(Tag, { tone: 'quiet' }, runtime.translate('page.secrets')) : null,
+              'span',
+              { className: 'mcpg-row-name' },
+              h('span', { className: 'mcpg-row-name-text' }, name),
+              row.highestRisk ? h(RiskMark, { runtime, level: row.highestRisk }) : null,
+              row.hasSecrets ? h(SecretMark, { runtime }) : null,
               row.configurationError ? h(Tag, { tone: 'danger' }, runtime.translate('page.invalid')) : null,
             ),
             h(
-              'div',
-              { className: 'mcpg-meta' },
-              metaParts.map((part, index) => h('span', { key: index }, (index > 0 ? ' · ' : '') + part)),
+              'span',
+              { className: 'mcpg-row-sub' },
+              h(StatusDot, { runtime, enabled: row.enabled === true, lastCheck: row.lastCheck }),
+              h('span', { className: 'mcpg-row-sub-text', title: subtitle }, subtitle),
             ),
-            h('div', null, h(Tag, { tone: lastCheckTone }, lastCheckText)),
           ),
+        ),
+        h(
+          'div',
+          { className: 'mcpg-row-end' },
+          row.toolCount > 0
+            ? h('span', { className: 'mcpg-tools-note' }, runtime.translate('list.tools', { count: row.toolCount }))
+            : null,
+          h(Menu, {
+            label: runtime.translate('a11y.rowMenu', { name }),
+            trigger: ({ open, toggle }) =>
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'mcpg-icon-btn',
+                  'aria-haspopup': 'menu',
+                  'aria-expanded': open ? 'true' : 'false',
+                  'aria-label': runtime.translate('a11y.rowMenu', { name }),
+                  title: runtime.translate('list.more'),
+                  disabled: busy,
+                  onClick: toggle,
+                },
+                h(EllipsisIcon, null),
+              ),
+            children: (close) => [
+              row.enabled
+                ? h(
+                    'button',
+                    {
+                      key: 'check',
+                      type: 'button',
+                      role: 'menuitem',
+                      className: 'mcpg-menu-item',
+                      disabled: Boolean(checking),
+                      onClick: () => {
+                        close();
+                        onCheck(row);
+                      },
+                    },
+                    h('span', { className: 'mcpg-menu-item-icon' }, h(RefreshIcon, { size: 14 })),
+                    h('span', null, checking ? runtime.translate('page.checking') : runtime.translate('page.check')),
+                  )
+                : null,
+              h(
+                'button',
+                {
+                  key: 'edit',
+                  type: 'button',
+                  role: 'menuitem',
+                  className: 'mcpg-menu-item',
+                  onClick: () => {
+                    close();
+                    onEdit(row);
+                  },
+                },
+                h('span', { className: 'mcpg-menu-item-icon' }, h(ChevronRightIcon, null)),
+                h('span', null, runtime.translate('action.edit')),
+              ),
+              h(
+                'button',
+                {
+                  key: 'delete',
+                  type: 'button',
+                  role: 'menuitem',
+                  className: 'mcpg-menu-item mcpg-menu-item-danger',
+                  onClick: () => {
+                    close();
+                    onDelete(row);
+                  },
+                },
+                h('span', { className: 'mcpg-menu-item-icon' }, h('span', { 'aria-hidden': 'true' }, '✕')),
+                h('span', null, runtime.translate('action.delete')),
+              ),
+            ],
+          }),
           h(Switch, {
             checked: row.enabled === true,
             disabled: toggleDisabled,
@@ -1501,68 +2016,32 @@ window.__ModuleLoader__.load({
             onChange: (next) => onToggle(row, next),
           }),
         ),
-        h(
-          'div',
-          { className: 'mcpg-rowline' },
-          h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
-            row.enabled
-              ? h(
-                  Button,
-                  {
-                    size: 'sm',
-                    variant: 'outline',
-                    disabled: busy || checking,
-                    onClick: () => onCheck(row),
-                  },
-                  checking ? runtime.translate('page.checking') : runtime.translate('page.check'),
-                )
-              : null,
-            h(
-              Button,
-              { size: 'sm', variant: 'outline', disabled: busy, onClick: () => onEdit(row) },
-              runtime.translate('action.edit'),
-            ),
-            h(
-              Button,
-              { size: 'sm', variant: 'danger', disabled: busy, onClick: () => onDelete(row) },
-              runtime.translate('action.delete'),
-            ),
-          ),
-          row.hasSecrets && (row.envKeys.length || row.headerKeys.length)
-            ? h(
-                'span',
-                { className: 'mcpg-meta' },
-                (row.envKeys.length ? 'env: ' + row.envKeys.join(', ') : ''),
-                row.envKeys.length && row.headerKeys.length ? ' · ' : '',
-                row.headerKeys.length ? 'headers: ' + row.headerKeys.join(', ') : '',
-              )
-            : null,
-        ),
-        row.configurationError
-          ? h(Banner, { tone: 'warning', text: runtime.errorText(row.configurationError) })
-          : null,
-        ToolList({ runtime, serverName: name, tools: row.tools }),
       );
     }
 
-    function ExternalCard({ runtime, row }) {
+    function ExternalRow({ runtime, row }) {
       return h(
-        'article',
-        { className: 'mcpg-card' },
+        'div',
+        { className: 'mcpg-row' },
         h(
           'div',
-          { className: 'mcpg-rowline' },
+          { className: 'mcpg-row-main', style: { cursor: 'default' } },
+          h('span', { className: 'mcpg-row-icon' }, h(LockIcon, null)),
           h(
-            'div',
-            { className: 'mcpg-main' },
+            'span',
+            { className: 'mcpg-row-text' },
             h(
-              'div',
-              { className: 'mcpg-nameline' },
-              h('span', { className: 'mcpg-name' }, row.serverName || ''),
-              h(Tag, { tone: row.enabled ? 'success' : 'neutral' }, runtime.translate(row.enabled ? 'status.enabled' : 'status.disabled')),
+              'span',
+              { className: 'mcpg-row-name' },
+              h('span', { className: 'mcpg-row-name-text' }, row.serverName || ''),
               h(Tag, { tone: 'quiet' }, runtime.translate('page.externalLocked')),
             ),
-            h('div', { className: 'mcpg-meta' }, runtime.translate(row.transport === TRANSPORT_STDIO ? 'transport.stdioLong' : 'transport.httpLong')),
+            h(
+              'span',
+              { className: 'mcpg-row-sub' },
+              h(StatusDot, { runtime, enabled: row.enabled === true, lastCheck: null }),
+              h('span', { className: 'mcpg-row-sub-note' }, runtime.translate('list.externalHint')),
+            ),
           ),
         ),
       );
@@ -1572,15 +2051,16 @@ window.__ModuleLoader__.load({
       const list = Array.isArray(entries) ? entries : [];
       return h(
         'details',
-        { className: 'mcpg-panel' },
+        { className: 'mcpg-audit' },
         h(
           'summary',
-          null,
-          h('span', { 'aria-label': runtime.translate('a11y.audit') }, runtime.translate('page.audit')),
-          h('span', { className: 'mcpg-count' }, '(' + list.length + ')'),
+          { 'aria-label': runtime.translate('a11y.audit') },
+          h('span', null, runtime.translate('list.auditTitle')),
+          h('span', { className: 'mcpg-group-count' }, '(' + list.length + ')'),
+          h('span', { className: 'mcpg-audit-chevron' }, h(ChevronDownIcon, null)),
         ),
         list.length === 0
-          ? h('p', { className: 'mcpg-hint' }, runtime.translate('page.auditEmpty'))
+          ? h('p', { className: 'mcpg-hint', style: { padding: '0 14px 14px' } }, runtime.translate('page.auditEmpty'))
           : h(
               'ul',
               { className: 'mcpg-auditlist' },
@@ -1605,7 +2085,7 @@ window.__ModuleLoader__.load({
     }
 
     /* ------------------------------------------------------------------ */
-    /* Modal bodies                                                        */
+    /* Modals                                                              */
     /* ------------------------------------------------------------------ */
 
     function EnableModal({ runtime, preview, busy, error, onClose, onConfirm }) {
@@ -1614,12 +2094,11 @@ window.__ModuleLoader__.load({
       const blocked = preview.blocked === true;
       const canConfirm = !busy && !blocked && (!needsAck || acknowledged);
       const title = runtime.translate('modal.enableTitle', { name: preview.serverName });
-      const closeLabel = runtime.translate('modal.close');
       return h(
         Modal,
         {
           title,
-          closeLabel,
+          closeLabel: runtime.translate('modal.close'),
           onClose: busy ? () => {} : onClose,
           footer: [
             h(Button, { key: 'cancel', variant: 'outline', disabled: busy, onClick: onClose }, runtime.translate('form.cancel')),
@@ -1633,7 +2112,7 @@ window.__ModuleLoader__.load({
         h('p', { className: 'mcpg-hint' }, runtime.translate('modal.enableReview')),
         h(
           'div',
-          { className: 'mcpg-inline' },
+          { className: 'mcpg-inline', style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
           h(Tag, { tone: 'neutral' }, runtime.translate(preview.transport === TRANSPORT_STDIO ? 'transport.stdioLong' : 'transport.httpLong')),
           preview.endpoint ? h('code', { className: 'mcpg-chip' }, preview.endpoint) : null,
         ),
@@ -1670,12 +2149,11 @@ window.__ModuleLoader__.load({
     }
 
     function ConfirmModal({ runtime, title, body, confirmLabel, tone, busy, error, onClose, onConfirm }) {
-      const closeLabel = runtime.translate('modal.close');
       return h(
         Modal,
         {
           title,
-          closeLabel,
+          closeLabel: runtime.translate('modal.close'),
           onClose: busy ? () => {} : onClose,
           footer: [
             h(Button, { key: 'cancel', variant: 'outline', disabled: busy, onClick: onClose }, runtime.translate('form.cancel')),
@@ -1696,8 +2174,6 @@ window.__ModuleLoader__.load({
       const [preview, setPreview] = useState(null);
       const [localError, setLocalError] = useState('');
       const [previewing, setPreviewing] = useState(false);
-      const closeLabel = runtime.translate('modal.close');
-
       const canImport = Boolean(preview) && !busy && preview.count > 0 && (!preview.errors || preview.errors.length === 0);
 
       async function handlePreview() {
@@ -1726,7 +2202,7 @@ window.__ModuleLoader__.load({
         Modal,
         {
           title: runtime.translate('modal.importTitle'),
-          closeLabel,
+          closeLabel: runtime.translate('modal.close'),
           onClose: busy ? () => {} : onClose,
           footer: [
             h(Button, { key: 'cancel', variant: 'outline', disabled: busy, onClick: onClose }, runtime.translate('form.cancel')),
@@ -1771,28 +2247,36 @@ window.__ModuleLoader__.load({
               Array.isArray(preview.errors) && preview.errors.length
                 ? h(
                     'ul',
-                    { className: 'mcpg-risk-text' },
+                    { className: 'mcpg-risks' },
                     preview.errors.map((item, index) => h('li', { key: index, className: 'mcpg-invalid' }, runtime.errorText(item && item.code))),
                   )
                 : null,
               h(
                 'div',
-                { className: 'mcpg-cards' },
+                { className: 'mcpg-cards', style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
                 (preview.servers || []).map((server, index) =>
                   h(
                     'div',
-                    { key: index, className: 'mcpg-card' },
+                    { key: index, className: 'mcpg-details-body', style: { padding: '10px 12px', border: '.5px solid var(--dsw-alias-border-l2)', borderRadius: '10px' } },
                     h(
                       'div',
-                      { className: 'mcpg-nameline' },
-                      h('span', { className: 'mcpg-name' }, server.serverName || ''),
-                      h(Tag, { tone: 'neutral' }, runtime.translate(server.transport === TRANSPORT_STDIO ? 'transport.stdioLong' : 'transport.httpLong')),
-                      server.highestRisk ? h(Tag, { tone: riskTone(server.highestRisk) }, runtime.levelText(server.highestRisk)) : null,
+                      { className: 'mcpg-mini-row' },
+                      h('span', { className: 'mcpg-row-icon' }, server.transport === TRANSPORT_STDIO ? h(PlugIcon, { size: 16 }) : h(GlobeIcon, { size: 16 })),
+                      h(
+                        'span',
+                        { className: 'mcpg-mini-main' },
+                        h(
+                          'span',
+                          { className: 'mcpg-mini-name' },
+                          server.serverName || '',
+                          server.highestRisk
+                            ? h(Tag, { tone: riskTone(server.highestRisk) }, runtime.levelText(server.highestRisk))
+                            : null,
+                        ),
+                        server.endpoint ? h('span', { className: 'mcpg-mini-meta' }, server.endpoint) : null,
+                      ),
                     ),
-                    server.endpoint ? h('div', { className: 'mcpg-meta' }, server.endpoint) : null,
-                    Array.isArray(server.risk) && server.risk.length
-                      ? h(RiskList, { runtime, risks: server.risk })
-                      : null,
+                    Array.isArray(server.risk) && server.risk.length ? h(RiskList, { runtime, risks: server.risk }) : null,
                   ),
                 ),
               ),
@@ -1810,7 +2294,6 @@ window.__ModuleLoader__.load({
       const [state, setState] = useState({ status: 'loading', json: '', error: null });
       const [copied, setCopied] = useState(false);
       const timerRef = useRef(null);
-      const closeLabel = runtime.translate('modal.close');
 
       useEffect(() => {
         let cancelled = false;
@@ -1849,7 +2332,7 @@ window.__ModuleLoader__.load({
         Modal,
         {
           title: runtime.translate('modal.exportTitle'),
-          closeLabel,
+          closeLabel: runtime.translate('modal.close'),
           onClose,
           footer: [
             h(
@@ -1877,7 +2360,7 @@ window.__ModuleLoader__.load({
     }
 
     /* ------------------------------------------------------------------ */
-    /* Edit page                                                           */
+    /* Draft helpers                                                       */
     /* ------------------------------------------------------------------ */
 
     function emptyDraft() {
@@ -1899,13 +2382,21 @@ window.__ModuleLoader__.load({
       };
     }
 
+    function storedEntries(keys) {
+      return (Array.isArray(keys) ? keys : []).map((key) => ({ key, value: '', stored: true }));
+    }
+
     function draftFromServer(server) {
       const draft = emptyDraft();
       if (!server) return draft;
       draft.serverName = server.serverName || '';
       draft.transport = server.transport === TRANSPORT_HTTP ? TRANSPORT_HTTP : TRANSPORT_STDIO;
-      draft.env = (server.envKeys || []).map((key) => ({ key, value: '', stored: true }));
-      draft.headers = (server.headerKeys || []).map((key) => ({ key, value: '', stored: true }));
+      if (typeof server.command === 'string') draft.command = server.command;
+      if (Array.isArray(server.args)) draft.argsText = server.args.map((arg) => quoteArg(arg)).join(' ');
+      if (typeof server.cwd === 'string') draft.cwd = server.cwd;
+      if (typeof server.url === 'string') draft.url = server.url;
+      draft.env = storedEntries(server.envKeys);
+      draft.headers = storedEntries(server.headerKeys);
       draft.timeoutMs = String(server.timeoutMs || 60000);
       draft.reconnectEnabled = !(server.reconnect && server.reconnect.enabled === false);
       draft.reconnectAttempts = String((server.reconnect && server.reconnect.maxAttempts) || 10);
@@ -1923,8 +2414,8 @@ window.__ModuleLoader__.load({
         argsText: draft.argsText,
         cwd: draft.cwd,
         url: draft.url,
-        env: entryPayload(draft.env, 'env'),
-        headers: entryPayload(draft.headers, 'headers'),
+        env: entriesToPayload(draft.env),
+        headers: entriesToPayload(draft.headers),
         timeoutMs: toNumberOrUndefined(draft.timeoutMs),
         reconnectEnabled: draft.reconnectEnabled === true,
         reconnectAttempts: toNumberOrUndefined(draft.reconnectAttempts),
@@ -1940,34 +2431,42 @@ window.__ModuleLoader__.load({
       return match ? match[0] : 'general';
     }
 
+    /* ------------------------------------------------------------------ */
+    /* JSON tab helpers (<name> object or mcpServers envelope)             */
+    /* ------------------------------------------------------------------ */
+
     function toJsonText(draft) {
       const parsed = parseArgsText(draft.argsText);
-      const name = String(draft.serverName || '').trim() || 'server';
-      const entry = { type: draft.transport === TRANSPORT_HTTP ? 'http' : 'stdio' };
+      const name = String(draft.serverName || '').trim() || 'my-mcp-server';
+      const entry = {};
       if (draft.transport === TRANSPORT_HTTP) {
-        if (String(draft.url || '').trim() !== '') entry.url = draft.url;
-        const headers = {};
-        for (const item of draft.headers) {
-          const key = String(item.key || '').trim();
-          if (key === '') continue;
-          headers[key] = item.stored === true && (!item.value || item.value === '') ? '${' + key + '}' : item.value || '';
+        entry.type = 'http';
+        entry.url = typeof draft.url === 'string' ? draft.url : '';
+        if (draft.headers.length) {
+          const headers = {};
+          for (const item of draft.headers) {
+            const key = String(item.key || '').trim();
+            if (key === '') continue;
+            headers[key] = typeof item.value === 'string' ? item.value : '';
+          }
+          entry.headers = headers;
         }
-        if (Object.keys(headers).length) entry.headers = headers;
       } else {
-        if (String(draft.command || '') !== '') entry.command = draft.command;
-        if (parsed.ok && parsed.args.length) entry.args = parsed.args;
-        const env = {};
-        for (const item of draft.env) {
-          const key = String(item.key || '').trim();
-          if (key === '') continue;
-          env[key] = item.stored === true && (!item.value || item.value === '') ? '${' + key + '}' : item.value || '';
-        }
-        if (Object.keys(env).length) entry.env = env;
+        entry.type = 'stdio';
+        entry.command = typeof draft.command === 'string' ? draft.command : '';
+        entry.args = parsed.ok ? parsed.args : [];
         if (String(draft.cwd || '').trim() !== '') entry.cwd = draft.cwd;
+        if (draft.env.length) {
+          const env = {};
+          for (const item of draft.env) {
+            const key = String(item.key || '').trim();
+            if (key === '') continue;
+            env[key] = typeof item.value === 'string' ? item.value : '';
+          }
+          entry.env = env;
+        }
       }
-      const document = { mcpServers: {} };
-      document.mcpServers[name] = entry;
-      return JSON.stringify(document, null, 2);
+      return JSON.stringify({ [name]: entry }, null, 2);
     }
 
     function fromJsonText(text, storedEnvKeys, storedHeaderKeys) {
@@ -1977,13 +2476,17 @@ window.__ModuleLoader__.load({
       } catch {
         return { ok: false, message: 'form.jsonInvalid' };
       }
-      if (!isPlainObject(parsed) || !isPlainObject(parsed.mcpServers)) {
-        return { ok: false, message: 'form.jsonShape' };
+      if (!isPlainObject(parsed)) return { ok: false, message: 'form.jsonShape' };
+      let servers;
+      if (isPlainObject(parsed.mcpServers)) {
+        servers = parsed.mcpServers;
+      } else {
+        servers = parsed;
       }
-      const names = Object.keys(parsed.mcpServers);
+      const names = Object.keys(servers);
       if (names.length !== 1) return { ok: false, message: 'form.jsonShape' };
       const name = names[0];
-      const entry = parsed.mcpServers[name];
+      const entry = servers[name];
       if (!isPlainObject(entry)) return { ok: false, message: 'form.jsonShape' };
       const allowed = ['type', 'command', 'args', 'env', 'cwd', 'url', 'headers'];
       for (const field of Object.keys(entry)) {
@@ -2025,27 +2528,26 @@ window.__ModuleLoader__.load({
         if (typeof entry.url !== 'string') return { ok: false, message: 'error.HTTP_URL_INVALID' };
         url = entry.url;
       }
-      function recordToEntries(record, storedKeys) {
-        const entries = [];
-        if (!hasOwn(entry, record)) return entries;
+      function recordToEntries(record, storedKeys, invalidMessage) {
+        if (!hasOwn(entry, record)) return [];
         const map = entry[record];
-        if (!isPlainObject(map)) return { invalid: true };
+        if (!isPlainObject(map)) return { invalid: invalidMessage };
+        const stored = Array.isArray(storedKeys) ? storedKeys : [];
+        const entries = [];
         for (const [key, raw] of Object.entries(map)) {
-          if (typeof raw !== 'string') return { invalid: true };
-          const placeholder = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/.exec(raw);
-          const stored = storedKeys.includes(key);
-          if (placeholder && placeholder[1] === key && stored) {
+          if (key === '' || typeof raw !== 'string') return { invalid: invalidMessage };
+          if (raw === '' && stored.includes(key)) {
             entries.push({ key, value: '', stored: true });
           } else {
-            entries.push({ key, value: raw, stored });
+            entries.push({ key, value: raw, stored: stored.includes(key) });
           }
         }
         return entries;
       }
-      const env = recordToEntries('env', storedEnvKeys);
-      if (env.invalid) return { ok: false, message: 'error.STDIO_ENV_INVALID' };
-      const headers = recordToEntries('headers', storedHeaderKeys);
-      if (headers.invalid) return { ok: false, message: 'error.HTTP_HEADERS_INVALID' };
+      const env = recordToEntries('env', storedEnvKeys, 'form.envJsonInvalid');
+      if (!Array.isArray(env)) return { ok: false, message: env.invalid };
+      const headers = recordToEntries('headers', storedHeaderKeys, 'form.headersJsonInvalid');
+      if (!Array.isArray(headers)) return { ok: false, message: headers.invalid };
       return {
         ok: true,
         value: {
@@ -2061,6 +2563,22 @@ window.__ModuleLoader__.load({
       };
     }
 
+    function problemText(runtime, problem) {
+      if (typeof problem === 'string') {
+        const known = runtime.optionalText(problem);
+        return known === null ? problem : known;
+      }
+      if (problem && typeof problem === 'object') {
+        const known = runtime.optionalText(problem.key);
+        return (known === null ? problem.key : known) + (problem.field ? ' · ' + problem.field : '');
+      }
+      return runtime.translate('error.unknown');
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Edit page                                                           */
+    /* ------------------------------------------------------------------ */
+
     function EditPage({ runtime, page, mode, serverName, onBack, onSaved, report }) {
       useLocaleRevision(runtime);
       const server = mode === 'edit' && page ? page.servers.find((item) => item.serverName === serverName) || null : null;
@@ -2069,6 +2587,10 @@ window.__ModuleLoader__.load({
       const [tab, setTab] = useState('form');
       const [jsonText, setJsonText] = useState('');
       const [jsonProblem, setJsonProblem] = useState(null);
+      const [envText, setEnvText] = useState(() => entriesToJsonText(initial.env));
+      const [headersText, setHeadersText] = useState(() => entriesToJsonText(initial.headers));
+      const [envProblem, setEnvProblem] = useState(null);
+      const [headersProblem, setHeadersProblem] = useState(null);
       const [touched, setTouched] = useState(false);
       const [saving, setSaving] = useState(false);
       const [clearAck, setClearAck] = useState(false);
@@ -2089,9 +2611,22 @@ window.__ModuleLoader__.load({
         setTouched(true);
       }
 
+      function changeTransport(nextTransport) {
+        setEnvProblem(null);
+        setHeadersProblem(null);
+        if (nextTransport === TRANSPORT_HTTP) {
+          patch({ transport: nextTransport, env: [] });
+          setEnvText('');
+        } else {
+          patch({ transport: nextTransport, headers: [] });
+          setHeadersText('');
+        }
+      }
+
       useEffect(() => {
         if (!touched) return undefined;
         if (tab === 'json' && jsonProblem) return undefined;
+        if (envProblem || headersProblem) return undefined;
         if (mode === 'edit' && !server) return undefined;
         let cancelled = false;
         const key = payloadKey;
@@ -2112,7 +2647,7 @@ window.__ModuleLoader__.load({
           cancelled = true;
           clearTimeout(timer);
         };
-      }, [payloadKey, touched, tab, jsonProblem, mode, serverName, server, runtime]);
+      }, [payloadKey, touched, tab, jsonProblem, envProblem, headersProblem, mode, serverName, server, runtime]);
 
       const ready = analysis.status === 'ready' && analysis.key === payloadKey;
       const analysisResult = ready ? analysis.result : null;
@@ -2148,7 +2683,6 @@ window.__ModuleLoader__.load({
         'allowPlainHttp',
         'reconnect',
       ];
-      const generalErrors = Object.keys(errorsByRoot).filter((root) => !renderedRoots.includes(root));
 
       function fieldErrorTexts(root) {
         const list = errorsByRoot[root] || [];
@@ -2169,8 +2703,34 @@ window.__ModuleLoader__.load({
         !blocked &&
         apiErrors.length === 0 &&
         !jsonProblem &&
+        !envProblem &&
+        !headersProblem &&
         (!needsClearAck || clearAck) &&
         analysis.status !== 'pending';
+
+      function handleEnvChange(value) {
+        setEnvText(value);
+        setTouched(true);
+        const parsed = jsonTextToEntries(value, storedEnvKeys, runtime.translate('form.envJsonInvalid'));
+        if (!parsed.ok) {
+          setEnvProblem(parsed.message);
+          return;
+        }
+        setEnvProblem(null);
+        setDraft((previous) => ({ ...previous, env: parsed.entries }));
+      }
+
+      function handleHeadersChange(value) {
+        setHeadersText(value);
+        setTouched(true);
+        const parsed = jsonTextToEntries(value, storedHeaderKeys, runtime.translate('form.headersJsonInvalid'));
+        if (!parsed.ok) {
+          setHeadersProblem(parsed.message);
+          return;
+        }
+        setHeadersProblem(null);
+        setDraft((previous) => ({ ...previous, headers: parsed.entries }));
+      }
 
       function selectTab(nextTab) {
         if (nextTab === tab) return;
@@ -2187,15 +2747,14 @@ window.__ModuleLoader__.load({
         }
         const parsed = fromJsonText(jsonText, storedEnvKeys, storedHeaderKeys);
         if (!parsed.ok) {
-          const problem = parsed.message;
-          const text =
-            typeof problem === 'string'
-              ? runtime.translate(problem)
-              : runtime.translate(problem.key) + (problem.field ? ' · ' + problem.field : '');
-          setJsonProblem(text);
+          setJsonProblem(problemText(runtime, parsed.message));
           return;
         }
         setDraft((previous) => ({ ...previous, ...parsed.value }));
+        setEnvText(entriesToJsonText(parsed.value.env));
+        setHeadersText(entriesToJsonText(parsed.value.headers));
+        setEnvProblem(null);
+        setHeadersProblem(null);
         setJsonProblem(null);
         setTab('form');
       }
@@ -2209,12 +2768,7 @@ window.__ModuleLoader__.load({
         }
         const parsed = fromJsonText(value, storedEnvKeys, storedHeaderKeys);
         if (!parsed.ok) {
-          const problem = parsed.message;
-          const text =
-            typeof problem === 'string'
-              ? runtime.translate(problem)
-              : runtime.translate(problem.key) + (problem.field ? ' · ' + problem.field : '');
-          setJsonProblem(text);
+          setJsonProblem(problemText(runtime, parsed.message));
           return;
         }
         setJsonProblem(null);
@@ -2238,129 +2792,91 @@ window.__ModuleLoader__.load({
         }
       }
 
+      const showEditNotice = mode === 'edit' && server && !serverHasDetails(server);
+      const generalErrorTexts = Object.keys(errorsByRoot)
+        .filter((root) => !renderedRoots.includes(root))
+        .flatMap((root) => (errorsByRoot[root] || []).map((item) => runtime.errorText(item.code)));
+      const bannerTexts = apiErrors.map((item) => runtime.errorText(item && item.code));
+      const analysisLevel = highestRisk(risks);
+      const analysisTone = blocked ? 'danger' : analysisLevel ? riskTone(analysisLevel) : 'success';
+      const analysisLabel = blocked
+        ? runtime.translate('analyze.blocked')
+        : analysisLevel
+          ? runtime.translate('risk.level') + ': ' + runtime.levelText(analysisLevel)
+          : runtime.translate('analyze.valid');
+
       if (mode === 'edit' && !server) {
         return h(
           'section',
-          { className: 'mcpg-section' },
-          h('h2', { className: 'mcpg-title' }, runtime.translate('form.titleEdit', { name: serverName })),
+          { className: 'mcpg-page' },
+          h('h1', { className: 'mcpg-page-title' }, runtime.translate('form.newTitle')),
           h(Banner, { tone: 'warning', text: runtime.translate('error.NOT_FOUND') }),
           h('div', null, h(Button, { variant: 'outline', onClick: onBack }, runtime.translate('form.back'))),
         );
       }
 
-      const formPanel = h(
+      const title = mode === 'create' ? runtime.translate('form.newTitle') : serverName || '';
+      const subtitle = runtime.translate(mode === 'create' ? 'form.subtitleCreate' : 'form.subtitleEdit');
+
+      const scopeInline = h(
         'div',
-        { className: 'mcpg-form' },
+        { className: 'mcpg-scope-inline' },
+        h('span', { className: 'mcpg-scope-label' }, runtime.translate('list.scopeLabel')),
+        h(ScopePill, { runtime }),
+      );
+
+      const advanced = h(
+        'details',
+        { className: 'mcpg-details' },
+        h(
+          'summary',
+          null,
+          runtime.translate('form.advanced'),
+          h('span', { className: 'mcpg-details-chevron' }, h(ChevronDownIcon, null)),
+        ),
         h(
           'div',
-          { className: 'mcpg-grid2' },
-          h(TextField, {
-            id: 'mcpg-name',
-            label: runtime.translate('form.name'),
-            value: draft.serverName,
-            disabled: mode === 'edit',
-            onChange: (value) => patch({ serverName: value }),
-            hint: mode === 'edit' ? runtime.translate('form.nameLocked') : runtime.translate('form.nameHint'),
-            errors: fieldErrorTexts('serverName'),
+          { className: 'mcpg-details-body' },
+          h(CheckboxField, {
+            id: 'mcpg-reconnect-enabled',
+            label: runtime.translate('form.reconnectEnabled'),
+            checked: draft.reconnectEnabled,
+            onChange: (checked) => patch({ reconnectEnabled: checked }),
+            errors: [...fieldErrorTexts('reconnectEnabled'), ...fieldErrorTexts('reconnect')],
           }),
           h(TextField, {
-            id: 'mcpg-timeout',
-            label: runtime.translate('form.timeout'),
-            value: draft.timeoutMs,
+            id: 'mcpg-reconnect-attempts',
+            label: runtime.translate('form.reconnectAttempts'),
+            value: draft.reconnectAttempts,
             inputMode: 'numeric',
-            onChange: (value) => patch({ timeoutMs: value }),
-            hint: runtime.translate('form.timeoutHint'),
-            errors: fieldErrorTexts('timeoutMs'),
+            onChange: (value) => patch({ reconnectAttempts: value }),
+            errors: fieldErrorTexts('reconnectAttempts'),
           }),
-        ),
-        h(
-          'div',
-          { className: 'mcpg-field' },
-          h('span', { className: 'mcpg-label' }, runtime.translate('form.type')),
-          h(Segmented, {
-            value: draft.transport,
-            onChange: (value) =>
-              patch(
-                value === TRANSPORT_HTTP
-                  ? { transport: value, env: [] }
-                  : { transport: value, headers: [] },
-              ),
-            label: runtime.translate('a11y.transportGroup'),
-            options: [
-              { value: TRANSPORT_STDIO, label: runtime.translate('transport.stdioLong') },
-              { value: TRANSPORT_HTTP, label: runtime.translate('transport.httpLong') },
-            ],
+          h(CheckboxField, {
+            id: 'mcpg-fail-startup',
+            label: runtime.translate('form.failOnStartupError'),
+            checked: draft.failOnStartupError,
+            onChange: (checked) => patch({ failOnStartupError: checked }),
+            errors: fieldErrorTexts('failOnStartupError'),
           }),
-          fieldErrorTexts('transport').map((text, index) => h('p', { key: index, className: 'mcpg-invalid' }, text)),
-        ),
-        h(TextField, {
-          id: 'mcpg-protocol',
-          label: runtime.translate('form.protocol'),
-          value: runtime.translate('form.protocolAuto'),
-          readOnly: true,
-          disabled: true,
-          onChange: () => {},
-        }),
-        draft.transport === TRANSPORT_STDIO
-          ? [
-              h(TextField, {
-                key: 'command',
-                id: 'mcpg-command',
-                label: runtime.translate('form.command'),
-                value: draft.command,
-                onChange: (value) => patch({ command: value }),
-                placeholder: server && server.transport === TRANSPORT_STDIO ? server.endpoint || '' : 'npx',
-                hint:
-                  mode === 'edit' && server
-                    ? runtime.translate('form.commandEditHint', { endpoint: server.endpoint || '—' })
-                    : runtime.translate('form.commandHint'),
-                errors: fieldErrorTexts('command'),
-              }),
-              h(TextAreaField, {
-                key: 'args',
-                id: 'mcpg-args',
-                label: runtime.translate('form.args'),
-                value: draft.argsText,
-                onChange: (value) => patch({ argsText: value }),
-                hint:
-                  mode === 'edit' && server && server.argumentCount > 0
-                    ? runtime.translate('form.argsEditHint', { count: server.argumentCount })
-                    : runtime.translate('form.argsHint'),
-                errors: [...fieldErrorTexts('argsText'), ...fieldErrorTexts('args')],
-                rows: 3,
-              }),
-              h(TextField, {
-                key: 'cwd',
+          h(TextField, {
+            id: 'mcpg-max-instruction',
+            label: runtime.translate('form.maxInstructionBytes'),
+            value: draft.maxInstructionBytes,
+            inputMode: 'numeric',
+            onChange: (value) => patch({ maxInstructionBytes: value }),
+            errors: fieldErrorTexts('maxInstructionBytes'),
+          }),
+          draft.transport === TRANSPORT_STDIO
+            ? h(TextField, {
                 id: 'mcpg-cwd',
                 label: runtime.translate('form.cwd'),
                 value: draft.cwd,
                 onChange: (value) => patch({ cwd: value }),
-                placeholder: server ? server.endpoint || '' : '',
                 hint: runtime.translate('form.cwdHint'),
                 errors: fieldErrorTexts('cwd'),
-              }),
-              h(KeyValueEditor, {
-                key: 'env',
-                runtime,
-                entries: draft.env,
-                onChange: (entries) => patch({ env: entries }),
-                kind: 'env',
-                errors: errorsByRoot.env || [],
-              }),
-            ]
-          : [
-              h(TextField, {
-                key: 'url',
-                id: 'mcpg-url',
-                label: runtime.translate('form.url'),
-                value: draft.url,
-                onChange: (value) => patch({ url: value }),
-                placeholder: server && server.transport === TRANSPORT_HTTP ? server.endpoint || '' : 'https://example.com/mcp',
-                hint: runtime.translate('form.urlHint'),
-                errors: fieldErrorTexts('url'),
-              }),
-              h(CheckboxField, {
-                key: 'plain',
+              })
+            : h(CheckboxField, {
                 id: 'mcpg-plain-http',
                 label: runtime.translate('form.allowPlainHttp'),
                 checked: draft.allowPlainHttp,
@@ -2368,163 +2884,280 @@ window.__ModuleLoader__.load({
                 hint: runtime.translate('form.allowPlainHttpWarning'),
                 errors: fieldErrorTexts('allowPlainHttp'),
               }),
-              h(KeyValueEditor, {
-                key: 'headers',
-                runtime,
-                entries: draft.headers,
-                onChange: (entries) => patch({ headers: entries }),
-                kind: 'headers',
-                errors: errorsByRoot.headers || [],
-              }),
-            ],
+        ),
+      );
+
+      const analysisDetails = h(
+        'details',
+        { className: 'mcpg-details' },
         h(
-          'details',
-          { className: 'mcpg-panel mcpg-advanced' },
-          h('summary', null, runtime.translate('form.advanced')),
+          'summary',
+          null,
+          runtime.translate('form.analysis'),
           h(
-            'div',
-            { className: 'mcpg-advanced-body' },
-            h(CheckboxField, {
-              id: 'mcpg-reconnect-enabled',
-              label: runtime.translate('form.reconnectEnabled'),
-              checked: draft.reconnectEnabled,
-              onChange: (checked) => patch({ reconnectEnabled: checked }),
-              errors: [...fieldErrorTexts('reconnectEnabled'), ...fieldErrorTexts('reconnect')],
-            }),
-            h(TextField, {
-              id: 'mcpg-reconnect-attempts',
-              label: runtime.translate('form.reconnectAttempts'),
-              value: draft.reconnectAttempts,
-              inputMode: 'numeric',
-              onChange: (value) => patch({ reconnectAttempts: value }),
-              errors: fieldErrorTexts('reconnectAttempts'),
-            }),
-            h(CheckboxField, {
-              id: 'mcpg-fail-startup',
-              label: runtime.translate('form.failOnStartupError'),
-              checked: draft.failOnStartupError,
-              onChange: (checked) => patch({ failOnStartupError: checked }),
-              errors: fieldErrorTexts('failOnStartupError'),
-            }),
-            h(TextField, {
-              id: 'mcpg-max-instruction',
-              label: runtime.translate('form.maxInstructionBytes'),
-              value: draft.maxInstructionBytes,
-              inputMode: 'numeric',
-              onChange: (value) => patch({ maxInstructionBytes: value }),
-              errors: fieldErrorTexts('maxInstructionBytes'),
-            }),
+            'span',
+            { className: 'mcpg-analysis-summary-state' },
+            analysis.status === 'pending'
+              ? h('span', { className: 'mcpg-hint' }, runtime.translate('analyze.pending'))
+              : analysisResult
+                ? h(Tag, { tone: analysisTone }, analysisLabel)
+                : h('span', { className: 'mcpg-hint' }, runtime.translate('risk.none')),
           ),
-        ),
-      );
-
-      const jsonPanel = h(
-        'div',
-        { className: 'mcpg-form' },
-        h('p', { className: 'mcpg-hint' }, runtime.translate('form.jsonHint')),
-        h(TextAreaField, {
-          id: 'mcpg-json',
-          value: jsonText,
-          onChange: handleJsonChange,
-          rows: 16,
-          errors: jsonProblem ? [jsonProblem] : [],
-          ariaLabel: runtime.translate('form.tabJson'),
-        }),
-      );
-
-      return h(
-        'section',
-        { className: 'mcpg-section' },
-        h(
-          'div',
-          { className: 'mcpg-head' },
-          h('h2', { className: 'mcpg-title' }, mode === 'create'
-            ? runtime.translate('form.titleCreate')
-            : runtime.translate('form.titleEdit', { name: serverName || '' })),
-          h('p', { className: 'mcpg-intro' }, runtime.translate('form.scope', { profile: (page && page.profileName) || 'desktop' })),
+          h('span', { className: 'mcpg-details-chevron' }, h(ChevronDownIcon, null)),
         ),
         h(
           'div',
-          { className: 'mcpg-toolbar' },
-          h(Button, { variant: 'outline', size: 'sm', onClick: onBack }, '← ' + runtime.translate('form.back')),
-        ),
-        mode === 'edit' ? h(Banner, { tone: 'info', text: runtime.translate('form.editNotice') }) : null,
-        h(Tabs, {
-          value: tab,
-          onChange: selectTab,
-          formLabel: runtime.translate('form.tabForm'),
-          jsonLabel: runtime.translate('form.tabJson'),
-          labels: tokens,
-        }),
-        h(
-          'div',
-          {
-            role: 'tabpanel',
-            id: 'mcpg-tabs-panel-' + tab,
-            'aria-label': tab === 'form' ? runtime.translate('a11y.formTab') : runtime.translate('a11y.jsonTab'),
-          },
-          tab === 'form' ? formPanel : jsonPanel,
-        ),
-        analysis.status === 'error' ? h(Banner, { tone: 'error', text: runtime.errorText(analysis.error && analysis.error.code), live: true }) : null,
-        generalErrors.length
-          ? h(
-              'div',
-              { className: 'mcpg-panel' },
-              h('p', { className: 'mcpg-preview-label' }, runtime.translate('analyze.problems')),
-              h(
+          { className: 'mcpg-details-body' },
+          generalErrorTexts.length
+            ? h(
                 'ul',
                 { className: 'mcpg-risks' },
-                generalErrors.flatMap((root) =>
-                  (errorsByRoot[root] || []).map((item, index) =>
-                    h('li', { key: root + '-' + index, className: 'mcpg-risk' },
-                      h('span', null, runtime.errorText(item.code), item.path ? ' · ' + item.path : ''),
-                    ),
-                  ),
-                ),
-              ),
-            )
-          : null,
-        analysis.status === 'pending' ? h('p', { className: 'mcpg-hint' }, runtime.translate('analyze.pending')) : null,
-        analysisResult
-          ? h(
-              'div',
-              { className: 'mcpg-panel' },
-              h('p', { className: 'mcpg-preview-label' }, runtime.translate('analyze.risks')),
-              blocked ? h(Banner, { tone: 'error', text: runtime.translate('analyze.blocked') }) : null,
-              h(RiskList, { runtime, risks }),
-              ArgvPreview({
+                generalErrorTexts.map((text, index) => h('li', { key: index, className: 'mcpg-risk' }, h('span', null, text))),
+              )
+            : null,
+          blocked ? h(Banner, { tone: 'error', text: runtime.translate('analyze.blocked') }) : null,
+          h(RiskList, { runtime, risks }),
+          analysisResult
+            ? ArgvPreview({
                 runtime,
                 argv: Array.isArray(analysisResult.argv) ? analysisResult.argv : [],
                 endpoint: analysisResult.endpoint,
                 cwd: draft.transport === TRANSPORT_STDIO ? draft.cwd : null,
                 transport: draft.transport,
-              }),
-              h('p', { className: 'mcpg-hint' }, runtime.translate('analyze.secretsNote')),
-            )
-          : null,
-        needsClearAck
-          ? h(
-              'div',
-              { className: 'mcpg-form' },
-              h(Banner, { tone: 'warning', text: runtime.translate('form.clearSecrets', { keys: droppedSecrets.join(', ') }) }),
-              h(CheckboxField, {
-                id: 'mcpg-clear-ack',
-                label: runtime.translate('form.clearAck'),
-                checked: clearAck,
-                onChange: setClearAck,
-              }),
-            )
-          : null,
+              })
+            : null,
+          h('p', { className: 'mcpg-hint' }, runtime.translate('analyze.secretsNote')),
+        ),
+      );
+
+      const clearSecretsBlock = needsClearAck
+        ? h(
+            'div',
+            { className: 'mcpg-field' },
+            h(Banner, { tone: 'warning', text: runtime.translate('form.clearSecrets', { keys: droppedSecrets.join(', ') }) }),
+            h(CheckboxField, {
+              id: 'mcpg-clear-ack',
+              label: runtime.translate('form.clearAck'),
+              checked: clearAck,
+              onChange: setClearAck,
+            }),
+          )
+        : null;
+
+      const formCard = h(
+        'div',
+        { className: 'mcpg-card mcpg-form-card' },
         h(
           'div',
-          { className: 'mcpg-actions-end' },
-          h(Button, { variant: 'outline', disabled: saving, onClick: onBack }, runtime.translate('form.cancel')),
+          { className: 'mcpg-form-fields' },
+          h(
+            'div',
+            { className: 'mcpg-field-row' },
+            h(TextField, {
+              id: 'mcpg-name',
+              label: runtime.translate('form.name'),
+              value: draft.serverName,
+              disabled: mode === 'edit',
+              onChange: (value) => patch({ serverName: value }),
+              placeholder: runtime.translate('form.namePlaceholder'),
+              hint: mode === 'edit' ? runtime.translate('form.nameLocked') : undefined,
+              errors: fieldErrorTexts('serverName'),
+              className: 'mcpg-field-grow',
+            }),
+            scopeInline,
+          ),
+          h(SelectField, {
+            id: 'mcpg-type',
+            label: runtime.translate('form.type'),
+            value: draft.transport,
+            onChange: changeTransport,
+            options: [
+              { value: TRANSPORT_STDIO, label: runtime.translate('form.typeStdio') },
+              { value: TRANSPORT_HTTP, label: runtime.translate('form.typeHttp') },
+            ],
+            errors: fieldErrorTexts('transport'),
+            className: 'mcpg-field-narrow',
+          }),
+          h(TextField, {
+            id: 'mcpg-timeout',
+            label: runtime.translate('form.timeout'),
+            value: draft.timeoutMs,
+            inputMode: 'numeric',
+            placeholder: runtime.translate('form.timeoutPlaceholder'),
+            onChange: (value) => patch({ timeoutMs: value }),
+            hint: runtime.translate('form.timeoutHint'),
+            errors: fieldErrorTexts('timeoutMs'),
+            className: 'mcpg-field-narrow',
+          }),
+          h(SelectField, {
+            id: 'mcpg-protocol',
+            label: runtime.translate('form.protocol'),
+            value: 'auto',
+            onChange: () => {},
+            disabled: true,
+            options: [{ value: 'auto', label: runtime.translate('form.protocolAuto') }],
+            className: 'mcpg-field-narrow',
+          }),
+          draft.transport === TRANSPORT_STDIO
+            ? h(TextField, {
+                id: 'mcpg-command',
+                label: runtime.translate('form.command'),
+                value: draft.command,
+                onChange: (value) => patch({ command: value }),
+                placeholder: runtime.translate('form.commandPlaceholder'),
+                hint: runtime.translate('form.commandHint'),
+                errors: fieldErrorTexts('command'),
+              })
+            : h(TextField, {
+                id: 'mcpg-url',
+                label: runtime.translate('form.url'),
+                value: draft.url,
+                onChange: (value) => patch({ url: value }),
+                placeholder: 'https://example.com/mcp',
+                hint: runtime.translate('form.urlHint'),
+                errors: fieldErrorTexts('url'),
+              }),
+          draft.transport === TRANSPORT_STDIO
+            ? h(TextField, {
+                id: 'mcpg-args',
+                label: runtime.translate('form.argsLabel'),
+                value: draft.argsText,
+                onChange: (value) => patch({ argsText: value }),
+                placeholder: runtime.translate('form.argsPlaceholder'),
+                hint: runtime.translate('form.argsHint'),
+                errors: [...fieldErrorTexts('argsText'), ...fieldErrorTexts('args')],
+              })
+            : null,
+          draft.transport === TRANSPORT_STDIO
+            ? h(
+                'details',
+                { className: 'mcpg-details' },
+                h(
+                  'summary',
+                  null,
+                  runtime.translate('form.envOptional'),
+                  h('span', { className: 'mcpg-details-chevron' }, h(ChevronDownIcon, null)),
+                ),
+                h(
+                  'div',
+                  { className: 'mcpg-details-body' },
+                  h(TextAreaField, {
+                    id: 'mcpg-env-json',
+                    value: envText,
+                    onChange: handleEnvChange,
+                    rows: 4,
+                    placeholder: runtime.translate('form.envPlaceholder'),
+                    hint: runtime.translate('form.envJsonHint'),
+                    errors: envProblem ? [envProblem] : fieldErrorTexts('env'),
+                    ariaLabel: runtime.translate('form.envOptional'),
+                  }),
+                ),
+              )
+            : h(
+                'details',
+                { className: 'mcpg-details' },
+                h(
+                  'summary',
+                  null,
+                  runtime.translate('form.headersOptional'),
+                  h('span', { className: 'mcpg-details-chevron' }, h(ChevronDownIcon, null)),
+                ),
+                h(
+                  'div',
+                  { className: 'mcpg-details-body' },
+                  h(TextAreaField, {
+                    id: 'mcpg-headers-json',
+                    value: headersText,
+                    onChange: handleHeadersChange,
+                    rows: 4,
+                    placeholder: runtime.translate('form.headersPlaceholder'),
+                    hint: runtime.translate('form.envJsonHint'),
+                    errors: headersProblem ? [headersProblem] : fieldErrorTexts('headers'),
+                    ariaLabel: runtime.translate('form.headersOptional'),
+                  }),
+                ),
+              ),
+          advanced,
+          analysisDetails,
+        ),
+        clearSecretsBlock,
+        h(
+          'div',
+          { className: 'mcpg-form-footer' },
+          h(Button, { variant: 'ghost', disabled: saving, onClick: onBack }, runtime.translate('form.cancel')),
           h(
             Button,
             { variant: 'primary', disabled: !canSave, onClick: handleSave, title: canSave ? undefined : runtime.translate('form.saveDisabled') },
             runtime.translate('form.save'),
           ),
         ),
+      );
+
+      const jsonCard = h(
+        'div',
+        { className: 'mcpg-card mcpg-form-card' },
+        h('div', { style: { display: 'flex', justifyContent: 'flex-end' } }, scopeInline),
+        h('div', { className: 'mcpg-form-fields' },
+          h(TextAreaField, {
+            id: 'mcpg-json',
+            label: runtime.translate('form.fullConfiguration'),
+            value: jsonText,
+            onChange: handleJsonChange,
+            rows: 14,
+            hint: runtime.translate('form.jsonHintLong'),
+            errors: jsonProblem ? [jsonProblem] : [],
+          }),
+        ),
+        clearSecretsBlock,
+        h(
+          'div',
+          { className: 'mcpg-form-footer' },
+          h(Button, { variant: 'ghost', disabled: saving, onClick: onBack }, runtime.translate('form.cancel')),
+          h(
+            Button,
+            { variant: 'primary', disabled: !canSave, onClick: handleSave, title: canSave ? undefined : runtime.translate('form.saveDisabled') },
+            runtime.translate('form.save'),
+          ),
+        ),
+      );
+
+      return h(
+        'section',
+        { className: 'mcpg-page' },
+        h(
+          'div',
+          { className: 'mcpg-breadcrumbs' },
+          h(
+            'button',
+            { type: 'button', className: 'mcpg-crumb', onClick: onBack },
+            runtime.translate('nav.label'),
+          ),
+          h('span', { className: 'mcpg-crumb-sep', 'aria-hidden': 'true' }, h(ChevronRightIcon, null)),
+          h('span', { className: 'mcpg-crumb-current', 'aria-current': 'page' }, title),
+        ),
+        h(
+          'div',
+          { className: 'mcpg-form-head' },
+          h(
+            'div',
+            { className: 'mcpg-form-titles' },
+            h('h1', { className: 'mcpg-form-title' }, title),
+            h('p', { className: 'mcpg-form-subtitle' }, subtitle),
+          ),
+          h(Tabs, {
+            value: tab,
+            onChange: selectTab,
+            formLabel: runtime.translate('form.tabForm'),
+            jsonLabel: runtime.translate('form.tabJson'),
+            labels: tokens,
+          }),
+        ),
+        showEditNotice ? h(Banner, { tone: 'info', text: runtime.translate('form.editNotice') }) : null,
+        bannerTexts.length ? h(Banner, { tone: 'error', text: bannerTexts.join(' · '), live: true }) : null,
+        analysis.status === 'error'
+          ? h(Banner, { tone: 'error', text: runtime.errorText(analysis.error && analysis.error.code), live: true })
+          : null,
+        tab === 'form' ? formCard : jsonCard,
       );
     }
 
@@ -2545,6 +3178,7 @@ window.__ModuleLoader__.load({
       const [modal, setModal] = useState(null);
       const [busy, setBusy] = useState(null);
       const [checkingName, setCheckingName] = useState(null);
+      const [search, setSearch] = useState('');
 
       const load = useCallback(
         async (silent) => {
@@ -2642,6 +3276,30 @@ window.__ModuleLoader__.load({
       const servers = page && Array.isArray(page.servers) ? page.servers : [];
       const external = page && Array.isArray(page.external) ? page.external : [];
       const toolsTotal = page && page.tools && typeof page.tools.total === 'number' ? page.tools.total : 0;
+      const query = search.trim().toLowerCase();
+
+      function matchesQuery(row) {
+        if (query === '') return true;
+        const haystack = [
+          row && row.serverName,
+          serverSubtitle(row),
+          row && row.transport,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(query);
+      }
+
+      const visibleServers = servers.filter(matchesQuery);
+      const visibleExternal = external.filter((row) => {
+        if (query === '') return true;
+        return String(row && row.serverName ? row.serverName : '')
+          .toLowerCase()
+          .includes(query);
+      });
+      const totalCount = servers.length + external.length;
+      const limited = page && page.limits && typeof page.limits.maxServers === 'number' ? page.limits.maxServers : 100;
 
       function openCreate() {
         setView({ kind: 'edit', mode: 'create' });
@@ -2790,7 +3448,6 @@ window.__ModuleLoader__.load({
       }
 
       const editView = view.kind === 'edit';
-      const limited = page && page.limits && typeof page.limits.maxServers === 'number' ? page.limits.maxServers : 100;
 
       const bannerAuth = authBlocked
         ? h(Banner, {
@@ -2863,86 +3520,27 @@ window.__ModuleLoader__.load({
           ? h(Banner, { tone: 'warning', text: translate('page.officialUnavailable') })
           : null;
 
-      const listContent = h(
-        'div',
-        { className: 'mcpg-section' },
-        h(
-          'div',
-          { className: 'mcpg-toolbar' },
-          h(
-            Button,
-            {
-              variant: 'primary',
-              disabled: Boolean(busy) || !page || servers.length >= limited,
-              onClick: openCreate,
-              'aria-label': translate('page.add'),
-            },
-            translate('page.add'),
-          ),
-          h(
-            Button,
-            { variant: 'outline', disabled: Boolean(busy) || !page, onClick: () => setModal({ kind: 'import' }) },
-            translate('page.import'),
-          ),
-          h(
-            Button,
-            { variant: 'outline', disabled: Boolean(busy) || !page, onClick: () => setModal({ kind: 'export' }) },
-            translate('page.export'),
-          ),
-          h('span', { className: 'mcpg-grow' }),
-          h(
-            Button,
-            { variant: 'outline', disabled: loading || Boolean(busy), onClick: () => void load(false), 'aria-label': translate('a11y.refresh') },
-            loading ? translate('page.loading') : translate('page.refresh'),
-          ),
-        ),
-        h(
-          'div',
-          { className: 'mcpg-sectionline' },
-          h('h3', { className: 'mcpg-h3', 'aria-label': translate('a11y.managedSection') }, translate('page.managed')),
-          h('span', { className: 'mcpg-count' }, '(' + servers.length + ')'),
-          toolsTotal ? h(Tag, { tone: 'quiet' }, translate('page.tools') + ': ' + toolsTotal) : null,
-        ),
-        servers.length === 0
-          ? h('p', { className: 'mcpg-empty' }, page ? translate('page.empty') : translate('page.loading'))
-          : h(
-              'div',
-              { className: 'mcpg-cards' },
-              servers.map((row) =>
-                h(ServerCard, {
-                  key: row.serverName,
-                  runtime,
-                  row,
-                  officialClient,
-                  busy: Boolean(busy) || Boolean(checkingName),
-                  checking: checkingName === row.serverName,
-                  onToggle: toggleServer,
-                  onEdit: openEdit,
-                  onDelete: (item) => setModal({ kind: 'delete', serverName: item.serverName }),
-                  onCheck: runCheck,
-                }),
-              ),
-            ),
-        external.length
-          ? h(
-              'div',
-              { className: 'mcpg-section' },
-              h(
-                'div',
-                { className: 'mcpg-sectionline' },
-                h('h3', { className: 'mcpg-h3', 'aria-label': translate('a11y.externalSection') }, translate('page.external')),
-                h('span', { className: 'mcpg-count' }, '(' + external.length + ')'),
-              ),
-              h('p', { className: 'mcpg-hint' }, translate('page.externalHint')),
-              h(
-                'div',
-                { className: 'mcpg-cards' },
-                external.map((row, index) => h(ExternalCard, { key: row.serverName || index, runtime, row })),
-              ),
-            )
-          : null,
-        page ? h(AuditSection, { runtime, entries: page.audit }) : null,
-      );
+      if (editView) {
+        return h(
+          'section',
+          { className: 'mcpg-page' },
+          page
+            ? h(EditPage, {
+                runtime,
+                page,
+                mode: view.mode,
+                serverName: view.serverName,
+                onBack: () => setView({ kind: 'list' }),
+                onSaved,
+                report,
+              })
+            : h('p', { className: 'mcpg-hint' }, translate('page.loading')),
+          bannerAuth,
+          bannerStale,
+          bannerLoadError,
+          bannerNotice,
+        );
+      }
 
       const modals = [];
       if (modal && modal.kind === 'enable') {
@@ -3004,56 +3602,172 @@ window.__ModuleLoader__.load({
         modals.push(h(ExportModal, { key: 'export', runtime, onClose: () => setModal(null) }));
       }
 
-      if (editView) {
-        return h(
-          'section',
-          { className: 'mcpg-section' },
-          page ? null : h('p', { className: 'mcpg-empty' }, translate('page.loading')),
-          page
-            ? h(EditPage, {
-                runtime,
-                page,
-                mode: view.mode,
-                serverName: view.serverName,
-                onBack: () => setView({ kind: 'list' }),
-                onSaved,
-                report,
-              })
-            : null,
-          bannerAuth,
-          bannerStale,
-          bannerLoadError,
-          bannerNotice,
-        );
-      }
+      const installedEmpty = page && visibleServers.length === 0;
+      const emptyMessage = query !== '' ? translate('list.noResults') : translate('page.empty');
 
       return h(
         'section',
-        { className: 'mcpg-section' },
+        { className: 'mcpg-page' },
+        h('h1', { className: 'mcpg-page-title' }, translate('nav.label')),
         h(
           'div',
-          { className: 'mcpg-head' },
-          h('h2', { className: 'mcpg-title' }, translate('nav.label')),
+          { className: 'mcpg-toolbar' },
+          h(ScopePill, { runtime }),
+          h('span', { className: 'mcpg-toolbar-divider', 'aria-hidden': 'true' }),
           h(
-            'p',
-            { className: 'mcpg-intro' },
-            translate('page.intro'),
-            page && page.profileName ? ' · ' + translate('page.profile', { name: page.profileName }) : '',
+            'span',
+            { className: 'mcpg-mcp-count' },
+            h('b', null, translate('list.mcp')),
+            h('span', null, String(totalCount)),
           ),
+          h(SearchField, { runtime, value: search, onChange: setSearch }),
         ),
         bannerAuth,
         bannerStale,
         bannerLoadError,
         bannerOfficial,
         bannerNotice,
-        !page && loading ? h('p', { className: 'mcpg-empty' }, translate('page.loading')) : null,
-        page ? listContent : null,
+        h(
+          'div',
+          { className: 'mcpg-group-head' },
+          h(
+            'h2',
+            { className: 'mcpg-group-title', 'aria-label': translate('a11y.managedSection') },
+            translate('list.installed'),
+            h('span', { className: 'mcpg-group-count' }, String(servers.length)),
+          ),
+          h(
+            'div',
+            { className: 'mcpg-group-actions' },
+            h(Menu, {
+              label: translate('list.more'),
+              trigger: ({ open, toggle }) =>
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'mcpg-icon-btn',
+                    'aria-haspopup': 'menu',
+                    'aria-expanded': open ? 'true' : 'false',
+                    'aria-label': translate('list.more'),
+                    title: translate('list.more'),
+                    disabled: !page || Boolean(busy),
+                    onClick: toggle,
+                  },
+                  h(EllipsisIcon, null),
+                ),
+              children: (close) => [
+                h(
+                  'button',
+                  {
+                    key: 'import',
+                    type: 'button',
+                    role: 'menuitem',
+                    className: 'mcpg-menu-item',
+                    disabled: !page,
+                    onClick: () => {
+                      close();
+                      setModal({ kind: 'import' });
+                    },
+                  },
+                  h('span', { className: 'mcpg-menu-item-icon' }, h(ChevronRightIcon, null)),
+                  h('span', null, translate('list.importMenu')),
+                ),
+                h(
+                  'button',
+                  {
+                    key: 'export',
+                    type: 'button',
+                    role: 'menuitem',
+                    className: 'mcpg-menu-item',
+                    disabled: !page,
+                    onClick: () => {
+                      close();
+                      setModal({ kind: 'export' });
+                    },
+                  },
+                  h('span', { className: 'mcpg-menu-item-icon' }, h(ChevronRightIcon, null)),
+                  h('span', null, translate('list.exportMenu')),
+                ),
+              ],
+            }),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'mcpg-icon-btn',
+                'aria-label': translate('a11y.refresh'),
+                title: translate('a11y.refresh'),
+                disabled: loading || Boolean(busy),
+                onClick: () => void load(false),
+              },
+              h(RefreshIcon, null),
+            ),
+            h(
+              Button,
+              {
+                variant: 'primary',
+                disabled: Boolean(busy) || !page || servers.length >= limited,
+                onClick: openCreate,
+                'aria-label': translate('a11y.newServer'),
+              },
+              h(PlusIcon, null),
+              translate('list.new'),
+            ),
+          ),
+        ),
+        h(
+          'div',
+          { className: 'mcpg-group' },
+          !page
+            ? h('div', { className: 'mcpg-empty-state' }, translate('page.loading'))
+            : installedEmpty
+              ? h('div', { className: 'mcpg-empty-state' }, emptyMessage)
+              : visibleServers.map((row) =>
+                  h(ServerRow, {
+                    key: row.serverName,
+                    runtime,
+                    row,
+                    officialClient,
+                    busy: Boolean(busy) || Boolean(checkingName),
+                    checking: checkingName === row.serverName,
+                    onToggle: toggleServer,
+                    onEdit: openEdit,
+                    onDelete: (item) => setModal({ kind: 'delete', serverName: item.serverName }),
+                    onCheck: runCheck,
+                  }),
+                ),
+        ),
+        h(ToolsSection, { runtime, servers: visibleServers }),
+        external.length
+          ? h(
+              'div',
+              { className: 'mcpg-group-head', style: { marginTop: '10px' } },
+              h(
+                'h2',
+                { className: 'mcpg-group-title', 'aria-label': translate('a11y.externalSection') },
+                translate('page.external'),
+                h('span', { className: 'mcpg-group-count' }, String(external.length)),
+              ),
+            )
+          : null,
+        external.length ? h('p', { className: 'mcpg-group-hint' }, translate('list.externalHint')) : null,
+        external.length
+          ? h(
+              'div',
+              { className: 'mcpg-group' },
+              visibleExternal.length
+                ? visibleExternal.map((row, index) => h(ExternalRow, { key: row.serverName || index, runtime, row }))
+                : h('div', { className: 'mcpg-empty-state' }, translate('list.noResults')),
+            )
+          : null,
+        page ? h(AuditSection, { runtime, entries: page.audit }) : null,
         modals,
       );
     }
 
     /* ------------------------------------------------------------------ */
-    /* Icons                                                               */
+    /* Icons for the settings navigation                                   */
     /* ------------------------------------------------------------------ */
 
     function McpGuardIcon({ size }) {

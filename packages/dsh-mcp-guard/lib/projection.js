@@ -81,6 +81,16 @@ export function projectServer(row, { tools = [], lastCheck = null, risk = [] } =
     enabled: row?.enabled === true,
     source: 'managed',
     endpoint: safeEndpoint(client),
+    // Execution coordinates are shown in the authenticated local settings UI so
+    // the list can render a Z.ai-style command line and the editor can prefill
+    // the form. They are not secret material; env/header VALUES stay write-only.
+    ...(client.transport === 'streamable-http'
+      ? { url: typeof client.url === 'string' ? client.url : '' }
+      : {
+          command: typeof client.command === 'string' ? client.command : '',
+          args: Array.isArray(client.args) ? [...client.args] : [],
+          cwd: typeof client.cwd === 'string' ? client.cwd : '',
+        }),
     argumentCount: Array.isArray(client.args) ? client.args.length : 0,
     envKeys: keysOf(client.env),
     headerKeys: keysOf(client.headers),

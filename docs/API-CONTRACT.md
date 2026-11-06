@@ -76,7 +76,11 @@ Confirmation is required for every mutation (`confirm: true`); missing →
 }
 ```
 
-`ServerView` (managed row). No env/header values; no full args:
+`ServerView` (managed row). Env/header **values** are never included. Execution
+coordinates (`command`/`args`/`cwd` for stdio, `url` for HTTP) **are** included so
+the authenticated local settings UI can show a Z.ai-style command line and prefill
+the editor; they are not treated as secret material (secret-shaped arguments are
+still flagged as risks).
 
 ```jsonc
 {
@@ -85,6 +89,10 @@ Confirmation is required for every mutation (`confirm: true`); missing →
   "enabled": true,
   "source": "managed",
   "endpoint": "npx",               // stdio: command basename; http: URL origin
+  "command": "npx",                // stdio only
+  "args": ["-y", "@scope/server"], // stdio only (execution coordinates, not secret values)
+  "cwd": "",                       // stdio only
+  "url": "",                       // streamable-http only
   "argumentCount": 3,
   "envKeys": ["GITHUB_TOKEN"],
   "headerKeys": [],

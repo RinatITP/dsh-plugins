@@ -16,8 +16,9 @@ Development preview `0.1.0`, targeting DSH **0.2.2-rc.1**.
 
 | Capability | Details |
 |---|---|
-| Server list | Managed servers with transport, endpoint, tool count and risk badges; MCP rows owned by other plugins or hand-written profiles are shown **read-only**. |
-| Add / edit | Form tab and JSON tab for one `mcpServers` entry. Editing keeps the server name and re-saves the row disabled so it is reviewed again before it can run. |
+| Server list | Z.ai/GLM-inspired list: scope pill, search, grouped full-width rows with transport glyph, status dot, monospace command line and pill toggle. MCP rows owned by other plugins or hand-written profiles are shown **read-only**. |
+| Add / edit | Form tab and JSON tab for one `mcpServers` entry, following the Z.ai MCP form layout (Type, Timeout MS, read-only Protocol version, Command, Arguments, env/header JSON editors, Advanced). The form prefills command/args/cwd/url from the stored row; env/header **values** stay write-only. Editing keeps the server name and re-saves the row disabled so it is reviewed again before it can run. |
+| Design | Settings page visual language adapted from the Z.ai (GLM) MCP Servers screen: 28px title, scope pill, search field, grouped rows with circular icons, Form/JSON pill tabs, full-configuration JSON tab — implemented with DSH theme tokens only (light and dark). |
 | Import | Strict `mcpServers` JSON import: 1 MiB / ≤100 servers, `type: http` converted to `streamable-http`, unknown fields, duplicate keys and prototype-pollution keys rejected. Imported servers are saved **disabled**; nothing runs during the preview. |
 | Enable confirmation | Every enable shows the resolved execution — the `argv` passed to `spawn` for stdio, or the URL origin for HTTP — with risk findings. High-risk rows require an extra risk acknowledgement. |
 | Live risk analysis | Risk findings such as auto-installing package runners, shell interpreters, eval flags, elevated commands, plaintext non-loopback HTTP, secret-shaped argv values, ambiguous namespaces and disabled reconnect. |
