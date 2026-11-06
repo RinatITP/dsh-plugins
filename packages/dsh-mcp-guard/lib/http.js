@@ -75,6 +75,10 @@ export function createHandler({ manager, admit, log = () => {} }) {
     previewImport: (body) => manager.previewImport(body),
     import: (body) => manager.importServers(body),
     export: () => manager.export(),
+    externalDetail: (body) => manager.externalDetail(body),
+    adoptExternal: (body) => manager.adoptExternal(body),
+    discover: () => manager.discoverConfigs(),
+    importDiscovered: (body) => manager.importDiscovered(body),
   };
 
   return async function handler(req, res) {

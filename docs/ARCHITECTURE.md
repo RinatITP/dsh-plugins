@@ -217,6 +217,22 @@ contracts, the plugin needs a matching update — the coupling is intentionally
 centralized in `index.js`/`lib/*` (Host) and the slot/fetch bootstrap in
 `client.js` (Client) to keep upgrades mechanical.
 
+## Existing servers and discovery
+
+Two additional read-only-looking surfaces feed the managed list:
+
+1. **External rows** are active `@deepseek-ai/dsh-mcp-client` entries owned by
+   other plugins or hand-written profile entries. The Host reads their resolved
+   config through `configEditor` and projects a non-secret detail view. Taking
+   one under management copies the validated config into this plugin (saved
+   disabled) and disables the original row through the official
+   `pluginManager.setPluginEnabled`; a save failure re-enables the original row.
+2. **Discovery** (`lib/discovery.js`) scans an allowlist of well-known MCP
+   configuration files (Cursor, Claude Code incl. per-project entries, Claude
+   Desktop, VS Code, `$DSH_HOME/mcp.json`, registered workspace MCP files) and
+   returns raw entries to the manager, which validates and previews them. Import
+   saves the selection disabled.
+
 ## Verification status
 
 Static and unit-level verification is automated (Node test runner + the

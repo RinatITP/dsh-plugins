@@ -191,6 +191,20 @@ window.__ModuleLoader__.load({
       return ['stdio · ' + command, ...args].join(' ');
     }
 
+    /** Command/endpoint line for one external row (detail is fetched lazily). */
+    function externalSubtitle(detail, row) {
+      const transport = (detail && detail.transport) || (row && row.transport) || TRANSPORT_STDIO;
+      const base = transport === TRANSPORT_HTTP ? 'streamable-http' : 'stdio';
+      if (detail) {
+        if (transport === TRANSPORT_HTTP) return base + ' · ' + (detail.url || '—');
+        const args = Array.isArray(detail.args) ? detail.args : [];
+        const command = typeof detail.command === 'string' && detail.command !== '' ? detail.command : '—';
+        return [base + ' · ' + command, ...args].join(' ');
+      }
+      const name = row && typeof row.serverName === 'string' ? row.serverName : '';
+      return base + (name ? ' · ' + name : '');
+    }
+
     /* ------------------------------------------------------------------ */
     /* Dictionaries (English + Russian)                                    */
     /* ------------------------------------------------------------------ */
@@ -252,6 +266,51 @@ window.__ModuleLoader__.load({
       'list.statusAria': 'Status: {status}',
       'list.tools': '{count} tools',
       'list.auditTitle': 'Audit log',
+
+      'external.source': 'Source',
+      'external.sourceLabel': 'Declared in the DSH profile by another plugin or a hand-written entry.',
+      'external.notOwned':
+        'MCP Guard does not manage this row. Inspect it here or take a validated copy under management.',
+      'external.detailTitle': 'External MCP server',
+      'external.loading': 'Loading details…',
+      'external.unavailable': 'Details are unavailable for this row.',
+      'external.takeOver': 'Take under management',
+      'external.adoptTitle': 'Take {name} under management?',
+      'external.adoptStep1':
+        'A validated copy of this configuration is created in MCP Guard and saved disabled.',
+      'external.adoptStep2':
+        'The original profile row is disabled through the official DSH plugin manager, which frees the name.',
+      'external.adoptStep3': 'If saving the copy fails, the original row is enabled again.',
+      'external.adoptOk':
+        '{name} is now managed by MCP Guard and saved disabled. Review it and enable it when ready.',
+      'external.patchId': 'Profile entry',
+      'external.toolsEmpty': 'No registered tools for this row.',
+      'external.openAria': 'Inspect external server {name}',
+      'external.lockHint': 'Read-only: this row is owned by another plugin or the profile patch.',
+      'discover.menu': 'Find MCP configs…',
+      'discover.title': 'Find MCP configs',
+      'discover.hint':
+        'Scans known MCP configuration files on this computer. Nothing runs during the scan; selected servers are imported disabled.',
+      'discover.loading': 'Scanning configuration files…',
+      'discover.rescan': 'Scan again',
+      'discover.empty': 'No MCP configs found.',
+      'discover.emptyHint':
+        'Checked known locations for Cursor, Claude Code, Claude Desktop, VS Code, DSH and project configs.',
+      'discover.sourceError': 'Source error: {code}',
+      'discover.alreadyManaged': 'Already managed',
+      'discover.alreadyExternal': 'Provided by another plugin',
+      'discover.needsPlainHttp': 'Plaintext HTTP will be allowed',
+      'discover.unsupported': 'Cannot import: {code}',
+      'discover.selectAll': 'Select all in this source',
+      'discover.selected': 'Selected: {count}',
+      'discover.importSelected': 'Import selected (disabled)',
+      'discover.importing': 'Importing…',
+      'discover.importSummary': '{imported} imported disabled, {skipped} skipped.',
+      'discover.importSkipped': 'Skipped: {list}',
+      'discover.importNothing': 'Nothing was imported. Skipped: {list}',
+      'discover.noSelection': 'Select at least one server to import.',
+      'discover.scope': 'Project scope: {scope}',
+      'discover.loadFailed': 'Discovery failed.',
       'status.enabled': 'Enabled',
       'status.disabled': 'Disabled',
       'transport.stdio': 'stdio',
@@ -419,6 +478,7 @@ window.__ModuleLoader__.load({
       'audit.action.disable': 'Disabled',
       'audit.action.import': 'Imported',
       'audit.action.check': 'Checked',
+      'audit.action.adopt': 'Taken over',
       'audit.result.ok': 'ok',
       'audit.result.error': 'error',
       'a11y.enable': 'Enable server {name}',
@@ -444,6 +504,9 @@ window.__ModuleLoader__.load({
       'a11y.exportServers': 'Export MCP servers',
       'a11y.scopePill': 'Scope selector',
       'a11y.selectIcon': 'Select',
+      'a11y.externalRow': 'Inspect external server {name}',
+      'a11y.takeOver': 'Take server {name} under management',
+      'a11y.discover': 'Find MCP configs',
       'error.NAME_INVALID': 'Server name may contain only letters, digits, _ and - (1–32 characters).',
       'error.NAME_CONFLICT': 'This name is already used by another MCP server.',
       'error.TRANSPORT_INVALID': 'Unsupported transport. Choose stdio or streamable-http.',
@@ -505,6 +568,17 @@ window.__ModuleLoader__.load({
       'error.CONFIGURATION_INVALID': 'The stored configuration is invalid. Re-enter it before changing this server.',
       'error.NETWORK': 'The plugin endpoint is unreachable. Reload the page and try again.',
       'error.INVALID_RESPONSE': 'Unexpected response from the plugin endpoint.',
+      'error.EXTERNAL_UNAVAILABLE': 'This MCP row cannot be inspected or toggled through the official plugin manager.',
+      'error.EXTERNAL_DISABLE_FAILED': 'The original profile row could not be disabled through the official plugin manager.',
+      'error.ADOPT_FAILED': 'Taking the row under management failed.',
+      'error.ADOPT_ROLLBACK_FAILED':
+        'Taking the row under management failed and the original row could not be re-enabled. Check the profile manually.',
+      'error.DISCOVERY_UNAVAILABLE': 'MCP config discovery is unavailable in this deployment.',
+      'error.SOURCE_NOT_FOUND': 'The configuration source disappeared. Scan again.',
+      'error.SOURCE_TOO_LARGE': 'The configuration file is too large to scan.',
+      'error.SOURCE_UNREADABLE': 'The configuration file cannot be read.',
+      'error.SOURCE_INVALID_JSON': 'The configuration file is not valid JSON.',
+      'error.SOURCE_INVALID_ENTRY': 'A server entry in this source is invalid.',
     };
 
     const DICT_RU = {
@@ -564,6 +638,51 @@ window.__ModuleLoader__.load({
       'list.statusAria': 'Статус: {status}',
       'list.tools': 'Инструментов: {count}',
       'list.auditTitle': 'Журнал аудита',
+
+      'external.source': 'Источник',
+      'external.sourceLabel': 'Объявлен в профиле DSH другим плагином или вручную.',
+      'external.notOwned':
+        'MCP Guard не управляет этой записью. Здесь её можно изучить или взять под управление проверенную копию.',
+      'external.detailTitle': 'Внешний MCP-сервер',
+      'external.loading': 'Загрузка сведений…',
+      'external.unavailable': 'Сведения об этой записи недоступны.',
+      'external.takeOver': 'Взять под управление',
+      'external.adoptTitle': 'Взять {name} под управление?',
+      'external.adoptStep1':
+        'Проверенная копия этой конфигурации создаётся в MCP Guard и сохраняется отключённой.',
+      'external.adoptStep2':
+        'Исходная запись профиля отключается через официальный менеджер плагинов DSH — имя освобождается.',
+      'external.adoptStep3': 'Если сохранить копию не удастся, исходная запись будет снова включена.',
+      'external.adoptOk':
+        'Сервер {name} теперь управляется MCP Guard и сохранён отключённым. Проверьте его и включите, когда будете готовы.',
+      'external.patchId': 'Запись профиля',
+      'external.toolsEmpty': 'Зарегистрированных инструментов нет.',
+      'external.openAria': 'Открыть сведения о внешнем сервере {name}',
+      'external.lockHint': 'Только чтение: запись принадлежит другому плагину или патчу профиля.',
+      'discover.menu': 'Найти MCP-конфиги…',
+      'discover.title': 'Найти MCP-конфиги',
+      'discover.hint':
+        'Сканирует известные файлы конфигурации MCP на этом компьютере. Во время сканирования ничего не запускается; выбранные серверы импортируются отключёнными.',
+      'discover.loading': 'Сканирование файлов конфигурации…',
+      'discover.rescan': 'Сканировать снова',
+      'discover.empty': 'Конфиги не найдены.',
+      'discover.emptyHint':
+        'Проверены известные места: Cursor, Claude Code, Claude Desktop, VS Code, DSH и конфигурации проектов.',
+      'discover.sourceError': 'Ошибка источника: {code}',
+      'discover.alreadyManaged': 'Уже управляется',
+      'discover.alreadyExternal': 'Предоставлен другим плагином',
+      'discover.needsPlainHttp': 'Plaintext HTTP будет разрешён',
+      'discover.unsupported': 'Импорт невозможен: {code}',
+      'discover.selectAll': 'Выбрать всё в этом источнике',
+      'discover.selected': 'Выбрано: {count}',
+      'discover.importSelected': 'Импортировать выбранные (выключены)',
+      'discover.importing': 'Импорт…',
+      'discover.importSummary': 'Импортировано отключёнными: {imported}, пропущено: {skipped}.',
+      'discover.importSkipped': 'Пропущено: {list}',
+      'discover.importNothing': 'Ничего не импортировано. Пропущено: {list}',
+      'discover.noSelection': 'Выберите хотя бы один сервер для импорта.',
+      'discover.scope': 'Область проекта: {scope}',
+      'discover.loadFailed': 'Поиск не удался.',
       'status.enabled': 'Включён',
       'status.disabled': 'Отключён',
       'transport.stdio': 'stdio',
@@ -732,6 +851,7 @@ window.__ModuleLoader__.load({
       'audit.action.disable': 'Отключён',
       'audit.action.import': 'Импорт',
       'audit.action.check': 'Проверка',
+      'audit.action.adopt': 'Взят под управление',
       'audit.result.ok': 'успешно',
       'audit.result.error': 'ошибка',
       'a11y.enable': 'Включить сервер {name}',
@@ -757,6 +877,9 @@ window.__ModuleLoader__.load({
       'a11y.exportServers': 'Экспорт MCP-серверов',
       'a11y.scopePill': 'Выбор области',
       'a11y.selectIcon': 'Выбрать',
+      'a11y.externalRow': 'Открыть сведения о внешнем сервере {name}',
+      'a11y.takeOver': 'Взять сервер {name} под управление',
+      'a11y.discover': 'Найти MCP-конфиги',
       'error.NAME_INVALID': 'Имя сервера может содержать только латинские буквы, цифры, _ и - (1–32 символа).',
       'error.NAME_CONFLICT': 'Это имя уже используется другим MCP-сервером.',
       'error.TRANSPORT_INVALID': 'Неподдерживаемый транспорт. Выберите stdio или streamable-http.',
@@ -821,6 +944,18 @@ window.__ModuleLoader__.load({
         'Сохранённая конфигурация некорректна. Введите её заново, прежде чем менять этот сервер.',
       'error.NETWORK': 'Эндпоинт плагина недоступен. Перезагрузите страницу и попробуйте снова.',
       'error.INVALID_RESPONSE': 'Неожиданный ответ эндпоинта плагина.',
+      'error.EXTERNAL_UNAVAILABLE': 'Эту запись MCP нельзя изучить или переключить через официальный менеджер плагинов.',
+      'error.EXTERNAL_DISABLE_FAILED':
+        'Не удалось отключить исходную запись профиля через официальный менеджер плагинов.',
+      'error.ADOPT_FAILED': 'Не удалось взять запись под управление.',
+      'error.ADOPT_ROLLBACK_FAILED':
+        'Не удалось взять запись под управление, и исходную запись не удалось включить обратно. Проверьте профиль вручную.',
+      'error.DISCOVERY_UNAVAILABLE': 'Поиск MCP-конфигов недоступен в этом развёртывании.',
+      'error.SOURCE_NOT_FOUND': 'Источник конфигурации исчез. Запустите поиск снова.',
+      'error.SOURCE_TOO_LARGE': 'Файл конфигурации слишком велик для сканирования.',
+      'error.SOURCE_UNREADABLE': 'Не удалось прочитать файл конфигурации.',
+      'error.SOURCE_INVALID_JSON': 'Файл конфигурации не является корректным JSON.',
+      'error.SOURCE_INVALID_ENTRY': 'Запись сервера в этом источнике некорректна.',
     };
 
     const DICTS = { en: DICT_EN, ru: DICT_RU };
@@ -1013,6 +1148,43 @@ window.__ModuleLoader__.load({
 .mcpg-mini-name{font-size:13px;font-weight:600;line-height:18px;overflow-wrap:anywhere}
 .mcpg-mini-meta{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:16px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
 @media (max-width:620px){.mcpg-page-title{font-size:24px;line-height:32px}.mcpg-form-title{font-size:22px;line-height:30px}.mcpg-field-narrow{max-width:none}.mcpg-search{flex:1 1 100%;margin-left:0}.mcpg-card{padding:16px}.mcpg-row{padding:10px 12px}}
+.mcpg-modal-wide{width:min(760px,100%)}
+.mcpg-menu-sep{height:1px;margin:4px 2px;background:var(--dsw-alias-border-l2);border:0}
+.mcpg-external-link{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;color:var(--dsw-alias-label-tertiary);flex:none}
+.mcpg-detail{display:flex;flex-direction:column;gap:12px;min-width:0}
+.mcpg-detail-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.mcpg-detail-name{margin:0;font-size:16px;font-weight:600;line-height:24px;overflow-wrap:anywhere}
+.mcpg-facts{display:flex;flex-direction:column;gap:8px;margin:0}
+.mcpg-fact{display:flex;align-items:baseline;gap:10px;min-width:0}
+.mcpg-fact-label{flex:0 0 132px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}
+.mcpg-fact-value{flex:1 1 auto;min-width:0;color:var(--dsw-alias-label-primary);font-size:13px;line-height:20px;overflow-wrap:anywhere}
+.mcpg-fact-value code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:18px;overflow-wrap:anywhere}
+.mcpg-steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px}
+.mcpg-steps li{padding-left:2px}
+.mcpg-source{border:.5px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-layer-1);overflow:visible}
+.mcpg-source>summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:42px;padding:6px 14px;list-style:none;cursor:pointer;color:var(--dsw-alias-label-primary);font-size:13.5px;font-weight:500;line-height:20px}
+.mcpg-source>summary::-webkit-details-marker{display:none}
+.mcpg-source>summary:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:-2px}
+.mcpg-source-chevron{margin-left:auto;display:inline-flex;color:var(--dsw-alias-label-tertiary);transition:transform .15s ease}
+.mcpg-source[open]>summary .mcpg-source-chevron{transform:rotate(180deg)}
+.mcpg-source-path{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dsw-alias-label-tertiary);font-size:11.5px;line-height:16px;overflow-wrap:anywhere}
+.mcpg-source-body{display:flex;flex-direction:column;gap:8px;padding:0 14px 12px}
+.mcpg-pick-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:.5px solid var(--dsw-alias-border-l2);min-width:0}
+.mcpg-pick-row:first-of-type{border-top:0}
+.mcpg-pick-row[data-disabled="true"]{opacity:.62}
+.mcpg-pick-box{flex:none;display:inline-flex;margin-top:2px}
+.mcpg-pick-box input{width:16px;height:16px;margin:0;accent-color:var(--dsw-alias-brand-primary);cursor:pointer}
+.mcpg-pick-box input:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
+.mcpg-pick-box input:disabled{cursor:default}
+.mcpg-pick-main{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1 1 auto}
+.mcpg-pick-name{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;font-weight:600;line-height:18px;overflow-wrap:anywhere}
+.mcpg-pick-meta{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dsw-alias-label-tertiary);font-size:11.5px;line-height:16px;overflow-wrap:anywhere}
+.mcpg-pick-badges{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.mcpg-selectbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.mcpg-selectbar .mcpg-hint{margin:0}
+.mcpg-selectbar-actions{display:inline-flex;align-items:center;gap:8px;margin-left:auto;flex:none}
+.mcpg-discover-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.mcpg-tools-grid{display:flex;flex-direction:column;gap:8px;min-width:0}
 `;
 
     function installStyles() {
@@ -1577,7 +1749,7 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function Modal({ title, closeLabel, onClose, children, footer }) {
+    function Modal({ title, closeLabel, onClose, children, footer, wide }) {
       const titleId = useId ? useId() : 'mcpg-modal-title';
       const dialogRef = useRef(null);
       const onCloseRef = useRef(onClose);
@@ -1605,7 +1777,7 @@ window.__ModuleLoader__.load({
           'div',
           {
             ref: dialogRef,
-            className: 'mcpg-modal',
+            className: 'mcpg-modal' + (wide ? ' mcpg-modal-wide' : ''),
             role: 'dialog',
             'aria-modal': 'true',
             'aria-labelledby': titleId,
@@ -2019,30 +2191,48 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function ExternalRow({ runtime, row }) {
+    function ExternalRow({ runtime, row, detail, onOpen }) {
+      const subtitle = externalSubtitle(detail, row);
+      const name = row.serverName || '';
+      const transport = (detail && detail.transport) || row.transport;
       return h(
         'div',
         { className: 'mcpg-row' },
         h(
-          'div',
-          { className: 'mcpg-row-main', style: { cursor: 'default' } },
-          h('span', { className: 'mcpg-row-icon' }, h(LockIcon, null)),
+          'button',
+          {
+            type: 'button',
+            className: 'mcpg-row-main',
+            onClick: () => onOpen(row),
+            'aria-label': runtime.translate('a11y.externalRow', { name }),
+            title: runtime.translate('external.lockHint'),
+          },
+          h('span', { className: 'mcpg-row-icon' }, transport === TRANSPORT_HTTP ? h(GlobeIcon, null) : h(PlugIcon, null)),
           h(
             'span',
             { className: 'mcpg-row-text' },
             h(
               'span',
               { className: 'mcpg-row-name' },
-              h('span', { className: 'mcpg-row-name-text' }, row.serverName || ''),
+              h('span', { className: 'mcpg-row-name-text' }, name),
               h(Tag, { tone: 'quiet' }, runtime.translate('page.externalLocked')),
+              detail && detail.highestRisk ? h(RiskMark, { runtime, level: detail.highestRisk }) : null,
             ),
             h(
               'span',
               { className: 'mcpg-row-sub' },
-              h(StatusDot, { runtime, enabled: row.enabled === true, lastCheck: null }),
-              h('span', { className: 'mcpg-row-sub-note' }, runtime.translate('list.externalHint')),
+              h(StatusDot, { runtime, enabled: row.enabled !== false, lastCheck: null }),
+              h('span', { className: 'mcpg-row-sub-text', title: subtitle }, subtitle),
             ),
           ),
+        ),
+        h(
+          'div',
+          { className: 'mcpg-row-end' },
+          typeof row.toolCount === 'number' && row.toolCount > 0
+            ? h('span', { className: 'mcpg-tools-note' }, runtime.translate('list.tools', { count: row.toolCount }))
+            : null,
+          h('span', { className: 'mcpg-external-link', 'aria-hidden': 'true' }, h(ChevronRightIcon, { size: 14 })),
         ),
       );
     }
@@ -2356,6 +2546,467 @@ window.__ModuleLoader__.load({
               'aria-label': runtime.translate('modal.exportTitle'),
             })
           : null,
+      );
+    }
+
+    function ExternalDetailModal({ runtime, row, detail, loading, error, busy, onClose, onTakeOver }) {
+      const tr = runtime.translate;
+      const effective = detail && typeof detail === 'object' ? detail : null;
+      const name = (effective && effective.serverName) || (row && row.serverName) || '';
+      const transport = (effective && effective.transport) || (row && row.transport) || TRANSPORT_STDIO;
+      const patchId = effective && typeof effective.patchId === 'string' ? effective.patchId : '';
+      const enabled =
+        effective && typeof effective.enabled === 'boolean'
+          ? effective.enabled
+          : row
+            ? row.enabled !== false
+            : true;
+      const canTakeOver = Boolean(effective) && patchId !== '' && !loading && !busy && !error;
+      const facts = [];
+      if (effective) {
+        facts.push({ key: 'source', label: tr('external.source'), value: tr('external.sourceLabel') });
+        facts.push({
+          key: 'transport',
+          label: tr('page.transport'),
+          value: tr(transport === TRANSPORT_HTTP ? 'transport.httpLong' : 'transport.stdioLong'),
+        });
+        if (patchId) facts.push({ key: 'patch', label: tr('external.patchId'), value: patchId, code: true });
+        if (transport === TRANSPORT_STDIO) {
+          facts.push({ key: 'cwd', label: tr('form.cwd'), value: effective.cwd || tr('preview.hostDefault') });
+        }
+      }
+      return h(
+        Modal,
+        {
+          title: tr('external.detailTitle'),
+          closeLabel: tr('modal.close'),
+          wide: true,
+          onClose: busy ? () => {} : onClose,
+          footer: [
+            h(Button, { key: 'close', variant: 'outline', disabled: busy, onClick: onClose }, tr('action.close')),
+            h(
+              Button,
+              {
+                key: 'adopt',
+                variant: 'primary',
+                disabled: !canTakeOver,
+                title: canTakeOver ? undefined : tr('external.unavailable'),
+                onClick: () => onTakeOver(effective),
+              },
+              tr('external.takeOver'),
+            ),
+          ],
+        },
+        h('p', { className: 'mcpg-hint' }, tr('external.notOwned')),
+        h(
+          'div',
+          { className: 'mcpg-detail-head' },
+          h('h3', { className: 'mcpg-detail-name' }, name),
+          h(Tag, { tone: enabled ? 'success' : 'neutral' }, tr(enabled ? 'status.enabled' : 'status.disabled')),
+          h(Tag, { tone: 'quiet' }, tr('page.externalLocked')),
+          effective && effective.highestRisk
+            ? h(Tag, { tone: riskTone(effective.highestRisk) }, runtime.levelText(effective.highestRisk))
+            : null,
+        ),
+        loading ? h('p', { className: 'mcpg-hint' }, tr('external.loading')) : null,
+        error ? h(Banner, { tone: 'error', text: error, live: true }) : null,
+        effective
+          ? h(
+              'div',
+              { className: 'mcpg-detail' },
+              facts.length
+                ? h(
+                    'dl',
+                    { className: 'mcpg-facts' },
+                    facts.map((fact) =>
+                      h(
+                        'div',
+                        { key: fact.key, className: 'mcpg-fact' },
+                        h('dt', { className: 'mcpg-fact-label' }, fact.label),
+                        h(
+                          'dd',
+                          { className: 'mcpg-fact-value' },
+                          fact.code ? h('code', null, fact.value) : fact.value,
+                        ),
+                      ),
+                    ),
+                  )
+                : null,
+              transport === TRANSPORT_STDIO
+                ? ArgvPreview({
+                    runtime,
+                    argv: [effective.command, ...(Array.isArray(effective.args) ? effective.args : [])].filter(
+                      (item) => typeof item === 'string',
+                    ),
+                    endpoint: null,
+                    cwd: effective.cwd,
+                    transport: transport,
+                  })
+                : h(ArgvPreview, {
+                    runtime,
+                    argv: [],
+                    endpoint: effective.url,
+                    cwd: null,
+                    transport: transport,
+                  }),
+              h(KeyChips, { label: tr('preview.envKeys'), keys: effective.envKeys }),
+              h(KeyChips, { label: tr('preview.headerKeys'), keys: effective.headerKeys }),
+              h(
+                'div',
+                { className: 'mcpg-preview' },
+                h('p', { className: 'mcpg-preview-label' }, tr('analyze.risks')),
+                h(RiskList, { runtime, risks: effective.risk }),
+              ),
+              h(
+                'div',
+                { className: 'mcpg-preview' },
+                h(
+                  'p',
+                  { className: 'mcpg-preview-label' },
+                  tr('page.tools') + (typeof effective.toolCount === 'number' ? ' (' + effective.toolCount + ')' : ''),
+                ),
+                Array.isArray(effective.tools) && effective.tools.length
+                  ? h(
+                      'ul',
+                      { className: 'mcpg-chips', 'aria-label': tr('a11y.toolsOf', { name }) },
+                      effective.tools.map((tool) => h('li', { key: tool, className: 'mcpg-chip' }, tool)),
+                    )
+                  : h('p', { className: 'mcpg-hint' }, tr('external.toolsEmpty')),
+              ),
+            )
+          : null,
+        !effective && !loading ? h('p', { className: 'mcpg-hint' }, tr('external.unavailable')) : null,
+      );
+    }
+
+    function AdoptConfirmModal({ runtime, detail, busy, error, onClose, onConfirm }) {
+      const tr = runtime.translate;
+      const name = (detail && detail.serverName) || '';
+      return h(
+        Modal,
+        {
+          title: tr('external.adoptTitle', { name }),
+          closeLabel: tr('modal.close'),
+          onClose: busy ? () => {} : onClose,
+          footer: [
+            h(Button, { key: 'cancel', variant: 'outline', disabled: busy, onClick: onClose }, tr('form.cancel')),
+            h(
+              Button,
+              { key: 'confirm', variant: 'primary', disabled: busy === true, onClick: onConfirm },
+              tr('external.takeOver'),
+            ),
+          ],
+        },
+        h(
+          'ol',
+          { className: 'mcpg-steps' },
+          h('li', null, tr('external.adoptStep1')),
+          h('li', null, tr('external.adoptStep2')),
+          h('li', null, tr('external.adoptStep3')),
+        ),
+        error ? h(Banner, { tone: 'error', text: error, live: true }) : null,
+      );
+    }
+
+    function normalizeImportResult(value) {
+      const source = value && typeof value === 'object' ? value : {};
+      const imported = Array.isArray(source.imported)
+        ? source.imported.filter((name) => typeof name === 'string')
+        : [];
+      const skipped = Array.isArray(source.skipped)
+        ? source.skipped
+            .filter((item) => item && typeof item.serverName === 'string')
+            .map((item) => ({
+              serverName: item.serverName,
+              code: typeof item.code === 'string' && item.code !== '' ? item.code : 'OPERATION_FAILED',
+            }))
+        : [];
+      return { imported, skipped };
+    }
+
+    function DiscoverModal({ runtime, onClose, onError, onImported }) {
+      const tr = runtime.translate;
+      const [state, setState] = useState({ status: 'loading', sources: [], error: null });
+      const [selection, setSelection] = useState({});
+      const [importing, setImporting] = useState(false);
+      const [importError, setImportError] = useState('');
+      const onCloseRef = useRef(onClose);
+      const onErrorRef = useRef(onError);
+      const onImportedRef = useRef(onImported);
+      useEffect(() => {
+        onCloseRef.current = onClose;
+        onErrorRef.current = onError;
+        onImportedRef.current = onImported;
+      }, [onClose, onError, onImported]);
+
+      const load = useCallback(async () => {
+        setState({ status: 'loading', sources: [], error: null });
+        setSelection({});
+        setImportError('');
+        try {
+          const value = await runtime.request('discover');
+          const sources = value && Array.isArray(value.sources) ? value.sources : [];
+          setState({ status: 'ready', sources, error: null });
+        } catch (error) {
+          const kind = typeof onErrorRef.current === 'function' ? onErrorRef.current(error) : 'error';
+          if (kind !== 'error') {
+            if (typeof onCloseRef.current === 'function') onCloseRef.current();
+            return;
+          }
+          setState({ status: 'error', sources: [], error: runtime.errorText(error && error.code) });
+        }
+      }, [runtime]);
+
+      useEffect(() => {
+        void load();
+      }, [load]);
+
+      const sources = state.sources;
+      const isEligible = (row) =>
+        Boolean(row) && !row.error && row.alreadyManaged !== true && row.alreadyExternal !== true;
+
+      function selectedNames(sourceId) {
+        const set = selection[sourceId];
+        return set ? Array.from(set) : [];
+      }
+
+      function toggleName(sourceId, name) {
+        setSelection((previous) => {
+          const next = { ...previous };
+          const set = new Set(previous[sourceId] || []);
+          if (set.has(name)) set.delete(name);
+          else set.add(name);
+          if (set.size) next[sourceId] = set;
+          else delete next[sourceId];
+          return next;
+        });
+      }
+
+      function toggleAll(sourceId, rows) {
+        const eligible = rows.filter(isEligible).map((row) => row.serverName);
+        setSelection((previous) => {
+          const next = { ...previous };
+          const current = previous[sourceId] || new Set();
+          const allSelected = eligible.length > 0 && eligible.every((name) => current.has(name));
+          if (allSelected) {
+            delete next[sourceId];
+          } else {
+            next[sourceId] = new Set(eligible);
+          }
+          return next;
+        });
+      }
+
+      async function importSourceOnce(sourceId, names) {
+        let lastError = null;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const snapshot = await runtime.request(null);
+          const revision = snapshot && typeof snapshot.revision === 'string' ? snapshot.revision : '';
+          try {
+            return await runtime.request('importDiscovered', {
+              sourceId,
+              serverNames: names,
+              revision,
+              confirm: true,
+            });
+          } catch (error) {
+            lastError = error;
+            const stale = error && (error.status === 409 || error.code === 'STALE_CONFIGURATION');
+            if (!stale || attempt === 1) throw error;
+          }
+        }
+        throw lastError || { code: 'OPERATION_FAILED' };
+      }
+
+      async function runImport() {
+        const groups = sources
+          .map((source) => ({
+            source,
+            names: selectedNames(source.id).filter((name) => {
+              const row = (Array.isArray(source.servers) ? source.servers : []).find((item) => item.serverName === name);
+              return isEligible(row);
+            }),
+          }))
+          .filter((group) => group.names.length > 0);
+        if (groups.length === 0) {
+          setImportError(tr('discover.noSelection'));
+          return;
+        }
+        setImporting(true);
+        setImportError('');
+        const imported = [];
+        const skipped = [];
+        try {
+          for (const group of groups) {
+            try {
+              const result = normalizeImportResult(await importSourceOnce(group.source.id, group.names));
+              imported.push(...result.imported);
+              skipped.push(...result.skipped);
+            } catch (error) {
+              const kind = typeof onErrorRef.current === 'function' ? onErrorRef.current(error) : 'error';
+              if (kind !== 'error') {
+                if (typeof onCloseRef.current === 'function') onCloseRef.current();
+                return;
+              }
+              const code = error && typeof error.code === 'string' && error.code !== '' ? error.code : 'OPERATION_FAILED';
+              skipped.push(...group.names.map((name) => ({ serverName: name, code })));
+            }
+          }
+          if (typeof onImportedRef.current === 'function') onImportedRef.current({ imported, skipped });
+        } finally {
+          setImporting(false);
+        }
+      }
+
+      const selectedCount = Object.values(selection).reduce((sum, set) => sum + (set ? set.size : 0), 0);
+
+      const sourcesView =
+        state.status === 'loading'
+          ? h('p', { className: 'mcpg-hint' }, tr('discover.loading'))
+          : state.status === 'error'
+            ? h(Banner, { tone: 'error', text: state.error, live: true })
+            : sources.length === 0
+              ? h(
+                  'div',
+                  { className: 'mcpg-empty-state' },
+                  tr('discover.empty'),
+                  ' ',
+                  h('span', null, tr('discover.emptyHint')),
+                )
+              : sources.map((source) => {
+                  const rows = Array.isArray(source.servers) ? source.servers : [];
+                  const eligible = rows.filter(isEligible);
+                  const current = selection[source.id] || new Set();
+                  const allSelected = eligible.length > 0 && eligible.every((row) => current.has(row.serverName));
+                  return h(
+                    'details',
+                    { key: source.id, className: 'mcpg-source', open: true },
+                    h(
+                      'summary',
+                      null,
+                      h('span', null, source.label || source.kind || source.id),
+                      h('span', { className: 'mcpg-group-count' }, String(rows.length)),
+                      source.path ? h('span', { className: 'mcpg-source-path' }, source.path) : null,
+                      source.error ? h(Tag, { tone: 'danger' }, tr('discover.sourceError', { code: source.error })) : null,
+                      h('span', { className: 'mcpg-source-chevron' }, h(ChevronDownIcon, null)),
+                    ),
+                    h(
+                      'div',
+                      { className: 'mcpg-source-body' },
+                      source.error
+                        ? h(Banner, { tone: 'warning', text: runtime.errorText(source.error) })
+                        : null,
+                      rows.length === 0
+                        ? h('p', { className: 'mcpg-hint' }, tr('discover.empty'))
+                        : h(
+                            'label',
+                            { className: 'mcpg-check' },
+                            h('input', {
+                              type: 'checkbox',
+                              checked: allSelected,
+                              disabled: importing || eligible.length === 0,
+                              'aria-label': tr('discover.selectAll'),
+                              onChange: () => toggleAll(source.id, rows),
+                            }),
+                            h('span', null, tr('discover.selectAll')),
+                          ),
+                      rows.map((row) => {
+                        const eligible2 = isEligible(row);
+                        const checkboxId = 'mcpg-pick-' + source.id + '-' + row.serverName;
+                        const meta =
+                          row.transport === TRANSPORT_HTTP
+                            ? row.url || ''
+                            : [row.command, ...(Array.isArray(row.args) ? row.args : [])].filter(Boolean).join(' ');
+                        return h(
+                          'label',
+                          {
+                            key: source.id + '/' + row.serverName,
+                            className: 'mcpg-pick-row',
+                            'data-disabled': eligible2 ? 'false' : 'true',
+                            htmlFor: checkboxId,
+                          },
+                          h(
+                            'span',
+                            { className: 'mcpg-pick-box' },
+                            h('input', {
+                              id: checkboxId,
+                              type: 'checkbox',
+                              checked: current.has(row.serverName),
+                              disabled: importing || !eligible2,
+                              onChange: () => toggleName(source.id, row.serverName),
+                            }),
+                          ),
+                          h(
+                            'span',
+                            { className: 'mcpg-pick-main' },
+                            h(
+                              'span',
+                              { className: 'mcpg-pick-name' },
+                              h('span', null, row.serverName || ''),
+                              h(
+                                Tag,
+                                { tone: 'quiet' },
+                                runtime.translate(
+                                  row.transport === TRANSPORT_HTTP ? 'transport.http' : 'transport.stdio',
+                                ),
+                              ),
+                              row.highestRisk
+                                ? h(Tag, { tone: riskTone(row.highestRisk) }, runtime.levelText(row.highestRisk))
+                                : null,
+                              row.alreadyManaged ? h(Tag, { tone: 'quiet' }, tr('discover.alreadyManaged')) : null,
+                              row.alreadyExternal ? h(Tag, { tone: 'quiet' }, tr('discover.alreadyExternal')) : null,
+                              row.needsPlainHttpAllow ? h(Tag, { tone: 'warning' }, tr('discover.needsPlainHttp')) : null,
+                              row.error ? h(Tag, { tone: 'danger' }, tr('discover.unsupported', { code: row.error })) : null,
+                            ),
+                            meta ? h('span', { className: 'mcpg-pick-meta' }, meta) : null,
+                            row.scope ? h('span', { className: 'mcpg-pick-meta' }, tr('discover.scope', { scope: row.scope })) : null,
+                          ),
+                        );
+                      }),
+                    ),
+                  );
+                });
+
+      return h(
+        Modal,
+        {
+          title: tr('discover.title'),
+          closeLabel: tr('modal.close'),
+          wide: true,
+          onClose: importing ? () => {} : onClose,
+          footer: [
+            h(Button, { key: 'cancel', variant: 'outline', disabled: importing, onClick: onClose }, tr('form.cancel')),
+            h(
+              Button,
+              {
+                key: 'import',
+                variant: 'primary',
+                disabled: importing || selectedCount === 0 || state.status !== 'ready',
+                onClick: runImport,
+              },
+              importing ? tr('discover.importing') : tr('discover.importSelected'),
+            ),
+          ],
+        },
+        h('p', { className: 'mcpg-hint' }, tr('discover.hint')),
+        h(
+          'div',
+          { className: 'mcpg-discover-toolbar' },
+          h(
+            Button,
+            {
+              size: 'sm',
+              variant: 'outline',
+              disabled: importing || state.status === 'loading',
+              onClick: () => void load(),
+            },
+            h(RefreshIcon, { size: 14 }),
+            tr('discover.rescan'),
+          ),
+          selectedCount > 0 ? h('span', { className: 'mcpg-hint' }, tr('discover.selected', { count: selectedCount })) : null,
+        ),
+        importError ? h(Banner, { tone: 'error', text: importError, live: true }) : null,
+        sourcesView,
       );
     }
 
@@ -3179,6 +3830,8 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = useState(null);
       const [checkingName, setCheckingName] = useState(null);
       const [search, setSearch] = useState('');
+      const [externalDetails, setExternalDetails] = useState({});
+      const externalDetailsRef = useRef({});
 
       const load = useCallback(
         async (silent) => {
@@ -3217,6 +3870,43 @@ window.__ModuleLoader__.load({
           document.removeEventListener('visibilitychange', refresh);
         };
       }, [load]);
+
+      useEffect(() => {
+        const rows = page && Array.isArray(page.external)
+          ? page.external.filter((row) => row && (row.patchId || row.serverName))
+          : [];
+        if (rows.length === 0) return undefined;
+        let cancelled = false;
+        (async () => {
+          for (const row of rows) {
+            const key = row.patchId || row.serverName;
+            if (hasOwn(externalDetailsRef.current, key)) continue;
+            try {
+              const detail = await runtime.request(
+                'externalDetail',
+                row.patchId ? { patchId: row.patchId } : { serverName: row.serverName },
+              );
+              if (cancelled) return;
+              if (detail && typeof detail === 'object') {
+                externalDetailsRef.current[key] = detail;
+                if (typeof detail.patchId === 'string') externalDetailsRef.current[detail.patchId] = detail;
+                if (typeof detail.serverName === 'string') externalDetailsRef.current[detail.serverName] = detail;
+                setExternalDetails((previous) => {
+                  const next = { ...previous, [key]: detail };
+                  if (typeof detail.patchId === 'string') next[detail.patchId] = detail;
+                  if (typeof detail.serverName === 'string') next[detail.serverName] = detail;
+                  return next;
+                });
+              }
+            } catch {
+              externalDetailsRef.current[key] = null;
+            }
+          }
+        })();
+        return () => {
+          cancelled = true;
+        };
+      }, [page, runtime]);
 
       const classify = useCallback((error) => {
         const status = error && error.status;
@@ -3294,9 +3984,12 @@ window.__ModuleLoader__.load({
       const visibleServers = servers.filter(matchesQuery);
       const visibleExternal = external.filter((row) => {
         if (query === '') return true;
-        return String(row && row.serverName ? row.serverName : '')
-          .toLowerCase()
-          .includes(query);
+        const detail = externalDetails[externalDetailKey(row)] || null;
+        const haystack = [row && row.serverName, externalSubtitle(detail, row), row && row.transport]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(query);
       });
       const totalCount = servers.length + external.length;
       const limited = page && page.limits && typeof page.limits.maxServers === 'number' ? page.limits.maxServers : 100;
@@ -3307,6 +4000,120 @@ window.__ModuleLoader__.load({
 
       function openEdit(row) {
         setView({ kind: 'edit', mode: 'edit', serverName: row.serverName });
+      }
+
+      function externalDetailKey(row) {
+        return row ? row.patchId || row.serverName || '' : '';
+      }
+
+      function cacheExternalDetail(key, detail) {
+        if (!detail || typeof detail !== 'object') return;
+        externalDetailsRef.current[key] = detail;
+        if (typeof detail.patchId === 'string') externalDetailsRef.current[detail.patchId] = detail;
+        if (typeof detail.serverName === 'string') externalDetailsRef.current[detail.serverName] = detail;
+        setExternalDetails((previous) => {
+          const next = { ...previous, [key]: detail };
+          if (typeof detail.patchId === 'string') next[detail.patchId] = detail;
+          if (typeof detail.serverName === 'string') next[detail.serverName] = detail;
+          return next;
+        });
+      }
+
+      async function fetchExternalDetail(row) {
+        const detail = await runtime.request(
+          'externalDetail',
+          row.patchId ? { patchId: row.patchId } : { serverName: row.serverName },
+        );
+        cacheExternalDetail(externalDetailKey(row), detail);
+        return detail;
+      }
+
+      async function openExternalDetail(row) {
+        const key = externalDetailKey(row);
+        const cached = externalDetailsRef.current[key] || null;
+        const requestRow = row;
+        setModal({ kind: 'externalDetail', row: requestRow, detail: cached, loading: !cached, error: null });
+        try {
+          const detail = await fetchExternalDetail(requestRow);
+          setModal((previous) =>
+            previous && previous.kind === 'externalDetail' && externalDetailKey(previous.row) === key
+              ? { ...previous, detail, loading: false, error: null }
+              : previous,
+          );
+        } catch (error) {
+          const kind = classify(error);
+          if (kind !== 'error') {
+            setModal(null);
+            report(error);
+            return;
+          }
+          setModal((previous) =>
+            previous && previous.kind === 'externalDetail' && externalDetailKey(previous.row) === key
+              ? { ...previous, loading: false, error: runtime.errorText(error && error.code) }
+              : previous,
+          );
+        }
+      }
+
+      function openTakeOver(detail) {
+        if (!detail) return;
+        const row = modal && modal.kind === 'externalDetail' ? modal.row : null;
+        setModal({ kind: 'adoptConfirm', detail, row, error: null });
+      }
+
+      /** Auth/stale errors escape the discovery modal to the page banners. */
+      function discoveryError(error) {
+        const kind = classify(error);
+        if (kind === 'auth') {
+          setAuthBlocked(true);
+          setModal(null);
+          return kind;
+        }
+        if (kind === 'stale') {
+          setStale(true);
+          setModal(null);
+          void load(true);
+          return kind;
+        }
+        return kind;
+      }
+
+      async function confirmAdopt() {
+        const detail = modal && modal.kind === 'adoptConfirm' ? modal.detail : null;
+        if (!detail || !page) return;
+        if (typeof detail.patchId !== 'string' || detail.patchId === '') {
+          setModal((previous) => (previous ? { ...previous, error: runtime.translate('external.unavailable') } : previous));
+          return;
+        }
+        setBusy('adopt');
+        try {
+          await runtime.request('adoptExternal', {
+            patchId: detail.patchId,
+            revision: page.revision,
+            confirm: true,
+          });
+          setModal(null);
+          setNotice({ tone: 'success', text: translate('external.adoptOk', { name: detail.serverName }) });
+          await load(true);
+        } catch (error) {
+          failModal(error);
+        } finally {
+          setBusy(null);
+        }
+      }
+
+      function handleDiscoveryImported(summary) {
+        setModal(null);
+        const imported = summary && Array.isArray(summary.imported) ? summary.imported : [];
+        const skipped = summary && Array.isArray(summary.skipped) ? summary.skipped : [];
+        const codeList = skipped.map((item) => item.serverName + ': ' + item.code).join(', ');
+        const text =
+          imported.length > 0
+            ? translate('discover.importSummary', { imported: imported.length, skipped: skipped.length })
+            : translate('discover.importNothing', { list: codeList || '—' });
+        const detail = skipped.length > 0 ? translate('discover.importSkipped', { list: codeList.slice(0, 400) }) : '';
+        setNotice({ tone: imported.length > 0 ? 'success' : 'error', text, detail });
+        void load(true);
       }
 
       function onSaved(mode) {
@@ -3600,6 +4407,49 @@ window.__ModuleLoader__.load({
         );
       } else if (modal && modal.kind === 'export') {
         modals.push(h(ExportModal, { key: 'export', runtime, onClose: () => setModal(null) }));
+      } else if (modal && modal.kind === 'externalDetail') {
+        modals.push(
+          h(ExternalDetailModal, {
+            key: 'externalDetail',
+            runtime,
+            row: modal.row,
+            detail: modal.detail || null,
+            loading: modal.loading === true,
+            error: modal.error || null,
+            busy: busy === 'adopt',
+            onClose: () => setModal(null),
+            onTakeOver: openTakeOver,
+          }),
+        );
+      } else if (modal && modal.kind === 'adoptConfirm') {
+        modals.push(
+          h(AdoptConfirmModal, {
+            key: 'adoptConfirm',
+            runtime,
+            detail: modal.detail,
+            busy: busy === 'adopt',
+            error: modal.error || null,
+            onClose: () =>
+              setModal({
+                kind: 'externalDetail',
+                row: modal.row,
+                detail: modal.detail,
+                loading: false,
+                error: null,
+              }),
+            onConfirm: confirmAdopt,
+          }),
+        );
+      } else if (modal && modal.kind === 'discover') {
+        modals.push(
+          h(DiscoverModal, {
+            key: 'discover',
+            runtime,
+            onClose: () => setModal(null),
+            onError: discoveryError,
+            onImported: handleDiscoveryImported,
+          }),
+        );
       }
 
       const installedEmpty = page && visibleServers.length === 0;
@@ -3657,6 +4507,23 @@ window.__ModuleLoader__.load({
                   h(EllipsisIcon, null),
                 ),
               children: (close) => [
+                h(
+                  'button',
+                  {
+                    key: 'discover',
+                    type: 'button',
+                    role: 'menuitem',
+                    className: 'mcpg-menu-item',
+                    disabled: !page,
+                    onClick: () => {
+                      close();
+                      setModal({ kind: 'discover' });
+                    },
+                  },
+                  h('span', { className: 'mcpg-menu-item-icon' }, h(SearchIcon, { size: 14 })),
+                  h('span', null, translate('discover.menu')),
+                ),
+                h('hr', { key: 'sep', className: 'mcpg-menu-sep', 'aria-hidden': 'true' }),
                 h(
                   'button',
                   {
@@ -3757,7 +4624,15 @@ window.__ModuleLoader__.load({
               'div',
               { className: 'mcpg-group' },
               visibleExternal.length
-                ? visibleExternal.map((row, index) => h(ExternalRow, { key: row.serverName || index, runtime, row }))
+                ? visibleExternal.map((row, index) =>
+                    h(ExternalRow, {
+                      key: row.serverName || index,
+                      runtime,
+                      row,
+                      detail: externalDetails[externalDetailKey(row)] || null,
+                      onOpen: openExternalDetail,
+                    }),
+                  )
                 : h('div', { className: 'mcpg-empty-state' }, translate('list.noResults')),
             )
           : null,

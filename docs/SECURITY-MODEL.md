@@ -318,6 +318,31 @@ not a defense against a compromised local account. Hand-edited persisted content
 is unsupported: the UI guardrails run before saving and are not a runtime sandbox
 for arbitrary profile files.
 
+### T11 — Importing configuration written for other tools
+
+**Scenario.** Discovery reads MCP configuration files that other tools wrote
+(Cursor, Claude Code/Desktop, VS Code, project `.mcp.json`). Those files are
+untrusted input: entries may contain dangerous commands, hostile URLs,
+prototype-pollution keys or oversized values, and a discovered entry may contain
+secrets.
+
+**Controls.**
+- Fixed allowlist of file paths; no user-supplied path is read, no recursion, size
+  limit per file, JSON only (YAML files are not parsed).
+- Discovery itself executes nothing and returns no env/header **values** — only
+  key names, transport, command/URL and risk codes.
+- Import re-reads the source, runs every entry through the same strict
+  `mcpServers` validation used by paste-import, saves rows **disabled**, and
+  reports per-server skip codes.
+- Taking an existing profile row under management validates its config with the
+  same rules, disables the original row through the official plugin manager, and
+  re-enables it if saving the copy fails.
+
+**Residual risk.** A file can change between discovery and import (import always
+re-reads and re-validates, so that only changes what is imported, not how it is
+validated). Imported credentials are stored in the DSH profile in plaintext, like
+any other managed server.
+
 ## 4. Secure defaults
 
 | Default | Effect |
@@ -330,6 +355,8 @@ for arbitrary profile files.
 | No expressions | Loader expression configs cannot be stored via this plugin. |
 | Secrets write-only | Browser/API/errors/audit/export never contain values. |
 | Strict JSON import | Envelope + allowlist + size limits + unsafe-key rejection; imported rows disabled. |
+| Read-only discovery allowlist | Only known tool config files are read; nothing is executed; env/header values are never shown. |
+| Takeover is reversible | Original profile row disabled via the official plugin manager, copy saved disabled, rollback on failure. |
 | Execution-influencing env blocked | The UI cannot configure known code-injection variables. |
 | `failOnStartupError: false` is exposed but not forced | A broken server does not have to abort host startup; users can opt into strict startup. |
 | Bounded audit (newest 50) | A review aid without unbounded secret-adjacent history. |

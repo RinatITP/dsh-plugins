@@ -9,13 +9,12 @@
 import { createHash } from 'node:crypto';
 import { ManagerError } from './errors.js';
 import { MAX_BODY_BYTES, MAX_SERVERS, managedNames, readRows, revisionOf, storedRow } from './config.js';
-import { analyzeServer } from './security.js';
-import { normalizeDraft } from './validate.js';
+import { analyzeServer, isLoopbackHost } from './security.js';
+import { normalizeDraft, validateClient } from './validate.js';
 import { ImportError, parseImport, exportServers } from './import.js';
 import {
   clientHasSecrets,
   highestRiskLevel,
-  projectExternal,
   projectServer,
   projectToolMap,
   requiresAcknowledgement,
@@ -48,6 +47,9 @@ function requireConfirm(body) {
  * @param {(change: (current: object) => object) => Promise<void>} deps.editRaw persists a complete config
  * @param {() => Promise<{serverName:string|null,transport:string,enabled:boolean}[]>} deps.external external MCP rows
  * @param {() => {name:string}[]} deps.toolSchemas registered tool schemas
+ * @param {() => Promise<{id:string,kind:string,label:string,path:string,error?:string,servers:{serverName:string,scope?:string|null,entry:object}[]}[]>} [deps.discover] read-only config discovery
+ * @param {(patchId: string) => Promise<Record<string, unknown> | null>} [deps.externalClient] resolved external row config
+ * @param {(patchId: string, enabled: boolean) => Promise<void>} [deps.setExternalEnabled] official plugin toggle
  * @param {(serverName: string) => Promise<boolean>} [deps.checkConnection]
  * @param {boolean} [deps.officialClient] whether @deepseek-ai/dsh-mcp-client loaded
  * @param {string|null} [deps.profileName]
@@ -58,6 +60,9 @@ export function createManager(deps) {
     readRaw,
     editRaw,
     external = async () => [],
+    externalClient,
+    setExternalEnabled,
+    discover,
     toolSchemas = () => [],
     checkConnection,
     officialClient = false,
@@ -74,6 +79,23 @@ export function createManager(deps) {
       () => undefined,
     );
     return run;
+  }
+
+  /** True when the stored URL is plaintext HTTP to a non-loopback host. */
+  function plainHttpNeedsAllow(client) {
+    if (!client || client.transport !== 'streamable-http' || typeof client.url !== 'string') return false;
+    try {
+      const url = new URL(client.url);
+      return url.protocol === 'http:' && !isLoopbackHost(url.hostname);
+    } catch {
+      return false;
+    }
+  }
+
+  /** Strict official-client config from one raw `mcpServers` entry. */
+  function clientFromEntry(serverName, entry) {
+    const parsed = parseImport(JSON.stringify({ mcpServers: { [serverName]: entry } }), []);
+    return parsed.servers[0];
   }
 
   async function snapshot() {
@@ -174,7 +196,12 @@ export function createManager(deps) {
         officialClient: officialClient === true,
         profileName,
         servers,
-        external: snap.external.map((entry) => projectExternal(entry)),
+        external: snap.external.map((entry) => ({
+          ...entry,
+          source: 'external',
+          toolCount: map.byServer?.[entry.serverName]?.length ?? 0,
+          tools: [...(map.byServer?.[entry.serverName] ?? [])].sort(),
+        })),
         tools: { total: map.total, byServer: map.byServer },
         audit: auditLog.slice(0, 50),
         limits: { maxServers: MAX_SERVERS, maxBodyBytes: MAX_BODY_BYTES },
@@ -410,6 +437,206 @@ export function createManager(deps) {
           serverName: null,
           result: 'ok',
         });
+      });
+    },
+
+    /**
+     * Read-only detail for one MCP row that belongs to another plugin or a
+     * hand-written profile entry. No env/header values.
+     */
+    async externalDetail(body) {
+      const snap = await snapshot();
+      const row = snap.external.find(
+        (item) => (typeof body?.patchId === 'string' && item.patchId === body.patchId)
+          || (typeof body?.serverName === 'string' && item.serverName === body.serverName),
+      );
+      if (!row || !row.patchId) throw new ManagerError('NOT_FOUND', 404);
+      if (typeof externalClient !== 'function') throw new ManagerError('EXTERNAL_UNAVAILABLE', 503);
+      const resolved = await externalClient(row.patchId);
+      if (!resolved) throw new ManagerError('NOT_FOUND', 404);
+      const client = resolved.client;
+      const risk = analyzeServer(client, { allowPlainHttp: plainHttpNeedsAllow(client) }).risk;
+      const schemas = toolSchemas();
+      const map = projectToolMap(schemas, [client.serverName]);
+      return {
+        patchId: row.patchId,
+        serverName: client.serverName,
+        source: 'external',
+        enabled: resolved.enabled === true,
+        transport: client.transport === 'streamable-http' ? 'streamable-http' : 'stdio',
+        ...(client.transport === 'streamable-http'
+          ? { url: typeof client.url === 'string' ? client.url : '' }
+          : {
+              command: typeof client.command === 'string' ? client.command : '',
+              args: Array.isArray(client.args) ? [...client.args] : [],
+              cwd: typeof client.cwd === 'string' ? client.cwd : '',
+            }),
+        envKeys: Object.keys(client.env ?? {}).sort(),
+        headerKeys: Object.keys(client.headers ?? {}).sort(),
+        risk,
+        highestRisk: highestRiskLevel(risk),
+        toolCount: map.byServer?.[client.serverName]?.length ?? 0,
+        tools: [...(map.byServer?.[client.serverName] ?? [])].sort(),
+      };
+    },
+
+    /**
+     * Take an external MCP row under management: copy its validated config,
+     * disable the original profile row through the official plugin manager and
+     * save the copy disabled for review. Rollback re-enables the original row
+     * when saving fails.
+     */
+    adoptExternal(body) {
+      return serialize(async () => {
+        requireConfirm(body);
+        const snap = await snapshot();
+        if (body.revision !== snap.revision) throw new ManagerError('STALE_CONFIGURATION', 409);
+        const row = snap.external.find(
+          (item) => (typeof body?.patchId === 'string' && item.patchId === body.patchId)
+            || (typeof body?.serverName === 'string' && item.serverName === body.serverName),
+        );
+        if (!row || !row.patchId) throw new ManagerError('NOT_FOUND', 404);
+        if (typeof externalClient !== 'function' || typeof setExternalEnabled !== 'function') {
+          throw new ManagerError('EXTERNAL_UNAVAILABLE', 503);
+        }
+        const resolved = await externalClient(row.patchId);
+        if (!resolved) throw new ManagerError('NOT_FOUND', 404);
+        const allowPlainHttp = plainHttpNeedsAllow(resolved.client);
+        let client;
+        try {
+          client = validateClient(resolved.client, { allowPlainHttp });
+        } catch (error) {
+          throw error instanceof ManagerError ? error : new ManagerError(error?.code ?? 'CONFIGURATION_INVALID', 400);
+        }
+        if (managedNames(snap.rows).has(client.serverName)) throw new ManagerError('NAME_CONFLICT', 400);
+        await setExternalEnabled(row.patchId, false);
+        try {
+          const result = await saveRows(
+            [...rawRowList(snap.rows), storedRow(client, allowPlainHttp)],
+            snap.revision,
+            {
+              action: 'adopt',
+              serverName: client.serverName,
+              transport: client.transport,
+              result: 'ok',
+              highestRisk: highestRiskLevel(analyzeServer(client, { allowPlainHttp }).risk),
+            },
+          );
+          return { ...result, adopted: client.serverName };
+        } catch (error) {
+          try {
+            await setExternalEnabled(row.patchId, true);
+          } catch {
+            throw new ManagerError('ADOPT_ROLLBACK_FAILED', 500);
+          }
+          throw error instanceof ManagerError ? error : new ManagerError('ADOPT_FAILED', 500);
+        }
+      });
+    },
+
+    /** Read-only scan of known MCP configuration files on this computer. */
+    async discoverConfigs() {
+      const snap = await snapshot();
+      if (typeof discover !== 'function') throw new ManagerError('DISCOVERY_UNAVAILABLE', 503);
+      const sources = await discover();
+      const managed = managedNames(snap.rows);
+      const occupied = externalNames(snap.external);
+      return {
+        revision: snap.revision,
+        sources: (Array.isArray(sources) ? sources : []).slice(0, 30).map((source) => {
+          const servers = [];
+          for (const item of Array.isArray(source.servers) ? source.servers : []) {
+            const serverName = typeof item?.serverName === 'string' ? item.serverName : '';
+            const view = {
+              serverName,
+              scope: typeof item?.scope === 'string' ? item.scope : null,
+              alreadyManaged: managed.has(serverName),
+              alreadyExternal: occupied.has(serverName),
+            };
+            try {
+              const client = clientFromEntry(serverName, item.entry);
+              const allowPlainHttp = plainHttpNeedsAllow(client);
+              const risk = analyzeServer(client, { allowPlainHttp }).risk;
+              servers.push({
+                ...view,
+                transport: client.transport,
+                ...(client.transport === 'streamable-http'
+                  ? { url: client.url }
+                  : { command: client.command, args: [...(client.args ?? [])], cwd: client.cwd ?? '' }),
+                envKeys: Object.keys(client.env ?? {}).sort(),
+                headerKeys: Object.keys(client.headers ?? {}).sort(),
+                needsPlainHttpAllow: allowPlainHttp,
+                risk,
+                highestRisk: highestRiskLevel(risk),
+              });
+            } catch (error) {
+              servers.push({ ...view, error: typeof error?.code === 'string' ? error.code : 'SOURCE_INVALID_ENTRY' });
+            }
+            if (servers.length >= 200) break;
+          }
+          return {
+            id: source.id,
+            kind: source.kind,
+            label: source.label,
+            path: source.path,
+            error: typeof source.error === 'string' ? source.error : null,
+            servers,
+          };
+        }),
+      };
+    },
+
+    /** Import selected servers discovered on disk; always saved disabled. */
+    importDiscovered(body) {
+      return serialize(async () => {
+        requireConfirm(body);
+        const snap = await snapshot();
+        if (body.revision !== snap.revision) throw new ManagerError('STALE_CONFIGURATION', 409);
+        if (typeof discover !== 'function') throw new ManagerError('DISCOVERY_UNAVAILABLE', 503);
+        const sources = await discover();
+        const source = (Array.isArray(sources) ? sources : []).find((item) => item?.id === body.sourceId);
+        if (!source) throw new ManagerError('SOURCE_NOT_FOUND', 404);
+        const requested = Array.isArray(body.serverNames) ? body.serverNames.filter((name) => typeof name === 'string') : [];
+        if (requested.length === 0) throw new ManagerError('INVALID_REQUEST', 400);
+        if (requested.length > MAX_SERVERS) throw new ManagerError('TOO_MANY_SERVERS', 400);
+        const occupied = occupiedNames(snap.rows, snap.external);
+        let nextRows = rawRowList(snap.rows);
+        const imported = [];
+        const skipped = [];
+        for (const name of requested) {
+          const item = (source.servers ?? []).find((candidate) => candidate.serverName === name);
+          if (!item) {
+            skipped.push({ serverName: name, code: 'SOURCE_NOT_FOUND' });
+            continue;
+          }
+          if (occupied.has(name)) {
+            skipped.push({ serverName: name, code: 'NAME_CONFLICT' });
+            continue;
+          }
+          try {
+            const client = clientFromEntry(name, item.entry);
+            const allowPlainHttp = plainHttpNeedsAllow(client);
+            validateClient(client, { allowPlainHttp });
+            if (nextRows.length >= MAX_SERVERS) throw new ManagerError('TOO_MANY_SERVERS', 400);
+            nextRows = [...nextRows, storedRow(client, allowPlainHttp)];
+            occupied.add(name);
+            imported.push(name);
+          } catch (error) {
+            skipped.push({
+              serverName: name,
+              code: typeof error?.code === 'string' ? error.code : 'IMPORT_ERROR',
+            });
+          }
+        }
+        if (imported.length === 0) {
+          return { saved: false, imported: [], skipped };
+        }
+        const result = await saveRows(nextRows, snap.revision, {
+          action: 'import',
+          serverName: null,
+          result: 'ok',
+        });
+        return { ...result, imported, skipped };
       });
     },
 

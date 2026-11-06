@@ -16,7 +16,9 @@ Development preview `0.1.0`, targeting DSH **0.2.2-rc.1**.
 
 | Capability | Details |
 |---|---|
-| Server list | Z.ai/GLM-inspired list: scope pill, search, grouped full-width rows with transport glyph, status dot, monospace command line and pill toggle. MCP rows owned by other plugins or hand-written profiles are shown **read-only**. |
+| Server list | Z.ai/GLM-inspired list: scope pill, search, grouped full-width rows with transport glyph, status dot, monospace command line and pill toggle. MCP rows owned by other plugins or hand-written profiles are shown **read-only**, with their resolved name, transport, command line and tools; clicking one opens a detail view. |
+| Existing servers | "Managed by other plugins" rows can be inspected (command/URL, env/header **keys**, risks, tools) and **taken under management**: a validated copy is saved disabled and the original profile row is disabled through the official plugin manager, with rollback if saving fails. |
+| Find configs | A read-only scanner discovers MCP servers already configured for Cursor, Claude Code (including per-project entries), Claude Desktop, VS Code and registered DSH workspaces; selected servers can be imported into MCP Guard, always **disabled** for review. Nothing is executed during discovery. |
 | Add / edit | Form tab and JSON tab for one `mcpServers` entry, following the Z.ai MCP form layout (Type, Timeout MS, read-only Protocol version, Command, Arguments, env/header JSON editors, Advanced). The form prefills command/args/cwd/url from the stored row; env/header **values** stay write-only. Editing keeps the server name and re-saves the row disabled so it is reviewed again before it can run. |
 | Design | Settings page visual language adapted from the Z.ai (GLM) MCP Servers screen: 28px title, scope pill, search field, grouped rows with circular icons, Form/JSON pill tabs, full-configuration JSON tab — implemented with DSH theme tokens only (light and dark). |
 | Import | Strict `mcpServers` JSON import: 1 MiB / ≤100 servers, `type: http` converted to `streamable-http`, unknown fields, duplicate keys and prototype-pollution keys rejected. Imported servers are saved **disabled**; nothing runs during the preview. |
@@ -149,7 +151,11 @@ call can be interrupted.
   resources support may fail it while its tools work.
 - The audit snapshot is bounded (newest 50 entries); it is a review aid, not
   tamper-evident storage.
-- External/hand-written profile rows are read-only.
+- External/hand-written profile rows are read-only until taken under management;
+  the takeover disables the original profile row through the official plugin
+  manager (reversible from the Plugin Manager).
+- Discovery reads a fixed allowlist of configuration files only; it never runs a
+  discovered command and never shows env/header values (only key names).
 - Only `stdio` and `streamable-http` transports are supported.
 - Tool names are global (`mcp__<server>__<tool>`); the guard does not add per-tool
   allowlists or inspect tool payloads — it is a configuration guard, not a

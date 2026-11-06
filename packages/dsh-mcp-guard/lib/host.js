@@ -10,10 +10,13 @@
  *    and teardown stay owned by the official client).
  */
 import { randomUUID } from 'node:crypto';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { ManagerError } from './errors.js';
 import { createManager } from './manager.js';
 import { createHandler, ROUTE } from './http.js';
-import { projectExternalRows, readRows } from './config.js';
+import { externalRowClient, projectExternalRows, readRows } from './config.js';
+import { scanSources } from './discovery.js';
 
 export const name = 'dsh-mcp-guard';
 
@@ -59,6 +62,50 @@ export async function apply(ctx) {
   };
 
   const external = () => projectExternalRows(editor.entries());
+
+  const externalClient = (patchId) => externalRowClient(editor.entries(), patchId);
+
+  /** Disable/enable an external MCP row through the official plugin manager. */
+  const setExternalEnabled = async (patchId, enabled) => {
+    const manager = optional(ctx, 'pluginManager');
+    if (!manager || typeof manager.listPlugins !== 'function' || typeof manager.setPluginEnabled !== 'function') {
+      throw new ManagerError('EXTERNAL_UNAVAILABLE', 503);
+    }
+    const plugins = await manager.listPlugins();
+    const info = (plugins ?? []).find(
+      (plugin) => plugin?.moduleName === '@deepseek-ai/dsh-mcp-client'
+        && (plugin.patchId === patchId || String(plugin.entryId ?? '') === `include:${patchId}`),
+    );
+    if (!info) throw new ManagerError('EXTERNAL_UNAVAILABLE', 404);
+    const result = await manager.setPluginEnabled(info.entryId, enabled);
+    if (result?.application !== 'applied') throw new ManagerError('EXTERNAL_DISABLE_FAILED', 500);
+  };
+
+  /** Read-only scan of well-known MCP configuration files on this computer. */
+  const discover = async () => {
+    const home = process.env.HOME || homedir();
+    const dshHome = process.env.DSH_HOME || join(home, '.dsh');
+    const workspaces = [];
+    const registry = optional(ctx, 'workspaceRegistry');
+    if (registry && typeof registry.list === 'function') {
+      try {
+        for (const workspace of registry.list() ?? []) {
+          const candidate = workspace?.path ?? workspace?.directory ?? workspace?.root ?? workspace?.dir ?? workspace?.cwd;
+          if (typeof candidate === 'string' && candidate !== '') workspaces.push(candidate);
+        }
+      } catch {
+        // A workspace-registry error only narrows discovery; never fail the scan.
+      }
+    }
+    if (workspaces.length === 0) {
+      try {
+        workspaces.push(process.cwd());
+      } catch {
+        // Ignore; no workspace candidates.
+      }
+    }
+    return scanSources({ home, dshHome, workspaces });
+  };
   const toolSchemas = () => {
     const tools = optional(ctx, 'tools');
     if (!tools || typeof tools.schemas !== 'function') return [];
@@ -100,6 +147,9 @@ export async function apply(ctx) {
     readRaw,
     editRaw,
     external,
+    externalClient,
+    setExternalEnabled,
+    discover,
     toolSchemas,
     checkConnection,
     officialClient: officialClient !== null,

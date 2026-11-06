@@ -110,13 +110,16 @@ still flagged as risks).
 }
 ```
 
-`ExternalView` (row owned by another plugin / hand-written profile patch):
-`{ "serverName": "personal-memory", "transport": "stdio", "enabled": true,
-"source": "external" }` — no config details, no risks, read-only.
+`ExternalView` (MCP row owned by another plugin / a hand-written profile entry;
+only **active** rows are listed):
+`{ "patchId": "mcp-personal-memory", "serverName": "personal-memory",
+"transport": "stdio", "enabled": true, "source": "external", "toolCount": 5,
+"tools": ["mcp__personal-memory__memory_search", ...] }` — no env/header
+values; read-only for this plugin, but it can be inspected and taken over.
 
 `AuditEntry`: `{ "at": ISO, "action": "create"|"update"|"remove"|"enable"|
-"disable"|"import"|"check", "serverName": string|null, "transport"?: string,
-"result": "ok"|"error", "highestRisk"?: string }`.
+"disable"|"import"|"adopt"|"check", "serverName": string|null,
+"transport"?: string, "result": "ok"|"error", "highestRisk"?: string }`.
 
 `Risk`: `{ "level": "critical"|"high"|"medium"|"low"|"info", "code": string,
 "params": object }`. `params` never contains secret values or full secret-like
@@ -136,6 +139,10 @@ arguments (at most a key name or a safe command basename).
 | `previewImport` | `text` | ImportPreview |
 | `import` | `text`, `revision`, `confirm` | `{ saved: true }` |
 | `export` | — | `{ json: string, redacted: true }` |
+| `externalDetail` | `patchId` or `serverName` | ExternalDetail |
+| `adoptExternal` | `patchId`, `revision`, `confirm` | `{ saved: true, adopted: string }` |
+| `discover` | — | DiscoverResult |
+| `importDiscovered` | `sourceId`, `serverNames`, `revision`, `confirm` | `{ saved: boolean, imported: string[], skipped: {serverName,code}[] }` |
 
 `update` always saves the row disabled (re-review before enabling) and cannot
 rename the server. `remove` is allowed regardless of enabled state.
@@ -221,6 +228,81 @@ rejected, transport conflicts rejected, URLs validated. Imported servers save
 **disabled**; no command is executed and no expression is expanded during
 preview.
 
+#### ExternalDetail
+
+Read-only view of one active MCP row owned by another plugin or a hand-written
+profile entry. Same non-secret execution coordinates as `ServerView`, plus the
+patch id and its currently registered tools:
+
+```jsonc
+{
+  "patchId": "mcp-personal-memory",
+  "serverName": "personal-memory",
+  "source": "external",
+  "enabled": true,
+  "transport": "stdio",
+  "command": "/opt/homebrew/bin/node",
+  "args": ["/path/to/server.mjs"],
+  "cwd": "",
+  "envKeys": ["MEMORY_VAULT_PATH"],
+  "headerKeys": [],
+  "risk": [ Risk ],
+  "highestRisk": "low",
+  "toolCount": 5,
+  "tools": ["mcp__personal-memory__memory_search"]
+}
+```
+
+`adoptExternal` copies a validated external row into the manager, disables the
+original profile row through the official plugin manager, and saves the copy
+**disabled** for review. If saving fails, the original row is re-enabled; a
+rollback failure returns `ADOPT_ROLLBACK_FAILED`. A row whose official entry
+cannot be toggled returns `EXTERNAL_UNAVAILABLE`/`EXTERNAL_DISABLE_FAILED`.
+
+#### DiscoverResult
+
+```jsonc
+{
+  "revision": "hex",
+  "sources": [
+    {
+      "id": "16-hex",
+      "kind": "cursor" | "claude-code" | "claude-desktop" | "vscode" | "dsh" |
+              "project-claude" | "project-cursor" | "project-vscode" | "project-dsh",
+      "label": "Cursor",
+      "path": "/Users/me/.cursor/mcp.json",
+      "error": null,                       // SOURCE_TOO_LARGE | SOURCE_UNREADABLE | SOURCE_INVALID_JSON
+      "servers": [
+        {
+          "serverName": "google-drive",
+          "scope": null,                   // project path for Claude Code project entries
+          "transport": "stdio",
+          "command": "node",
+          "args": ["server.mjs"],
+          "cwd": "",
+          "envKeys": ["TOKEN"],
+          "headerKeys": [],
+          "alreadyManaged": false,
+          "alreadyExternal": false,
+          "needsPlainHttpAllow": false,
+          "risk": [ Risk ],
+          "highestRisk": "medium",
+          "error": null                    // stable import/validation code for unsupported entries
+        }
+      ]
+    }
+  ]
+}
+```
+
+Discovery reads only an allowlist of known configuration files
+(`~/.cursor/mcp.json`, `~/.claude.json` including per-project entries,
+Claude Desktop, VS Code user settings, `$DSH_HOME/mcp.json`, and the MCP files
+of registered workspaces). It never executes anything and never returns
+env/header values. `importDiscovered` re-reads the source, validates each
+selected entry strictly, saves them **disabled**, and reports per-server skips
+(`NAME_CONFLICT`, `SOURCE_NOT_FOUND`, validation codes).
+
 #### Export
 
 `export` returns an `mcpServers` JSON document with env/header **values removed**
@@ -240,7 +322,12 @@ backup/migration aid, not a secret backup; the Client says so.
 - Never display secret values (the API does not send them). All env/header
   values are write-only inputs.
 - Views: List; Add/Edit (Form|JSON tabs); Import modal; Enable modal;
-  Export modal; read-only "Managed by other plugins" section; audit log section.
+  Export modal; read-only "Managed by other plugins" section (rows show the
+  resolved name, transport, command line, status dot and a read-only badge;
+  clicking one opens a read-only detail modal with an explicit
+  "take under management" action and its confirmation); "Find MCP configs"
+  discovery modal (grouped by source file with checkboxes, per-server risk and
+  conflict/error badges, import saves the selection disabled); audit section.
 - JSON tab: editable `mcpServers` entry JSON for the draft. Validate through
   `analyze` after converting it back into a draft. For an existing server,
   secrets are omitted from the JSON view; saving JSON that drops env/headers
@@ -273,7 +360,11 @@ API: `NOT_FOUND`, `CONFIRM_REQUIRED`, `STALE_CONFIGURATION`,
 `CONFIGURATION_UNAVAILABLE`, `CONFIGURATION_INVALID`, `INVALID_REQUEST`,
 `METHOD_NOT_ALLOWED`, `CONTENT_TYPE`, `BODY_TOO_LARGE`, `UNAUTHENTICATED`,
 `FORBIDDEN`, `OPERATION_FAILED`, `OFFICIAL_CLIENT_UNAVAILABLE`,
-`CHECK_UNAVAILABLE`, `RISK_BLOCKED`, `RISK_ACK_REQUIRED`.
+`CHECK_UNAVAILABLE`, `RISK_BLOCKED`, `RISK_ACK_REQUIRED`, `EXTERNAL_UNAVAILABLE`,
+`EXTERNAL_DISABLE_FAILED`, `ADOPT_FAILED`, `ADOPT_ROLLBACK_FAILED`,
+`DISCOVERY_UNAVAILABLE`, `SOURCE_NOT_FOUND`; discovery source errors
+`SOURCE_TOO_LARGE`, `SOURCE_UNREADABLE`, `SOURCE_INVALID_JSON`,
+`SOURCE_INVALID_ENTRY`.
 
 ## Risk codes
 

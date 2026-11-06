@@ -72,20 +72,38 @@ export function managedNames(rows) {
 }
 
 /**
- * External MCP row identities currently declared in the profile. Includes
- * disabled rows because a disabled namespace still reserves its name.
+ * External MCP rows currently ACTIVE in the profile. Disabled rows are
+ * excluded: a disabled row neither reserves its namespace nor connects, and a
+ * row adopted into the manager must disappear from this read-only list.
  */
 export function projectExternalRows(entries) {
   const result = [];
   for (const entry of entries ?? []) {
     if (entry?.options?.name !== '@deepseek-ai/dsh-mcp-client') continue;
+    if (entry.options.disabled === true) continue;
     const config = entry.options.config ?? {};
     const serverName = typeof config.serverName === 'string' ? config.serverName : null;
     result.push({
+      patchId: typeof entry.options.id === 'string' ? entry.options.id : null,
       serverName,
       transport: config.transport === 'streamable-http' ? 'streamable-http' : 'stdio',
-      enabled: entry.options.disabled !== true,
+      enabled: true,
     });
   }
   return result;
+}
+
+/**
+ * Resolved configuration for one external row, or null when it no longer
+ * exists. Used by the read-only detail view and the intake ("adopt") flow.
+ */
+export function externalRowClient(entries, patchId) {
+  for (const entry of entries ?? []) {
+    if (entry?.options?.name !== '@deepseek-ai/dsh-mcp-client') continue;
+    if (entry.options.id !== patchId) continue;
+    const config = entry.options.config;
+    if (config === null || typeof config !== 'object' || Array.isArray(config)) return null;
+    return { client: config, enabled: entry.options.disabled !== true };
+  }
+  return null;
 }

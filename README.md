@@ -34,7 +34,7 @@ A small monorepo for DSH plugins that follow the same rules:
 
 | Plugin | Version | License | Description |
 |---|---|---|---|
-| [`dsh-mcp-guard`](packages/dsh-mcp-guard/) | 0.1.0 | MIT | Security-first MCP server manager with a Z.ai/GLM-style settings UI: strict validation of stdio/HTTP servers, execution preview, bounded audit trail. |
+| [`dsh-mcp-guard`](packages/dsh-mcp-guard/) | 0.1.0 | MIT | Security-first MCP server manager with a Z.ai/GLM-style settings UI: strict validation, execution preview, bounded audit trail, takeover of existing profile rows and read-only discovery/import of Cursor, Claude and VS Code MCP configs. |
 
 More plugins may be added over time. [`docs/PLUGINS.md`](docs/PLUGINS.md) is the
 catalog and lists the acceptance criteria for new entries.

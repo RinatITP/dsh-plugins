@@ -9,15 +9,38 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createManager, resetManagerState } from '../lib/manager.js';
 
-function harness({ servers = [], external = [], schemas = [], check = async () => true, officialClient = true } = {}) {
-  const state = { config: { servers: structuredClone(servers) }, edits: 0 };
+function harness({
+  servers = [],
+  external = [],
+  externalClients = {},
+  discoverSources = [],
+  schemas = [],
+  check = async () => true,
+  officialClient = true,
+  failEditOnce = false,
+} = {}) {
+  const state = {
+    config: { servers: structuredClone(servers) },
+    edits: 0,
+    failEditOnce,
+    externalToggles: [],
+  };
   const manager = createManager({
     readRaw: async () => structuredClone(state.config),
     editRaw: async (change) => {
+      if (state.failEditOnce) {
+        state.failEditOnce = false;
+        throw new Error('simulated edit failure');
+      }
       state.config = change(structuredClone(state.config));
       state.edits += 1;
     },
     external: () => structuredClone(external),
+    externalClient: async (patchId) => structuredClone(externalClients[patchId] ?? null),
+    setExternalEnabled: async (patchId, enabled) => {
+      state.externalToggles.push({ patchId, enabled });
+    },
+    discover: async () => structuredClone(discoverSources),
     toolSchemas: () => schemas,
     checkConnection: check,
     officialClient,
@@ -381,4 +404,186 @@ test('mutations serialize and reject stale revisions', async () => {
     manager.create({ draft: stdioDraft({ serverName: 'beta' }), revision: first.revision, confirm: true }),
     /STALE_CONFIGURATION/,
   );
+});
+
+
+/* ------------------------------------------------------------------------- */
+/* External rows, intake and discovery                                       */
+/* ------------------------------------------------------------------------- */
+
+const externalStdioRow = (overrides = {}) => ({
+  patchId: 'mcp-external',
+  serverName: 'external-a',
+  transport: 'stdio',
+  enabled: true,
+  ...overrides,
+});
+
+const externalStdioClient = {
+  serverName: 'external-a',
+  transport: 'stdio',
+  command: 'node',
+  args: ['ext.mjs', '--token=sk-live-0123456789abcdefghijkl'],
+  env: { API_TOKEN: 'super-secret-value' },
+};
+
+test('list resolves external names and their tools', async () => {
+  const { manager } = harness({
+    external: [externalStdioRow()],
+    schemas: [{ name: 'mcp__external-a__ping' }, { name: 'mcp__other__x' }],
+  });
+  const view = await manager.list();
+  assert.equal(view.external.length, 1);
+  const external = view.external[0];
+  assert.equal(external.serverName, 'external-a');
+  assert.equal(external.patchId, 'mcp-external');
+  assert.equal(external.source, 'external');
+  assert.equal(external.toolCount, 1);
+  assert.deepEqual(external.tools, ['mcp__external-a__ping']);
+});
+
+test('externalDetail exposes execution coordinates and keys without values', async () => {
+  const { manager } = harness({
+    external: [externalStdioRow()],
+    externalClients: { 'mcp-external': { client: externalStdioClient, enabled: true } },
+    schemas: [{ name: 'mcp__external-a__ping' }],
+  });
+  const detail = await manager.externalDetail({ patchId: 'mcp-external' });
+  assert.equal(detail.serverName, 'external-a');
+  assert.equal(detail.command, 'node');
+  assert.deepEqual(detail.args, ['ext.mjs', '--token=sk-live-0123456789abcdefghijkl']);
+  assert.deepEqual(detail.envKeys, ['API_TOKEN']);
+  assert.equal(detail.toolCount, 1);
+  assert.ok(detail.risk.some((item) => item.code === 'risk.secretInArgs'));
+  assert.ok(!JSON.stringify(detail).includes('super-secret-value'));
+});
+
+test('adoptExternal disables the source row and saves a managed copy disabled', async () => {
+  const { manager, state } = harness({
+    external: [externalStdioRow()],
+    externalClients: { 'mcp-external': { client: externalStdioClient, enabled: true } },
+  });
+  const snapshot = await manager.list();
+  const result = await manager.adoptExternal({ patchId: 'mcp-external', revision: snapshot.revision, confirm: true });
+  assert.equal(result.adopted, 'external-a');
+  assert.deepEqual(state.externalToggles, [{ patchId: 'mcp-external', enabled: false }]);
+  assert.equal(state.config.servers.length, 1);
+  assert.equal(state.config.servers[0].enabled, false);
+  assert.equal(state.config.servers[0].client.serverName, 'external-a');
+  const after = await manager.list();
+  assert.equal(after.audit[0].action, 'adopt');
+});
+
+test('adoptExternal rolls the source row back when saving fails', async () => {
+  const { manager, state } = harness({
+    external: [externalStdioRow()],
+    externalClients: { 'mcp-external': { client: externalStdioClient, enabled: true } },
+    failEditOnce: true,
+  });
+  const snapshot = await manager.list();
+  await assert.rejects(
+    manager.adoptExternal({ patchId: 'mcp-external', revision: snapshot.revision, confirm: true }),
+    /ADOPT_FAILED/,
+  );
+  assert.deepEqual(state.externalToggles, [
+    { patchId: 'mcp-external', enabled: false },
+    { patchId: 'mcp-external', enabled: true },
+  ]);
+  assert.equal(state.config.servers.length, 0);
+});
+
+test('adoptExternal keeps a plaintext LAN allowance on the managed copy', async () => {
+  const { manager, state } = harness({
+    external: [externalStdioRow({ serverName: 'lan', patchId: 'mcp-lan' })],
+    externalClients: {
+      'mcp-lan': {
+        client: { serverName: 'lan', transport: 'streamable-http', url: 'http://192.168.1.5:8080/mcp' },
+        enabled: true,
+      },
+    },
+  });
+  const snapshot = await manager.list();
+  await manager.adoptExternal({ patchId: 'mcp-lan', revision: snapshot.revision, confirm: true });
+  assert.equal(state.config.servers[0].allowPlainHttp, true);
+  assert.equal(state.config.servers[0].enabled, false);
+});
+
+test('discoverConfigs projects files without secret values and marks conflicts', async () => {
+  const discoverSources = [
+    {
+      id: 'src1',
+      kind: 'cursor',
+      label: 'Cursor',
+      path: '/home/u/.cursor/mcp.json',
+      servers: [
+        { serverName: 'alpha', entry: { command: 'node', args: ['a.mjs'], env: { TOKEN: 'super-secret-value' } } },
+        { serverName: 'weird', entry: { type: 'http' } },
+      ],
+    },
+  ];
+  const { manager } = harness({ servers: [storedStdio()], discoverSources });
+  const result = await manager.discoverConfigs();
+  assert.equal(result.sources.length, 1);
+  const [alpha, weird] = result.sources[0].servers;
+  assert.equal(alpha.serverName, 'alpha');
+  assert.equal(alpha.alreadyManaged, true);
+  assert.deepEqual(alpha.envKeys, ['TOKEN']);
+  assert.ok(!JSON.stringify(result).includes('super-secret-value'));
+  assert.equal(weird.error, 'IMPORT_URL_INVALID');
+});
+
+test('importDiscovered imports selected servers disabled and reports skips', async () => {
+  const discoverSources = [
+    {
+      id: 'src1',
+      kind: 'cursor',
+      label: 'Cursor',
+      path: '/home/u/.cursor/mcp.json',
+      servers: [
+        { serverName: 'beta', entry: { command: 'node', args: ['b.mjs'] } },
+        { serverName: 'alpha', entry: { command: 'node' } },
+        { serverName: 'gamma', entry: { command: 'node', args: ['g.mjs'] } },
+      ],
+    },
+  ];
+  const { manager, state } = harness({ servers: [storedStdio()], discoverSources });
+  const snapshot = await manager.list();
+  const result = await manager.importDiscovered({
+    sourceId: 'src1',
+    serverNames: ['beta', 'alpha', 'missing'],
+    revision: snapshot.revision,
+    confirm: true,
+  });
+  assert.equal(result.imported.length, 1);
+  assert.deepEqual(result.imported, ['beta']);
+  assert.deepEqual(
+    result.skipped.map((item) => item.code).sort(),
+    ['NAME_CONFLICT', 'SOURCE_NOT_FOUND'],
+  );
+  assert.equal(state.config.servers.length, 2);
+  assert.equal(state.config.servers[1].enabled, false);
+  assert.equal(state.config.servers[1].client.serverName, 'beta');
+});
+
+test('importDiscovered saves nothing when every selection is skipped', async () => {
+  const discoverSources = [
+    {
+      id: 'src1',
+      kind: 'cursor',
+      label: 'Cursor',
+      path: '/home/u/.cursor/mcp.json',
+      servers: [{ serverName: 'alpha', entry: { command: 'node' } }],
+    },
+  ];
+  const { manager, state } = harness({ servers: [storedStdio()], discoverSources });
+  const snapshot = await manager.list();
+  const result = await manager.importDiscovered({
+    sourceId: 'src1',
+    serverNames: ['alpha'],
+    revision: snapshot.revision,
+    confirm: true,
+  });
+  assert.equal(result.saved, false);
+  assert.deepEqual(result.imported, []);
+  assert.equal(state.edits, 0);
 });

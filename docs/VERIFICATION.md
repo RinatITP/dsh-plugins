@@ -18,9 +18,9 @@ wording elsewhere; if the two disagree, this page is the evidence.
 
 ```sh
 cd packages/dsh-mcp-guard
-node --test test/*.test.mjs        # 147 tests, 0 failures
+node --test test/*.test.mjs        # 163 tests, 0 failures
 cd ../..
-node scripts/validate.mjs         # 59 checks, 0 failures
+node scripts/validate.mjs         # 60 checks, 0 failures
 node --check packages/dsh-mcp-guard/client.js
 node --check packages/dsh-mcp-guard/index.js
 ```
@@ -72,6 +72,33 @@ This verifies the official-client resolution, config reading, child mount,
 process spawn, tool registration and teardown. It does **not** exercise a save
 through `configEditor` from the browser UI (that path is covered by manager
 unit tests and uses the documented `ctx.fiber.entry` + `editor.edit` pattern).
+
+## Existing-server pass (2026-11-06)
+
+After the first live screenshot, two follow-up bugs/features were implemented:
+
+- **Fixed** the external-row projection: the manager projected already-projected
+  rows a second time, so every row owned by another plugin rendered
+  `(unresolved)`. External rows now carry the resolved server name, patch id,
+  transport, tool count and tool names; disabled external rows are not listed.
+- Added read-only **external detail** and a **takeover** (adopt) operation that
+  copies the validated config into the manager disabled and disables the original
+  profile row through the official plugin manager, with rollback on failure.
+- Added **discovery** (`lib/discovery.js`): a read-only scanner over an allowlist
+  of existing MCP configuration files (Cursor, Claude Code incl. per-project
+  entries, Claude Desktop, VS Code, `$DSH_HOME/mcp.json`, registered workspaces)
+  plus strict import of selected servers (always disabled). One observation on
+  the development machine: the scanner found the Cursor, Claude Code and Claude
+  Desktop configurations with existing servers (names/paths intentionally not
+  recorded here). Discovery itself was not exercised through the browser UI.
+- Host-side unit tests cover external projection, detail, adoption success and
+  rollback, discovery projection, and discovery import (including conflicts and
+  skipped entries); the suite grew to 163 tests.
+
+This pass changed the Host API (new actions and external fields), so it was
+verified statically/unit-wise and by the installed-slot checks; the new browser
+flows (detail modal, takeover confirmation, discovery dialog) were not visually
+inspected.
 
 ## Redesign pass (2026-11-06)
 

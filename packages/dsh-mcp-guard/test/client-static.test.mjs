@@ -114,6 +114,19 @@ const CONTRACT_ERROR_CODES = [
   'OPERATION_FAILED',
   'OFFICIAL_CLIENT_UNAVAILABLE',
   'CHECK_UNAVAILABLE',
+  'RISK_BLOCKED',
+  'RISK_ACK_REQUIRED',
+  'CONFIGURATION_INVALID',
+  'EXTERNAL_UNAVAILABLE',
+  'EXTERNAL_DISABLE_FAILED',
+  'ADOPT_FAILED',
+  'ADOPT_ROLLBACK_FAILED',
+  'DISCOVERY_UNAVAILABLE',
+  'SOURCE_NOT_FOUND',
+  'SOURCE_TOO_LARGE',
+  'SOURCE_UNREADABLE',
+  'SOURCE_INVALID_JSON',
+  'SOURCE_INVALID_ENTRY',
 ];
 
 const CONTRACT_RISK_CODES = [
@@ -236,6 +249,8 @@ test('Z.ai-style list markup is present (title, scope pill, search, groups, rows
   assert.ok(clientSource.includes("'list.exportMenu'"));
   assert.ok(clientSource.includes("'list.noResults'"));
   assert.ok(clientSource.includes("'page.external'"));
+  assert.ok(clientSource.includes('Managed by other plugins'));
+  assert.ok(clientSource.includes('MCP-серверы'));
   assert.ok(clientSource.includes("'list.externalHint'"));
 });
 
@@ -404,4 +419,122 @@ test('package.json wires the delivered client, locale files and icon', () => {
   assert.equal(packageJson.icon, './icon.svg');
   assert.ok(packageJson.files.includes('client.js'));
   assert.ok(packageJson.files.includes('icon.svg'));
+});
+
+
+test('external rows: read-only detail modal and takeover are wired', () => {
+  // Host actions for inspecting and adopting an external MCP row.
+  assert.match(clientSource, /runtime\.request\(\s*'externalDetail'/);
+  assert.match(clientSource, /runtime\.request\(\s*'adoptExternal'/);
+  assert.ok(clientSource.includes("patchId: detail.patchId"));
+  assert.ok(clientSource.includes('revision: page.revision'));
+  assert.ok(clientSource.includes("confirm: true"));
+  // The external row renders like a managed row and opens the detail modal.
+  assert.match(clientSource, /function ExternalRow\(/);
+  assert.match(clientSource, /function ExternalDetailModal\(/);
+  assert.match(clientSource, /function AdoptConfirmModal\(/);
+  assert.match(clientSource, /onOpenExternalDetail|onOpen: openExternalDetail/);
+  assert.ok(clientSource.includes("'a11y.externalRow'"));
+  assert.ok(clientSource.includes("'external.notOwned'"));
+  assert.ok(clientSource.includes("'external.takeOver'"));
+  assert.ok(clientSource.includes("'external.adoptTitle'"));
+  assert.ok(clientSource.includes("'external.adoptStep1'"));
+  assert.ok(clientSource.includes("'external.adoptStep2'"));
+  assert.ok(clientSource.includes("'external.adoptStep3'"));
+  assert.ok(clientSource.includes("'external.sourceLabel'"));
+  assert.ok(clientSource.includes("'external.toolsEmpty'"));
+  // External rows are read-only: no switch inside ExternalRow.
+  const start = clientSource.indexOf('function ExternalRow(');
+  const end = clientSource.indexOf('function AuditSection(', start);
+  assert.ok(start > 0 && end > start);
+  const externalBody = clientSource.slice(start, end);
+  assert.ok(!externalBody.includes('h(Switch'));
+  assert.ok(!externalBody.includes('toggle'));
+  const adoptStart = clientSource.indexOf('function AdoptConfirmModal(');
+  const adoptEnd = clientSource.indexOf('function normalizeImportResult(', adoptStart);
+  assert.ok(adoptStart > 0 && adoptEnd > adoptStart);
+  const adoptBody = clientSource.slice(adoptStart, adoptEnd);
+  assert.ok(adoptBody.includes("tr('external.adoptStep2')"));
+});
+
+test('external detail falls back from patchId to serverName and caches lookups', () => {
+  assert.match(clientSource, /patchId\s*\?\s*\{\s*patchId:\s*row\.patchId\s*\}\s*:\s*\{\s*serverName:\s*row\.serverName\s*\}/);
+  assert.match(clientSource, /function externalDetailKey\(/);
+  assert.match(clientSource, /function cacheExternalDetail\(/);
+  assert.match(clientSource, /function fetchExternalDetail\(/);
+});
+
+test('discovery modal and per-source import are wired with a fresh revision', () => {
+  assert.match(clientSource, /function DiscoverModal\(/);
+  assert.match(clientSource, /runtime\.request\(\s*'discover'\s*\)/);
+  assert.match(clientSource, /runtime\.request\(\s*'importDiscovered'/);
+  // A fresh GET snapshot is fetched before each per-source import call.
+  assert.match(clientSource, /const snapshot = await runtime\.request\(null\)/);
+  assert.ok(clientSource.includes('sourceId'));
+  assert.ok(clientSource.includes('serverNames: names'));
+  assert.ok(clientSource.includes("confirm: true"));
+  // Menu entry, selection, badges and empty/loading states.
+  assert.ok(clientSource.includes("'discover.menu'"));
+  assert.ok(clientSource.includes("'discover.title'"));
+  assert.ok(clientSource.includes("'discover.hint'"));
+  assert.ok(clientSource.includes("'discover.loading'"));
+  assert.ok(clientSource.includes("'discover.empty'"));
+  assert.ok(clientSource.includes("'discover.selectAll'"));
+  assert.ok(clientSource.includes("'discover.importSelected'"));
+  assert.ok(clientSource.includes("'discover.importSummary'"));
+  assert.ok(clientSource.includes("'discover.importSkipped'"));
+  assert.ok(clientSource.includes("'discover.importNothing'"));
+  assert.ok(clientSource.includes("'discover.alreadyManaged'"));
+  assert.ok(clientSource.includes("'discover.alreadyExternal'"));
+  assert.ok(clientSource.includes("'discover.needsPlainHttp'"));
+  assert.ok(clientSource.includes("setModal({ kind: 'discover' })"));
+  assert.match(clientSource, /onImported: handleDiscoveryImported/);
+  // Import aggregate is normalized defensively (array / count forms).
+  assert.match(clientSource, /function normalizeImportResult\(/);
+  assert.ok(clientSource.includes('Array.isArray(source.imported)'));
+});
+
+test('new audit/adoption and discovery keys exist in both dictionaries', () => {
+  const required = [
+    'external.source',
+    'external.sourceLabel',
+    'external.notOwned',
+    'external.detailTitle',
+    'external.loading',
+    'external.unavailable',
+    'external.takeOver',
+    'external.adoptTitle',
+    'external.adoptStep1',
+    'external.adoptStep2',
+    'external.adoptStep3',
+    'external.adoptOk',
+    'external.patchId',
+    'external.toolsEmpty',
+    'discover.menu',
+    'discover.title',
+    'discover.hint',
+    'discover.loading',
+    'discover.rescan',
+    'discover.empty',
+    'discover.emptyHint',
+    'discover.sourceError',
+    'discover.alreadyManaged',
+    'discover.alreadyExternal',
+    'discover.needsPlainHttp',
+    'discover.unsupported',
+    'discover.selectAll',
+    'discover.selected',
+    'discover.importSelected',
+    'discover.importing',
+    'discover.importSummary',
+    'discover.importSkipped',
+    'discover.importNothing',
+    'discover.noSelection',
+    'discover.scope',
+    'audit.action.adopt',
+  ];
+  for (const key of required) {
+    assert.ok(Object.hasOwn(DICT_EN, key), 'missing EN dictionary key: ' + key);
+    assert.ok(Object.hasOwn(DICT_RU, key), 'missing RU dictionary key: ' + key);
+  }
 });
