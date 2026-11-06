@@ -178,6 +178,30 @@ project `.dsh/skills` roots (opt-out with `allowProjectWrites: false`); external
 agent roots are never written; imports never overwrite; every mutation is
 confirmation- and revision-gated, backed up and audited without file bodies.
 
+### Visual observation in the running Desktop app (2026-11-06)
+
+The running DSH Desktop window was captured with CoreGraphics
+(`screencapture -l <window-id>`); the settings page was reached manually through
+**Настройки → «Навыки»**. Observed:
+
+- the section is present in the settings navigation as **«Навыки»**;
+- the page renders in Russian with the expected heading, search field, summary
+  line (`139 навыков · 7 источников · 10 ошибок · 54 предупреждения`), collapsible
+  source groups («Мои навыки (DSH)», «Общие агентские», «Встроенные (DSH)») and
+  skill rows with badges (`ссылка`, `1 предупреждение`, `только чтение`);
+- clicking a skill opens the detail modal with the metadata grid (source, scope,
+  path, size, body lines, status, modified time) and the `SKILL.md` / `Файлы` /
+  `Диагностика` tabs; the raw `SKILL.md` renders in a monospace preview.
+
+**Important limitation of this observation:** the renderer was started before
+stages 2–4 were written and had not been restarted, so it displayed the stage-1
+client build — the tab bar showed only «Библиотека», with no editing, Import,
+Sources or Trash tabs and no Create button. The observed evidence therefore
+confirms the base layout, Russian localization, source grouping and the detail
+modal, but **not** the current stage-2–4 UI. A full restart of DSH (or a new
+renderer generation) is required to verify the current tabs, editor, import,
+sources/live toggles, trash and create/AI flows.
+
 ### Not verified for dsh-skill-curator
 
 - **Rendered UI.** The working environment has no browser control and the app

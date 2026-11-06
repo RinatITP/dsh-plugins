@@ -33,7 +33,7 @@ window.__ModuleLoader__.load({
     const DICT_EN = {
       'nav.label': 'Skills',
       'page.title': 'Skill Curator',
-      'page.subtitle': 'Read-only studio over DSH, project and external agent skills.',
+      'page.subtitle': 'Skill library across DSH, projects and other agents: browse, edit, import and live sources.',
       'page.search': 'Search skills…',
       'page.refresh': 'Refresh',
       'page.loading': 'Reading skill roots…',
@@ -215,7 +215,7 @@ window.__ModuleLoader__.load({
     const DICT_RU = {
       'nav.label': 'Навыки',
       'page.title': 'Студия навыков',
-      'page.subtitle': 'Просмотр навыков DSH, проекта и других агентов без изменения файлов.',
+      'page.subtitle': 'Библиотека навыков DSH, проекта и других агентов: просмотр, редактирование, импорт и live-источники.',
       'page.search': 'Поиск навыков…',
       'page.refresh': 'Обновить',
       'page.loading': 'Читаю каталоги навыков…',
