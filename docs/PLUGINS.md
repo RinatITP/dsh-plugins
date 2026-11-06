@@ -56,7 +56,7 @@ or install the same directory through DSH's Plugin Manager. See
 |---|---|
 | Package | `dsh-skill-curator` |
 | Directory | [`packages/dsh-skill-curator`](../packages/dsh-skill-curator/) |
-| Version | 0.1.0 (development preview, stage 4: catalog + editing + import + creator + live sources) |
+| Version | 0.1.0 (development preview, redesigned UX: library-first + import wizard + AI chat handoff) |
 | License | MIT |
 | DSH target | 0.2.2-rc.1 (`engines.dsh: ">=0.2.2-rc.1 <0.3.0-0"`) |
 | Node | ≥ 22.19.0 |
@@ -65,7 +65,7 @@ or install the same directory through DSH's Plugin Manager. See
 | Client injection | `settings.section` page "Skill Curator" / «Навыки» (id `skill-curator`, order 23) |
 | Docs | [package README](../packages/dsh-skill-curator/README.md) |
 
-**What it does (stage 4).** Adds a skill studio to the DSH settings UI: the union
+**What it does (current).** Adds a redesigned skill studio to the DSH settings UI: the union
 of DSH user and shared roots, optional project roots, bundled `office-skills`, and
 read-only external agent roots (Claude Code, Codex including `.system`, Hermes
 nested categories, ZCode, Cursor, Gemini/Antigravity, Kimi, OpenCode, custom
@@ -79,12 +79,19 @@ create new skills in the user, shared or project root, and move skills into a
 restorable trash with backups. The Import tab plans a transfer from other agents
 into a writable DSH root, supports an independent `copy` or a live `symlink`,
 skips existing targets and invalid names, never overwrites, and reports every
-selected item as imported, skipped or failed. The Create dialog offers a manual
-wizard with a section template and an AI path: a ready prompt for a DSH agent
-whose `skill_curator_create` tool creates the skill only after a human
-confirmation. The Sources tab can expose read-only external sources **live** in
-the DSH catalog (opt-in, model-only, no copying) through a rank-350 provider that
-re-reads the external file on every load.
+selected item as imported, skipped or failed. The page is library-first: import,
+create, live sources and trash are focused in-page views with a back
+breadcrumb, help popovers and a sticky footer for the primary import action. The
+Create view offers guided manual fields and an **AI handoff**: it starts a real
+DSH chat with the plugin's embedded `skill-curator-creator` skill (runtime
+registration, rank 250) and the user's description in the composer, using the
+official `uiWorkspace.startSession`; the agent creates the skill through the
+confirmation-gated `skill_curator_create` tool. The Sources view can expose
+read-only external sources **live** in the DSH catalog (opt-in, model-only, no
+copying) through a rank-350 provider that re-reads the external file on every
+load. The visual layer follows the `dsh-mcp-guard` settings language: 28 px page
+title, 14/22 body, card surfaces on `settings-card-stroke`, a single business
+accent, pill tabs, switches and inline `?` help.
 
 **Not implemented yet.** The overlay provider for toggling read-only external
 skills, the optional sidebar entry, marketplaces and direct in-plugin LLM
@@ -114,7 +121,9 @@ cycle against an isolated home (create → save with backup → toggle → resou
 write → trash → restore, and read-only/symlink/flat/project/stale-revision
 refusals), plus import planning and execution in copy and symlink modes, flat
 files, project destination and skip/collision guards; live tests cover the
-settings store, provider filtering and body loading. The full record, including
+settings store, provider filtering and body loading; creator tests validate the
+embedded skill and the AI prompt, and a host static test enforces inject-safe
+service access. The full record, including
 the still-unverified rendered UI, is in [`VERIFICATION.md`](VERIFICATION.md). The repository validator and CI cover both packages. On 2026-11-06 the
 package was installed as a linked bundle into a DSH Desktop `0.2.2-rc.1` `desktop`
 profile: the Host row is active and the route returned `403 FORBIDDEN` without the

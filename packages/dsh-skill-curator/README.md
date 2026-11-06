@@ -49,10 +49,14 @@ Codex, Hermes, ZCode, Cursor, Gemini/Antigravity, Kimi, OpenCode).
   are visible to the model but not added to the slash menu. The switch is stored
   in `~/.dsh/skill-curator/settings.json`, not in the profile patch.
 - **Creator respects user authority.** The manual wizard writes only after the
-  user presses Create. The optional agent tool `skill_curator_create` is gated by
-  `tools/pre-execute` with an explicit ask, so a model can only create a skill
-  after a human confirmation; the tool output contains the created path, never
-  file bodies.
+  user presses Create. The AI path does not write anything from the page: it
+  starts a normal DSH chat through the official `uiWorkspace.startSession` and
+  prefills a prompt for the plugin's embedded `skill-curator-creator` skill. The
+  agent tool `skill_curator_create` is gated by `tools/pre-execute` with an
+  explicit ask, so a model can only create a skill after a human confirmation;
+  the tool output contains the created path, never file bodies. If the chat
+  cannot be started (no workspace or no client service), the page falls back to
+  copying the prompt.
 - **Read-only sources stay read-only.** External agent roots (Claude Code,
   Codex, Hermes, ZCode, Cursor, Gemini, Kimi, OpenCode) are never written.
   Writes go only to `~/.dsh/skills`, `~/.agents/skills` or a configured project
@@ -105,6 +109,11 @@ every known root is scanned when it exists.
 | `allowProjectWrites` | `true` | Set `false` to keep project roots read-only even though they are listed. |
 | `creatorTool` | `true` | Set `false` to disable the agent-facing `skill_curator_create` tool. |
 
+The Client half injects `@deepseek-ai/dsh-client-ui-settings`,
+`@deepseek-ai/dsh-client-locale` and `@deepseek-ai/dsh-client-ui-workspace`; the
+last one provides the official `uiWorkspace` service used for the AI chat handoff
+and is resolved lazily on click.
+
 Live-source switches are not part of the profile configuration: they are plugin
 settings toggled in the Sources tab and stored in
 `~/.dsh/skill-curator/settings.json` so a toggle never restarts the plugin row.
@@ -150,7 +159,11 @@ collision and stale-revision refusals. Import tests cover the copy and symlink
 modes, flat-file import, project destination, existing-target and invalid-name
 skips, duplicate names across sources, and the confirmation/revision/selection
 guards. Live tests cover the settings store, candidate filtering, rank and
-model-only invocation, body loading, and the renamed-skill refusal.
+model-only invocation, body loading, and the renamed-skill refusal. Creator tests
+validate the embedded `skill-curator-creator` definition and the AI prompt
+(slash token, user description, `skill_curator_create`, interview fallback), and
+a Host static test enforces that no non-injected `ctx.<service>` is accessed
+directly.
 
 The full evidence record (installed bundle, route trust gates, automated test
 counts and the list of unverified behaviours) is in

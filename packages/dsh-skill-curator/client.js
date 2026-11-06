@@ -1,26 +1,25 @@
 /**
- * dsh-skill-curator — Client (browser) half.
+ * dsh-skill-curator — Client (browser) half, redesigned.
  *
- * Registers one `settings.section` page (id `skill-curator`, order 23) into the
- * DeepSeek Harness Web settings UI: a read-only studio over every known skill
- * root. Stage 1 shows the catalog, per-skill diagnostics, the SKILL.md body and
- * the bounded resource tree; editing, import and toggles arrive in later stages
- * behind explicit confirmations.
+ * One settings page (id `skill-curator`, order 23) with a single primary
+ * surface — the skill library — and in-page views for the secondary flows:
+ * skill detail, import wizard, create (AI or manual), live sources and trash.
+ * No tabs for unrelated sections, no nested modal over the settings modal.
  *
- * Presentation rules match `dsh-mcp-guard`: plain ESM loaded through
- * `window.__ModuleLoader__`, React from the host, one injected `<style>` with
- * `data-plugin`, theme tokens only, all copy through a local RU/EN dictionary.
+ * AI creation follows the official DSH creator entry: it starts a real chat
+ * through `ctx.get('uiWorkspace').startSession(undefined, { prompt, ... })`,
+ * where the prompt invokes the plugin's embedded `skill-curator-creator` skill
+ * and asks the agent to persist the skill through `skill_curator_create`.
+ *
+ * Plain ESM through `window.__ModuleLoader__`, React from the host, one injected
+ * `<style data-plugin>`, theme tokens only, RU-first with EN parity.
  */
 window.__ModuleLoader__.load({
   id: 'dsh-skill-curator',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
-    const { useCallback, useEffect, useMemo, useState } = React;
-
-    /* ------------------------------------------------------------------ */
-    /* Constants                                                           */
-    /* ------------------------------------------------------------------ */
+    const { useCallback, useEffect, useMemo, useRef, useState } = React;
 
     const PLUGIN_ID = 'dsh-skill-curator';
     const LOCALE_NS = 'settings.skillCurator';
@@ -28,59 +27,211 @@ window.__ModuleLoader__.load({
     const API_PATH = '/api/dsh-skill-curator';
     const SECTION_ORDER = 23;
 
-    const SEVERITY_ORDER = { error: 0, warn: 1, info: 2 };
+    /* ------------------------------------------------------------------ */
+    /* Dictionaries                                                        */
+    /* ------------------------------------------------------------------ */
 
     const DICT_EN = {
       'nav.label': 'Skills',
-      'page.title': 'Skill Curator',
-      'page.subtitle': 'Skill library across DSH, projects and other agents: browse, edit, import and live sources.',
-      'page.search': 'Search skills…',
+      'tabs.sources': 'Sources',
+      'tabs.trash': 'Trash',
+      'page.title': 'Skill studio',
+      'page.subtitle': 'Skills from DSH, projects and other agents — browse, edit, import and use live sources.',
+      'page.help': 'This page manages Agent Skills: SKILL.md files with optional references/ and scripts/. Writable skills can be edited with backup; external agents stay read-only and can be imported or shown live.',
       'page.refresh': 'Refresh',
-      'page.loading': 'Reading skill roots…',
-      'page.empty.title': 'No skills found',
-      'page.empty.body': 'No SKILL.md files were found in the known roots on this computer.',
+      'page.filters.all': 'All',
+      'page.filters.on': 'Enabled',
+      'page.filters.off': 'Disabled',
+      'page.filters.errors': 'With issues',
+      'page.filters.mine': 'Mine',
+      'page.empty.title': 'No skills yet',
+      'page.empty.body': 'Import skills from another agent or create the first one.',
+      'page.noResults.title': 'Nothing matches',
+      'page.noResults.body': 'Clear the search or the filter to see the rest.',
       'page.error.title': 'Could not load skills',
       'page.error.code': 'Error code',
-      'page.error.unauthorized': 'Reopen this page from an authenticated DSH window.',
+      'page.error.retry': 'Try again',
+      'page.error.unauthorized': 'Reopen the page from an authenticated DSH window.',
       'page.error.network': 'The DSH host is not reachable.',
-      'summary.skills': 'skills',
-      'summary.sources': 'sources',
-      'summary.errors': 'errors',
-      'summary.warnings': 'warnings',
-      'summary.incomplete': 'some roots could not be read',
       'group.readOnly': 'read-only',
-      'group.system': 'system',
-      'group.empty': 'No skills in this root',
+      'group.empty': 'No skills in this source',
       'badge.symlink': 'symlink',
-      'badge.duplicate': 'duplicate name',
+      'badge.system': 'system',
+      'badge.duplicate': 'duplicate',
       'badge.shadowed': 'shadowed',
-      'badge.truncated': 'truncated',
       'badge.modelOff': 'hidden from model',
-      'badge.userOff': 'hidden from slash menu',
+      'badge.userOff': 'hidden from /',
       'badge.errors': 'errors',
       'badge.warnings': 'warnings',
-      'detail.content': 'SKILL.md',
-      'detail.edit': 'Edit',
-      'detail.files': 'Files',
-      'detail.diagnostics': 'Diagnostics',
-      'detail.close': 'Close',
-      'detail.loading': 'Reading…',
-      'detail.path': 'Path',
-      'detail.source': 'Source',
-      'detail.scope': 'Scope',
-      'detail.size': 'Size',
-      'detail.lines': 'Body lines',
-      'detail.status': 'Status',
-      'detail.mtime': 'Modified',
+      'badge.readOnly': 'read-only',
+      'badge.writable': 'writable',
+      'badge.truncated': 'truncated',
+      'actions.refresh': 'Refresh',
+      'actions.create': 'Create',
+      'actions.import': 'Import',
+      'actions.back': 'Back',
+      'actions.cancel': 'Cancel',
+      'actions.close': 'Close',
+      'actions.save': 'Save',
+      'actions.validate': 'Check',
+      'actions.edit': 'Edit',
+      'actions.delete': 'Move to trash',
+      'actions.confirmDelete': 'Confirm delete',
+      'actions.restore': 'Restore',
+      'actions.confirmRestore': 'Confirm restore',
+      'actions.copyPath': 'Copy path',
+      'actions.copied': 'Copied',
+      'actions.open': 'Open',
+      'actions.more': 'More',
+      'actions.retry': 'Try again',
+      'actions.rescan': 'Rescan',
+      'actions.done': 'Done',
+      'actions.openInLibrary': 'Open library',
+      'actions.importMore': 'Import more',
+      'actions.selectAll': 'Select all',
+      'actions.clearAll': 'Clear',
+      'actions.copyPrompt': 'Copy prompt',
+      'actions.openChat': 'Open chat with the skill creator',
+      'actions.openAIChat': 'Open chat',
+      'actions.createManual': 'Build manually',
+      'actions.createWithAi': 'Create with AI',
+      'search.placeholder': 'Search skills…',
+      'detail.tabs.overview': 'Overview',
+      'detail.tabs.raw': 'SKILL.md',
+      'detail.tabs.files': 'Files',
+      'detail.tabs.diagnostics': 'Diagnostics',
+      'detail.facts.source': 'Source',
+      'detail.facts.scope': 'Scope',
+      'detail.facts.status': 'Status',
+      'detail.facts.size': 'Size',
+      'detail.facts.lines': 'Body lines',
+      'detail.facts.modified': 'Modified',
+      'detail.facts.path': 'Path',
+      'detail.model.title': 'How the model sees it',
+      'detail.model.hint': 'This name and description are what the model uses to decide whether to load the skill. The body stays out of context until the skill is invoked.',
+      'detail.status.enabled': 'enabled',
+      'detail.status.disabled': 'hidden',
+      'detail.status.readOnly': 'read-only',
       'detail.files.empty': 'No resource files.',
-      'detail.files.readonly': 'Read-only preview',
-      'detail.files.binary': 'Binary file preview is not available.',
-      'detail.files.tooLarge': 'File is too large to preview.',
-      'detail.diagnostics.none': 'No diagnostics — the skill looks valid.',
-      'detail.diagnostics.severity.error': 'error',
-      'detail.diagnostics.severity.warn': 'warning',
-      'detail.diagnostics.severity.info': 'info',
-      'detail.rawTruncated': 'The file is larger than the preview limit; content is truncated.',
+      'detail.diagnostics.empty': 'No issues — the skill looks valid.',
+      'detail.deleteHint': 'The skill is moved to the studio trash and can be restored.',
+      'detail.editHint': 'Validation runs before writing; the previous file is backed up. Keep SKILL.md compact and move details to references/.',
+      'detail.unsaved': 'Unsaved changes',
+      'detail.editFile': 'Edit file',
+      'detail.fileTooLarge': 'File is larger than the preview limit.',
+      'detail.binary': 'Binary file — no preview.',
+      'detail.copyName': 'Copy name',
+      'editor.hint': 'Keep SKILL.md short (under 500 lines); put reference material in references/ and scripts/ as separate files.',
+      'editor.validateHint': 'Checks frontmatter, name/folder match, description limits and the body size.',
+      'editor.busy': 'Working…',
+      'editor.errors': 'Fix these before saving',
+      'editor.ok': 'Looks good',
+      'editor.saved': 'Saved',
+      'create.title': 'New skill',
+      'create.intro': 'Describe the skill once. The AI path opens a DSH chat with the built-in creator; the manual path gives you a guided form.',
+      'create.mode.ai': 'With AI',
+      'create.mode.manual': 'Manually',
+      'create.ai.hint': 'A new chat opens with the built-in “skill-creator” instructions and your description. Tell the agent a bit more if it asks; it will create the skill through the studio tool and the skill appears here after a refresh.',
+      'create.ai.description': 'What should the skill do, and when should it be used?',
+      'create.ai.descriptionHint': 'Describe the task, trigger phrases, result and anything the agent must not do. Plain language is enough.',
+      'create.ai.examples': 'Examples:',
+      'create.ai.extra': 'Anything else? (format, tools, constraints)',
+      'create.ai.promptPreview': 'Prompt for the agent',
+      'create.ai.openChatHint': 'The settings will close and a new chat opens with the prompt already in the composer. Review it and press Send.',
+      'create.ai.fallback': 'The chat could not be opened automatically. The prompt is copied — start a new chat, paste it and send.',
+      'create.ai.failed': 'Could not open a chat. Copy the prompt and use a new chat.',
+      'create.manual.name': 'Name',
+      'create.manual.nameHint': 'Latin lowercase, digits and hyphens; becomes the folder name (1–64 chars).',
+      'create.manual.description': 'Description',
+      'create.manual.descriptionHint': 'What it does + when to use it. Recommended up to 200 characters, maximum 1024.',
+      'create.manual.body': 'Instructions',
+      'create.manual.bodyHint': 'Short procedure; put reference material and scripts into separate files.',
+      'create.manual.template': 'Insert template',
+      'create.manual.destination': 'Where to save',
+      'create.manual.workspace': 'Workspace',
+      'create.field.required': 'This field is required',
+      'create.field.nameInvalid': 'Use kebab-case: lowercase latin letters, digits and single hyphens',
+      'create.field.descriptionLong': 'Description is longer than 1024 characters',
+      'create.field.bodyEmpty': 'Instructions cannot be empty',
+      'create.counter.chars': 'characters',
+      'create.counter.lines': 'lines',
+      'create.created': 'Skill created',
+      'import.title': 'Import skills',
+      'import.intro': 'Copy or link skills from other agents into DSH. Nothing is overwritten: existing names and invalid skills are skipped before import.',
+      'import.destination': 'Destination',
+      'import.workspace': 'Workspace',
+      'import.mode': 'Mode',
+      'import.mode.copy': 'Copy',
+      'import.mode.symlink': 'Symlink',
+      'import.mode.copyHint': 'An independent snapshot: later edits at the source do not reach DSH.',
+      'import.mode.symlinkHint': 'A live link: edits at the source appear here, but moving or deleting the source breaks the link.',
+      'import.rescan': 'Rescan',
+      'import.search': 'Search candidates…',
+      'import.selectAll': 'Select all',
+      'import.clearAll': 'Clear',
+      'import.empty': 'No importable skills for this destination.',
+      'import.footerSelected': 'selected',
+      'import.confirm': 'Confirm import',
+      'import.imported': 'imported',
+      'import.skipped': 'skipped',
+      'import.failed': 'failed',
+      'import.results': 'Import result',
+      'import.resultHint': 'The library was refreshed. Open it to see the new skills — or import a few more.',
+      'import.noSelection': 'Select at least one skill',
+      'import.reason.TARGET_EXISTS': 'already exists in the destination',
+      'import.reason.ALREADY_IN_TARGET': 'already in the destination root',
+      'import.reason.INVALID_NAME': 'invalid skill name',
+      'import.reason.NAME_TAKEN': 'duplicate name in this selection',
+      'import.reason.SOURCE_MISSING': 'source disappeared',
+      'import.reason.IMPORT_FAILED': 'import failed',
+      'import.reason.NOT_FOUND': 'not found',
+      'sources.title': 'Sources',
+      'sources.intro': 'Read-only agent libraries can be shown live in the DSH model catalog without copying files. The source agent keeps ownership; the model sees the skill on every load.',
+      'sources.live': 'Show live in DSH',
+      'sources.hint': 'Live skills are visible to the model only (not in the / menu). Turn this off to remove them from the DSH catalog.',
+      'sources.modelOnly': 'model only, not in /',
+      'sources.empty': 'No readable read-only sources found on this computer.',
+      'sources.writableTitle': 'Your writable roots',
+      'trash.title': 'Trash',
+      'trash.intro': 'Deleted skills are kept here with their original path and metadata. Restore returns them to the same writable root.',
+      'trash.empty': 'Trash is empty.',
+      'trash.restore': 'Restore',
+      'trash.confirmRestore': 'Confirm restore',
+      'trash.originalPath': 'Original path',
+      'trash.deletedAt': 'Deleted',
+      'help.name': '1–64 characters: lowercase latin letters, digits, single hyphens; it becomes the folder name and must match the frontmatter name.',
+      'help.description': 'The routing text: what the skill does and when to use it. The model reads it before choosing the skill. Recommended up to 200 characters, maximum 1024.',
+      'help.body': 'Step-by-step instructions. Keep it short and move long material to references/ and scripts/; the body loads into context only when the skill is used.',
+      'help.destination': 'Where the skill is stored. “Mine” is ~/.dsh/skills, “Shared” is ~/.agents/skills, “Project” is <workspace>/.dsh/skills.',
+      'help.importMode': 'Copy creates an independent snapshot. Symlink keeps a live link to the source: editing the source updates DSH, but moving it breaks the link.',
+      'help.importTarget': 'The destination must be a writable DSH root. Imported skills are never overwritten.',
+      'help.live': 'Live exposure puts read-only external skills into the DSH model catalog without importing them. Nothing is copied; the model reads the external file.',
+      'help.modelToggle': 'Controls whether the model sees this skill in its catalog.',
+      'help.userToggle': 'Controls whether the skill appears in the / menu in chat.',
+      'help.delete': 'The skill moves to the studio trash; no file is deleted permanently and you can restore it.',
+      'help.ai': 'The chat opens with the built-in creator instructions. The agent asks brief questions and saves the skill through the studio tool, with a backup and validation.',
+      'toast.saved': 'Skill saved',
+      'toast.created': 'Skill created',
+      'toast.trashed': 'Skill moved to trash',
+      'toast.restored': 'Skill restored',
+      'toast.updated': 'Skill updated',
+      'toast.stale': 'The catalog changed. Reloaded — try again.',
+      'toast.copied': 'Copied to clipboard',
+      'toast.copyFailed': 'Could not copy to clipboard',
+      'error.CONFIRM_REQUIRED': 'Confirmation is required for this action',
+      'error.STALE_REVISION': 'The catalog has changed. Reload the view and try again',
+      'error.VALIDATION_FAILED': 'The skill has validation errors',
+      'error.READ_ONLY_SKILL': 'This skill is read-only',
+      'error.SYMLINK_READ_ONLY': 'Symlinked skills cannot be edited here',
+      'error.TARGET_EXISTS': 'A skill with this name already exists',
+      'error.NAME_CHANGE_UNSUPPORTED': 'The skill name cannot be changed in this view',
+      'error.PATH_NOT_ALLOWED': 'Only files under references/, scripts/ and assets/ may be written',
+      'error.SKILL_UNREADABLE': 'The skill file cannot be read',
+      'error.PROJECT_NOT_CONFIGURED': 'This project is not configured in the plugin',
+      'error.CONTENT_TOO_LARGE': 'The content is too large',
+      'error.SELECTION_EMPTY': 'Select at least one skill',
+      'error.SELECTION_TOO_LARGE': 'Too many skills selected',
+      'error.NOT_FOUND': 'Not found',
       'source.dshUser': 'My skills (DSH)',
       'source.dshAgents': 'Shared agents',
       'source.project': 'Project',
@@ -93,176 +244,214 @@ window.__ModuleLoader__.load({
       'source.gemini': 'Gemini / Antigravity',
       'source.kimi': 'Kimi',
       'source.opencode': 'OpenCode',
-      'scope.user': 'user',
-      'scope.project': 'project',
-      'status.writable': 'writable',
-      'status.readOnly': 'read-only',
-      'status.external': 'external, read-only',
-      'status.bundled': 'bundled, read-only',
-      'status.projectLocked': 'project, read-only in this stage',
-      'tabs.library': 'Library',
-      'tabs.trash': 'Trash',
-      'tabs.sources': 'Sources',
-      'sources.hint': 'Expose read-only external skills in the DSH catalog without copying them. The model can load them directly; the source agent keeps owning the files.',
-      'sources.live': 'Live in DSH',
-      'sources.empty': 'No readable read-only sources found on this computer.',
-      'sources.modelOnly': 'Model only, not in the slash menu.',
-      'sources.external': 'External source',
-      'create.mode.manual': 'Manual',
-      'create.mode.ai': 'With AI',
-      'create.aiHint': 'Describe the skill in your own words. Copy the ready prompt into a DSH chat: the agent creates the skill with the skill_curator_create tool and it appears here after a refresh.',
-      'create.aiDescription': 'What should the skill do, and when should it be used?',
-      'create.aiPromptTitle': 'Prompt for the agent',
-      'create.copyPrompt': 'Copy prompt',
-      'create.copied': 'Copied',
-      'create.template': 'Insert template',
-      'create.useInForm': 'Use in manual form',
-      'tabs.import': 'Import',
-      'import.hint': 'Copy or link skills from other agents into a DSH root. Nothing is overwritten: existing targets and invalid names are skipped before import.',
-      'import.target': 'Destination',
-      'import.target.user': 'My skills (DSH)',
-      'import.target.agents': 'Shared agents',
-      'import.target.project': 'Project',
-      'import.workspace': 'Workspace',
-      'import.mode': 'Mode',
-      'import.mode.copy': 'Copy',
-      'import.mode.copyHint': 'Independent snapshot. The imported skill no longer follows the source.',
-      'import.mode.symlink': 'Symlink',
-      'import.mode.symlinkHint': 'Live link to the source. Edits there appear here; moving the source breaks the link.',
-      'import.selectAll': 'Select all',
-      'import.clear': 'Clear',
-      'import.selected': 'selected',
-      'import.apply': 'Import selected',
-      'import.confirmApply': 'Confirm import',
-      'import.loading': 'Scanning sources…',
-      'import.empty': 'No skills to import into this destination.',
-      'import.rescan': 'Rescan',
-      'import.results': 'Import result',
-      'import.importable': 'importable',
-      'import.imported': 'imported',
-      'import.skipped': 'skipped',
-      'import.failed': 'failed',
-      'import.diagnostics': 'has validation errors',
-      'import.noTargets': 'No writable destination is configured.',
-      'import.reason.TARGET_EXISTS': 'already exists in the destination',
-      'import.reason.ALREADY_IN_TARGET': 'already in the destination root',
-      'import.reason.INVALID_NAME': 'invalid skill name',
-      'import.reason.NAME_TAKEN': 'duplicate name in this selection',
-      'import.reason.SOURCE_MISSING': 'source disappeared',
-      'import.reason.IMPORT_FAILED': 'import failed',
-      'import.reason.NOT_FOUND': 'not found',
-      'toast.imported': 'Import finished',
-      'actions.create': 'Create',
-      'actions.delete': 'Move to trash',
-      'actions.confirmDelete': 'Confirm delete',
-      'actions.restore': 'Restore',
-      'actions.save': 'Save',
-      'actions.cancel': 'Cancel',
-      'actions.validate': 'Check',
-      'actions.editFile': 'Edit file',
-      'actions.newFile': 'New file',
-      'actions.enable': 'Enable',
-      'actions.disable': 'Disable',
-      'row.enabled': 'Visible to the model and in the slash menu',
-      'row.disabled': 'Hidden from the model and the slash menu',
-      'toggle.model': 'Model',
-      'toggle.user': 'Slash menu',
-      'editor.title': 'Edit SKILL.md',
-      'editor.hint': 'Changes are validated before writing. The previous file is backed up; the catalog refreshes after save.',
-      'editor.busy': 'Saving…',
-      'editor.errors': 'Fix these errors before saving',
-      'editor.noErrors': 'No errors',
-      'editor.unsaved': 'Unsaved changes',
-      'editor.fileTitle': 'Edit resource file',
-      'create.title': 'Create skill',
-      'create.name': 'Name (kebab-case)',
-      'create.description': 'Description (what and when to use)',
-      'create.body': 'Instructions',
-      'create.scope': 'Location',
       'create.scope.user': 'My skills (DSH)',
       'create.scope.agents': 'Shared agents',
       'create.scope.project': 'Project',
-      'create.workspace': 'Workspace',
-      'create.submit': 'Create',
-      'create.cancel': 'Cancel',
-      'create.hint': 'The name becomes the directory name and must match the frontmatter. Additional material belongs in references/ and scripts/ — keep SKILL.md short.',
-      'trash.title': 'Trash',
-      'trash.empty': 'Trash is empty.',
-      'trash.item': 'Deleted skill',
-      'trash.originalPath': 'Original path',
-      'trash.deletedAt': 'Deleted',
-      'trash.confirmRestore': 'Confirm restore',
-      'toast.saved': 'Skill saved',
-      'toast.created': 'Skill created',
-      'toast.trashed': 'Skill moved to trash',
-      'toast.restored': 'Skill restored',
-      'toast.updated': 'Skill updated',
-      'toast.stale': 'The catalog changed. Reloaded — try again.',
-      'error.CONFIRM_REQUIRED': 'Confirmation is required for this action',
-      'error.STALE_REVISION': 'The catalog has changed. Reopen the skill and try again',
-      'error.VALIDATION_FAILED': 'The skill has validation errors',
-      'error.READ_ONLY_SKILL': 'This skill is read-only',
-      'error.SYMLINK_READ_ONLY': 'Symlinked skills cannot be edited here',
-      'error.TARGET_EXISTS': 'A skill with this name already exists',
-      'error.NAME_CHANGE_UNSUPPORTED': 'The skill name cannot be changed in this view',
-      'error.PATH_NOT_ALLOWED': 'Only references/, scripts/ and assets/ files may be written',
-      'error.SKILL_UNREADABLE': 'The skill file cannot be read',
-      'error.PROJECT_NOT_CONFIGURED': 'This project is not configured in the plugin',
-      'error.CONTENT_TOO_LARGE': 'The content is too large',
+      'create.aiHint': 'Describe the skill once — a new chat with the built-in creator opens and the skill appears here after it is saved.',
       'error.OPERATION_FAILED': 'The operation failed',
     };
 
     const DICT_RU = {
       'nav.label': 'Навыки',
+      'tabs.sources': 'Источники',
+      'tabs.trash': 'Корзина',
       'page.title': 'Студия навыков',
-      'page.subtitle': 'Библиотека навыков DSH, проекта и других агентов: просмотр, редактирование, импорт и live-источники.',
-      'page.search': 'Поиск навыков…',
+      'page.subtitle': 'Навыки DSH, проектов и других агентов: просмотр, редактирование, импорт и live-источники.',
+      'page.help': 'Здесь управляются навыки (Agent Skills): файлы SKILL.md с необязательными references/ и scripts/. Свои навыки можно безопасно редактировать с бэкапом; чужие агенты — только чтение, их можно импортировать или включить live.',
       'page.refresh': 'Обновить',
-      'page.loading': 'Читаю каталоги навыков…',
-      'page.empty.title': 'Навыки не найдены',
-      'page.empty.body': 'В известных корнях на этом компьютере нет файлов SKILL.md.',
+      'page.filters.all': 'Все',
+      'page.filters.on': 'Включены',
+      'page.filters.off': 'Выключены',
+      'page.filters.errors': 'С проблемами',
+      'page.filters.mine': 'Мои',
+      'page.empty.title': 'Пока нет навыков',
+      'page.empty.body': 'Импортируйте навыки из другого агента или создайте первый.',
+      'page.noResults.title': 'Ничего не найдено',
+      'page.noResults.body': 'Очистите поиск или фильтр, чтобы увидеть остальное.',
       'page.error.title': 'Не удалось загрузить навыки',
       'page.error.code': 'Код ошибки',
+      'page.error.retry': 'Повторить',
       'page.error.unauthorized': 'Откройте страницу заново из авторизованного окна DSH.',
       'page.error.network': 'Хост DSH недоступен.',
-      'summary.skills': 'навыков',
-      'summary.sources': 'источников',
-      'summary.errors': 'ошибок',
-      'summary.warnings': 'предупреждений',
-      'summary.incomplete': 'часть корней не прочитана',
       'group.readOnly': 'только чтение',
-      'group.system': 'системные',
-      'group.empty': 'В этом корне навыков нет',
+      'group.empty': 'В этом источнике навыков нет',
       'badge.symlink': 'ссылка',
-      'badge.duplicate': 'дубль имени',
+      'badge.system': 'системный',
+      'badge.duplicate': 'дубль',
       'badge.shadowed': 'перекрыт',
-      'badge.truncated': 'обрезано',
       'badge.modelOff': 'скрыт от модели',
-      'badge.userOff': 'скрыт из меню /',
+      'badge.userOff': 'скрыт из /',
       'badge.errors': 'ошибок',
       'badge.warnings': 'предупреждений',
-      'detail.content': 'SKILL.md',
-      'detail.edit': 'Редактировать',
-      'detail.files': 'Файлы',
-      'detail.diagnostics': 'Диагностика',
-      'detail.close': 'Закрыть',
-      'detail.loading': 'Читаю…',
-      'detail.path': 'Путь',
-      'detail.source': 'Источник',
-      'detail.scope': 'Область',
-      'detail.size': 'Размер',
-      'detail.lines': 'Строк в теле',
-      'detail.status': 'Статус',
-      'detail.mtime': 'Изменён',
+      'badge.readOnly': 'только чтение',
+      'badge.writable': 'для записи',
+      'badge.truncated': 'обрезан',
+      'actions.refresh': 'Обновить',
+      'actions.create': 'Создать',
+      'actions.import': 'Импорт',
+      'actions.back': 'Назад',
+      'actions.cancel': 'Отмена',
+      'actions.close': 'Закрыть',
+      'actions.save': 'Сохранить',
+      'actions.validate': 'Проверить',
+      'actions.edit': 'Редактировать',
+      'actions.delete': 'В корзину',
+      'actions.confirmDelete': 'Подтвердить удаление',
+      'actions.restore': 'Восстановить',
+      'actions.confirmRestore': 'Подтвердить восстановление',
+      'actions.copyPath': 'Копировать путь',
+      'actions.copied': 'Скопировано',
+      'actions.open': 'Открыть',
+      'actions.more': 'Ещё',
+      'actions.retry': 'Повторить',
+      'actions.rescan': 'Пересканировать',
+      'actions.done': 'Готово',
+      'actions.openInLibrary': 'Открыть библиотеку',
+      'actions.importMore': 'Импортировать ещё',
+      'actions.selectAll': 'Выбрать все',
+      'actions.clearAll': 'Снять',
+      'actions.copyPrompt': 'Скопировать промпт',
+      'actions.openChat': 'Открыть чат с создателем навыков',
+      'actions.openAIChat': 'Открыть чат',
+      'actions.createManual': 'Собрать вручную',
+      'actions.createWithAi': 'Создать с ИИ',
+      'search.placeholder': 'Поиск навыков…',
+      'detail.tabs.overview': 'Обзор',
+      'detail.tabs.raw': 'SKILL.md',
+      'detail.tabs.files': 'Файлы',
+      'detail.tabs.diagnostics': 'Диагностика',
+      'detail.facts.source': 'Источник',
+      'detail.facts.scope': 'Область',
+      'detail.facts.status': 'Статус',
+      'detail.facts.size': 'Размер',
+      'detail.facts.lines': 'Строк в теле',
+      'detail.facts.modified': 'Изменён',
+      'detail.facts.path': 'Путь',
+      'detail.model.title': 'Как видит модель',
+      'detail.model.hint': 'Имя и описание — то, по чему модель решает, загружать ли навык. Тело попадает в контекст только при вызове навыка.',
+      'detail.status.enabled': 'включён',
+      'detail.status.disabled': 'скрыт',
+      'detail.status.readOnly': 'только чтение',
       'detail.files.empty': 'Вложенных файлов нет.',
-      'detail.files.readonly': 'Просмотр без изменений',
-      'detail.files.binary': 'Бинарный файл — предпросмотр недоступен.',
-      'detail.files.tooLarge': 'Файл слишком большой для предпросмотра.',
-      'detail.diagnostics.none': 'Ошибок нет — навык выглядит корректным.',
-      'detail.diagnostics.severity.error': 'ошибка',
-      'detail.diagnostics.severity.warn': 'предупреждение',
-      'detail.diagnostics.severity.info': 'информация',
-      'detail.rawTruncated': 'Файл больше лимита предпросмотра; содержимое обрезано.',
+      'detail.diagnostics.empty': 'Ошибок нет — навык выглядит корректным.',
+      'detail.deleteHint': 'Навык переместится в корзину студии, его можно восстановить.',
+      'detail.editHint': 'Перед записью выполняется проверка, предыдущий файл сохраняется в бэкап. Держите SKILL.md компактным, детали — в references/.',
+      'detail.unsaved': 'Есть несохранённые изменения',
+      'detail.editFile': 'Редактировать файл',
+      'detail.fileTooLarge': 'Файл больше лимита предпросмотра.',
+      'detail.binary': 'Бинарный файл — предпросмотр недоступен.',
+      'detail.copyName': 'Копировать имя',
+      'editor.hint': 'Держите SKILL.md коротким (до 500 строк); справочники и скрипты выносите отдельными файлами в references/ и scripts/.',
+      'editor.validateHint': 'Проверяет frontmatter, совпадение имени и папки, лимиты описания и размер тела.',
+      'editor.busy': 'Выполняю…',
+      'editor.errors': 'Исправьте перед сохранением',
+      'editor.ok': 'Всё в порядке',
+      'editor.saved': 'Сохранено',
+      'create.title': 'Новый навык',
+      'create.intro': 'Опишите навык один раз. Путь с ИИ откроет чат DSH со встроенным создателем; ручной путь — пошаговая форма.',
+      'create.mode.ai': 'С помощью ИИ',
+      'create.mode.manual': 'Вручную',
+      'create.ai.hint': 'Откроется новый чат со встроенными инструкциями «создателя навыков» и вашим описанием. Ответьте на 1–2 вопроса, если агент спросит; он создаст навык инструментом студии, и после обновления навык появится здесь.',
+      'create.ai.description': 'Что должен делать навык и когда его использовать?',
+      'create.ai.descriptionHint': 'Опишите задачу, фразы-триггеры, результат и чего делать нельзя. Простых слов достаточно.',
+      'create.ai.examples': 'Примеры:',
+      'create.ai.extra': 'Что-то ещё? (формат, инструменты, ограничения)',
+      'create.ai.promptPreview': 'Промпт для агента',
+      'create.ai.openChatHint': 'Настройки закроются, откроется новый чат с готовым промптом в композере. Проверьте его и нажмите «Отправить».',
+      'create.ai.fallback': 'Не удалось открыть чат автоматически. Промпт скопирован — откройте новый чат, вставьте и отправьте.',
+      'create.ai.failed': 'Не удалось открыть чат. Скопируйте промпт и используйте новый чат.',
+      'create.manual.name': 'Имя',
+      'create.manual.nameHint': 'Латиница в нижнем регистре, цифры и дефисы; станет именем папки (1–64 символа).',
+      'create.manual.description': 'Описание',
+      'create.manual.descriptionHint': 'Что делает + когда использовать. Рекомендуем до 200 символов, максимум 1024.',
+      'create.manual.body': 'Инструкции',
+      'create.manual.bodyHint': 'Короткий порядок действий; справочники и скрипты — отдельными файлами.',
+      'create.manual.template': 'Вставить каркас',
+      'create.manual.destination': 'Куда сохранить',
+      'create.manual.workspace': 'Рабочий каталог',
+      'create.field.required': 'Поле обязательно',
+      'create.field.nameInvalid': 'Нужен kebab-case: строчная латиница, цифры и одиночные дефисы',
+      'create.field.descriptionLong': 'Описание длиннее 1024 символов',
+      'create.field.bodyEmpty': 'Инструкции не могут быть пустыми',
+      'create.counter.chars': 'символов',
+      'create.counter.lines': 'строк',
+      'create.created': 'Навык создан',
+      'import.title': 'Импорт навыков',
+      'import.intro': 'Скопируйте или свяжите навыки других агентов в DSH. Ничего не перезаписывается: существующие имена и некорректные навыки отсеиваются до импорта.',
+      'import.destination': 'Куда импортировать',
+      'import.workspace': 'Рабочий каталог',
+      'import.mode': 'Режим',
+      'import.mode.copy': 'Копия',
+      'import.mode.symlink': 'Симлинк',
+      'import.mode.copyHint': 'Независимый снимок: дальнейшие правки источника не попадут в DSH.',
+      'import.mode.symlinkHint': 'Живая ссылка: правки источника видны здесь, но перенос или удаление источника ломает ссылку.',
+      'import.rescan': 'Пересканировать',
+      'import.search': 'Поиск кандидатов…',
+      'import.selectAll': 'Выбрать все',
+      'import.clearAll': 'Снять',
+      'import.empty': 'Нет навыков для импорта в это место.',
+      'import.footerSelected': 'выбрано',
+      'import.confirm': 'Подтвердить импорт',
+      'import.imported': 'импортировано',
+      'import.skipped': 'пропущено',
+      'import.failed': 'ошибки',
+      'import.results': 'Результат импорта',
+      'import.resultHint': 'Библиотека обновлена. Откройте её, чтобы увидеть навыки, или импортируйте ещё.',
+      'import.noSelection': 'Выберите хотя бы один навык',
+      'import.reason.TARGET_EXISTS': 'уже есть в месте назначения',
+      'import.reason.ALREADY_IN_TARGET': 'уже в целевом корне',
+      'import.reason.INVALID_NAME': 'недопустимое имя',
+      'import.reason.NAME_TAKEN': 'дубль имени в выборке',
+      'import.reason.SOURCE_MISSING': 'источник исчез',
+      'import.reason.IMPORT_FAILED': 'импорт не удался',
+      'import.reason.NOT_FOUND': 'не найден',
+      'sources.title': 'Источники',
+      'sources.intro': 'Read-only библиотеки других агентов можно показывать в каталоге модели DSH без копирования файлов. Файлами владеет исходный агент, модель читает навык при каждой загрузке.',
+      'sources.live': 'Показывать в DSH',
+      'sources.hint': 'Live-навыки видны только модели (не в меню /). Выключите переключатель, чтобы убрать их из каталога DSH.',
+      'sources.modelOnly': 'только модель, не в /',
+      'sources.empty': 'Читаемых read-only источников на этом компьютере не найдено.',
+      'sources.writableTitle': 'Ваши корни для записи',
+      'trash.title': 'Корзина',
+      'trash.intro': 'Удалённые навыки хранятся здесь с исходным путём и метаданными. Восстановление вернёт навык в тот же корень.',
+      'trash.empty': 'Корзина пуста.',
+      'trash.restore': 'Восстановить',
+      'trash.confirmRestore': 'Подтвердить восстановление',
+      'trash.originalPath': 'Исходный путь',
+      'trash.deletedAt': 'Удалён',
+      'help.name': '1–64 символа: строчная латиница, цифры и одиночные дефисы; станет именем папки и должно совпадать с именем во frontmatter.',
+      'help.description': 'Маршрутный текст: что делает навык и когда его использовать. Модель читает его до выбора навыка. Рекомендуем до 200 символов, максимум 1024.',
+      'help.body': 'Пошаговые инструкции. Держите их короткими, длинные материалы — в references/ и scripts/; тело попадает в контекст только при использовании навыка.',
+      'help.destination': 'Где хранится навык. «Мои» — ~/.dsh/skills, «Общие» — ~/.agents/skills, «Проект» — <workspace>/.dsh/skills.',
+      'help.importMode': 'Копия — независимый снимок. Симлинк — живая ссылка: правки источника обновляют DSH, но перенос источника ломает ссылку.',
+      'help.importTarget': 'Место назначения должно быть записываемым корнем DSH. Импорт никогда не перезаписывает существующие навыки.',
+      'help.live': 'Live-режим показывает read-only навыки другого агента в каталоге модели DSH без копирования. Ничего не копируется — модель читает внешний файл.',
+      'help.modelToggle': 'Управляет тем, видит ли модель навык в своём каталоге.',
+      'help.userToggle': 'Управляет тем, появляется ли навык в меню / в чате.',
+      'help.delete': 'Навык перемещается в корзину студии; файл не удаляется безвозвратно, его можно восстановить.',
+      'help.ai': 'Чат открывается со встроенными инструкциями создателя. Агент задаёт короткие вопросы и сохраняет навык инструментом студии — с проверкой и бэкапом.',
+      'toast.saved': 'Навык сохранён',
+      'toast.created': 'Навык создан',
+      'toast.trashed': 'Навык перемещён в корзину',
+      'toast.restored': 'Навык восстановлен',
+      'toast.updated': 'Навык обновлён',
+      'toast.stale': 'Каталог изменился. Перезагрузил — повторите.',
+      'toast.copied': 'Скопировано в буфер обмена',
+      'toast.copyFailed': 'Не удалось скопировать в буфер обмена',
+      'error.CONFIRM_REQUIRED': 'Для действия нужно подтверждение',
+      'error.STALE_REVISION': 'Каталог изменился. Обновите страницу и повторите',
+      'error.VALIDATION_FAILED': 'В навыке есть ошибки проверки',
+      'error.READ_ONLY_SKILL': 'Этот навык доступен только для чтения',
+      'error.SYMLINK_READ_ONLY': 'Навыки-симлинки здесь не редактируются',
+      'error.TARGET_EXISTS': 'Навык с таким именем уже существует',
+      'error.NAME_CHANGE_UNSUPPORTED': 'Имя навыка нельзя изменить в этом окне',
+      'error.PATH_NOT_ALLOWED': 'Записывать можно только файлы в references/, scripts/ и assets/',
+      'error.SKILL_UNREADABLE': 'Файл навыка не читается',
+      'error.PROJECT_NOT_CONFIGURED': 'Этот проект не настроен в плагине',
+      'error.CONTENT_TOO_LARGE': 'Содержимое слишком большое',
+      'error.SELECTION_EMPTY': 'Выберите хотя бы один навык',
+      'error.SELECTION_TOO_LARGE': 'Слишком много навыков выбрано',
+      'error.NOT_FOUND': 'Не найдено',
       'source.dshUser': 'Мои навыки (DSH)',
       'source.dshAgents': 'Общие агентские',
       'source.project': 'Проект',
@@ -275,122 +464,10 @@ window.__ModuleLoader__.load({
       'source.gemini': 'Gemini / Antigravity',
       'source.kimi': 'Kimi',
       'source.opencode': 'OpenCode',
-      'scope.user': 'пользователь',
-      'scope.project': 'проект',
-      'status.writable': 'доступен для записи',
-      'status.readOnly': 'только чтение',
-      'status.external': 'внешний, только чтение',
-      'status.bundled': 'встроенный, только чтение',
-      'status.projectLocked': 'проектный, на этом этапе только чтение',
-      'tabs.library': 'Библиотека',
-      'tabs.trash': 'Корзина',
-      'tabs.sources': 'Источники',
-      'sources.hint': 'Показывать внешние навыки только для чтения в каталоге DSH без копирования. Модель сможет загружать их напрямую; файлами по-прежнему владеет исходный агент.',
-      'sources.live': 'Показывать в DSH',
-      'sources.empty': 'Читаемых read-only источников на этом компьютере не найдено.',
-      'sources.modelOnly': 'Только модель, в меню / не попадает.',
-      'sources.external': 'Внешний источник',
-      'create.mode.manual': 'Вручную',
-      'create.mode.ai': 'С помощью ИИ',
-      'create.aiHint': 'Опишите навык своими словами. Скопируйте готовый промпт в чат DSH: агент создаст навык инструментом skill_curator_create, и он появится здесь после обновления.',
-      'create.aiDescription': 'Что должен делать навык и когда его использовать?',
-      'create.aiPromptTitle': 'Промпт для агента',
-      'create.copyPrompt': 'Скопировать промпт',
-      'create.copied': 'Скопировано',
-      'create.template': 'Вставить каркас',
-      'create.useInForm': 'Перенести в ручную форму',
-      'tabs.import': 'Импорт',
-      'import.hint': 'Скопируйте или свяжите навыки других агентов в корень DSH. Ничего не перезаписывается: существующие цели и недопустимые имена отсеиваются до импорта.',
-      'import.target': 'Куда импортировать',
-      'import.target.user': 'Мои навыки (DSH)',
-      'import.target.agents': 'Общие агентские',
-      'import.target.project': 'Проект',
-      'import.workspace': 'Рабочий каталог',
-      'import.mode': 'Режим',
-      'import.mode.copy': 'Копия',
-      'import.mode.copyHint': 'Независимый снимок. Импортированный навык больше не связан с источником.',
-      'import.mode.symlink': 'Симлинк',
-      'import.mode.symlinkHint': 'Живая ссылка на источник. Правки там видны здесь; перенос источника ломает ссылку.',
-      'import.selectAll': 'Выбрать все',
-      'import.clear': 'Снять',
-      'import.selected': 'выбрано',
-      'import.apply': 'Импортировать выбранные',
-      'import.confirmApply': 'Подтвердить импорт',
-      'import.loading': 'Сканирую источники…',
-      'import.empty': 'Нет навыков для импорта в это место.',
-      'import.rescan': 'Пересканировать',
-      'import.results': 'Результат импорта',
-      'import.importable': 'можно импортировать',
-      'import.imported': 'импортировано',
-      'import.skipped': 'пропущено',
-      'import.failed': 'ошибки',
-      'import.diagnostics': 'есть ошибки проверки',
-      'import.noTargets': 'Нет доступного места для записи.',
-      'import.reason.TARGET_EXISTS': 'уже есть в месте назначения',
-      'import.reason.ALREADY_IN_TARGET': 'уже в целевом корне',
-      'import.reason.INVALID_NAME': 'недопустимое имя навыка',
-      'import.reason.NAME_TAKEN': 'дубль имени в этой выборке',
-      'import.reason.SOURCE_MISSING': 'источник исчез',
-      'import.reason.IMPORT_FAILED': 'импорт не удался',
-      'import.reason.NOT_FOUND': 'не найден',
-      'toast.imported': 'Импорт завершён',
-      'actions.create': 'Создать',
-      'actions.delete': 'В корзину',
-      'actions.confirmDelete': 'Подтвердить удаление',
-      'actions.restore': 'Восстановить',
-      'actions.save': 'Сохранить',
-      'actions.cancel': 'Отмена',
-      'actions.validate': 'Проверить',
-      'actions.editFile': 'Редактировать файл',
-      'actions.newFile': 'Новый файл',
-      'actions.enable': 'Включить',
-      'actions.disable': 'Выключить',
-      'row.enabled': 'Виден модели и в меню /',
-      'row.disabled': 'Скрыт от модели и из меню /',
-      'toggle.model': 'Модель',
-      'toggle.user': 'Меню /',
-      'editor.title': 'Редактирование SKILL.md',
-      'editor.hint': 'Перед записью изменения проверяются. Предыдущий файл сохраняется в бэкап; после сохранения каталог обновляется.',
-      'editor.busy': 'Сохраняю…',
-      'editor.errors': 'Исправьте ошибки перед сохранением',
-      'editor.noErrors': 'Ошибок нет',
-      'editor.unsaved': 'Есть несохранённые изменения',
-      'editor.fileTitle': 'Редактирование файла навыка',
-      'create.title': 'Новый навык',
-      'create.name': 'Имя (kebab-case)',
-      'create.description': 'Описание (что и когда использовать)',
-      'create.body': 'Инструкции',
-      'create.scope': 'Куда сохранить',
       'create.scope.user': 'Мои навыки (DSH)',
       'create.scope.agents': 'Общие агентские',
       'create.scope.project': 'Проект',
-      'create.workspace': 'Рабочий каталог',
-      'create.submit': 'Создать',
-      'create.cancel': 'Отмена',
-      'create.hint': 'Имя станет именем папки и должно совпадать с frontmatter. Дополнительные материалы — в references/ и scripts/, а SKILL.md держите коротким.',
-      'trash.title': 'Корзина',
-      'trash.empty': 'Корзина пуста.',
-      'trash.item': 'Удалённый навык',
-      'trash.originalPath': 'Исходный путь',
-      'trash.deletedAt': 'Удалён',
-      'trash.confirmRestore': 'Подтвердить восстановление',
-      'toast.saved': 'Навык сохранён',
-      'toast.created': 'Навык создан',
-      'toast.trashed': 'Навык перемещён в корзину',
-      'toast.restored': 'Навык восстановлен',
-      'toast.updated': 'Навык обновлён',
-      'toast.stale': 'Каталог изменился. Перезагрузил — повторите действие.',
-      'error.CONFIRM_REQUIRED': 'Для действия нужно подтверждение',
-      'error.STALE_REVISION': 'Каталог изменился. Откройте навык заново и повторите',
-      'error.VALIDATION_FAILED': 'В навыке есть ошибки проверки',
-      'error.READ_ONLY_SKILL': 'Этот навык доступен только для чтения',
-      'error.SYMLINK_READ_ONLY': 'Навыки-симлинки здесь не редактируются',
-      'error.TARGET_EXISTS': 'Навык с таким именем уже существует',
-      'error.NAME_CHANGE_UNSUPPORTED': 'Имя навыка нельзя изменить в этом окне',
-      'error.PATH_NOT_ALLOWED': 'Записывать можно только файлы в references/, scripts/ и assets/',
-      'error.SKILL_UNREADABLE': 'Файл навыка не читается',
-      'error.PROJECT_NOT_CONFIGURED': 'Этот проект не настроен в плагине',
-      'error.CONTENT_TOO_LARGE': 'Содержимое слишком большое',
+      'create.aiHint': 'Опишите навык один раз — откроется чат со встроенным создателем, а навык появится здесь после сохранения.',
       'error.OPERATION_FAILED': 'Операция не выполнена',
     };
 
@@ -400,263 +477,365 @@ window.__ModuleLoader__.load({
 
     const STYLES = `
       [data-plugin="dsh-skill-curator"] * { box-sizing: border-box; }
+      [data-plugin="dsh-skill-curator"] { font-size: 14px; line-height: 22px; }
       .sc-page {
         display: flex; flex-direction: column; gap: 16px;
-        max-width: 960px; margin: 0 auto; padding: 8px 4px 40px;
-        color: var(--dsw-alias-label-primary, #1c1c1e);
-        font-size: 13px; line-height: 1.45;
+        width: 100%; max-width: 960px; margin: 0 auto; padding: 2px 2px 24px;
+        color: var(--dsw-alias-label-primary);
+        font-size: 14px; line-height: 22px;
       }
-      .sc-header { display: flex; flex-direction: column; gap: 12px; }
-      .sc-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-      .sc-title { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -0.01em; }
-      .sc-subtitle { margin: 4px 0 0; color: var(--dsw-alias-label-secondary, #6b7280); }
-      .sc-header-actions { display: flex; gap: 8px; flex: none; }
-      .sc-button {
-        border: 1px solid var(--dsw-alias-border-l3, #d1d5db);
-        background: var(--dsw-alias-bg-layer-1, #fff);
-        color: var(--dsw-alias-label-primary, #1c1c1e);
-        border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer;
+      .sc-head { display: flex; flex-direction: column; gap: 6px; }
+      .sc-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+      .sc-head-titles { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 280px; }
+      .sc-title { margin: 0; font-size: 28px; font-weight: 600; line-height: 36px; letter-spacing: -0.01em; }
+      .sc-subtitle { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 14px; line-height: 22px; }
+      .sc-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .sc-btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+        height: 36px; padding: 0 14px; border: 0; border-radius: 8px;
+        background: transparent; color: var(--dsw-alias-label-primary);
+        font: inherit; font-size: 13px; line-height: 20px; white-space: nowrap;
+        cursor: pointer; text-decoration: none;
       }
-      .sc-button:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.04)); }
-      .sc-button:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, #4f46e5); outline-offset: 1px; }
-      .sc-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
-      .sc-search {
-        flex: 1 1 260px; min-width: 220px; padding: 7px 10px; font: inherit;
-        border: 1px solid var(--dsw-alias-border-l3, #d1d5db); border-radius: 8px;
-        background: var(--dsw-alias-bg-layer-1, #fff); color: inherit;
+      .sc-btn:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+      .sc-btn:active:not(:disabled) { background: var(--dsw-alias-interactive-bg-active); }
+      .sc-btn:disabled { opacity: .45; cursor: not-allowed; }
+      .sc-btn:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
+      .sc-btn-outline { box-shadow: inset 0 0 0 .5px var(--dsw-alias-border-l3); }
+      .sc-btn-primary { background: var(--dsw-alias-button-primary-fill); color: var(--dsw-alias-label-primary-foreground); }
+      .sc-btn-primary:hover:not(:disabled) { background: var(--dsw-alias-button-primary-hover); }
+      .sc-btn-ghost { color: var(--dsw-alias-label-secondary); }
+      .sc-btn-ghost:hover:not(:disabled) { color: var(--dsw-alias-label-primary); }
+      .sc-btn-danger { color: var(--dsw-alias-state-error-primary); box-shadow: inset 0 0 0 .5px var(--dsw-alias-border-l3); }
+      .sc-btn-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); }
+      .sc-btn-sm { height: 30px; padding: 0 10px; font-size: 12px; border-radius: 7px; }
+      .sc-icon-btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 34px; height: 34px; padding: 0; flex: none;
+        border: .5px solid var(--dsw-alias-border-l3); border-radius: 999px;
+        background: transparent; color: var(--dsw-alias-label-secondary);
+        cursor: pointer;
       }
-      .sc-search:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, #4f46e5); outline-offset: 1px; }
-      .sc-summary { display: flex; flex-wrap: wrap; gap: 10px; color: var(--dsw-alias-label-secondary, #6b7280); }
-      .sc-summary strong { color: var(--dsw-alias-label-primary, #1c1c1e); font-weight: 600; }
-      .sc-summary .sc-bad { color: var(--dsw-alias-state-error-primary, #dc2626); }
-      .sc-summary .sc-warn { color: var(--dsw-alias-state-warn-primary, #b45309); }
-      .sc-banner {
-        border: 1px solid var(--dsw-alias-state-error-primary, #dc2626);
-        border-radius: 10px; padding: 10px 12px;
-        background: var(--dsw-alias-bg-layer-2, #f9fafb);
+      .sc-icon-btn:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
+      .sc-icon-btn:disabled { opacity: .4; cursor: not-allowed; }
+      .sc-icon-btn:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
+      .sc-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+      .sc-search { position: relative; flex: 1 1 220px; min-width: 180px; }
+      .sc-search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--dsw-alias-label-tertiary); display: flex; pointer-events: none; }
+      .sc-input, .sc-select, .sc-textarea {
+        width: 100%; padding: 8px 10px; border: .5px solid var(--dsw-alias-border-l3);
+        border-radius: 8px; background: var(--dsw-alias-bg-layer-1);
+        color: var(--dsw-alias-label-primary); font: inherit; font-size: 13px; line-height: 20px;
       }
-      .sc-banner-title { font-weight: 600; margin-bottom: 2px; }
-      .sc-banner-code { color: var(--dsw-alias-label-tertiary, #9ca3af); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      .sc-loading, .sc-empty {
-        border: 1px dashed var(--dsw-alias-border-l3, #d1d5db); border-radius: 12px;
-        padding: 28px 16px; text-align: center; color: var(--dsw-alias-label-secondary, #6b7280);
+      .sc-search .sc-input { height: 36px; padding-left: 34px; }
+      .sc-input:focus-visible, .sc-select:focus-visible, .sc-textarea:focus-visible {
+        outline: none; border-color: var(--dsw-alias-state-business-primary);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary) 18%, transparent);
       }
-      .sc-empty-title { font-weight: 600; color: var(--dsw-alias-label-primary, #1c1c1e); margin-bottom: 4px; }
-      .sc-group {
-        border: 1px solid var(--dsw-alias-border-l2, #e5e7eb); border-radius: 12px;
-        background: var(--dsw-alias-bg-layer-1, #fff); overflow: hidden;
+      .sc-textarea { min-height: 96px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 20px; }
+      .sc-textarea.sc-body { min-height: 190px; }
+      .sc-select { height: 36px; }
+      .sc-summary { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 20px; }
+      .sc-summary b { color: var(--dsw-alias-label-primary); font-weight: 600; }
+      .sc-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+      .sc-filter {
+        height: 30px; padding: 0 12px; border-radius: 999px; border: .5px solid var(--dsw-alias-border-l3);
+        background: transparent; color: var(--dsw-alias-label-secondary);
+        font: inherit; font-size: 12.5px; line-height: 18px; cursor: pointer; white-space: nowrap;
       }
+      .sc-filter:hover { background: var(--dsw-alias-interactive-bg-hover); }
+      .sc-filter[aria-pressed="true"] {
+        background: var(--dsw-alias-state-business-tertiary, color-mix(in srgb, var(--dsw-alias-state-business-primary) 14%, transparent));
+        border-color: transparent; color: var(--dsw-alias-state-business-primary); font-weight: 500;
+      }
+      .sc-filter:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
+      .sc-group { display: flex; flex-direction: column; gap: 8px; }
       .sc-group-head {
-        display: flex; align-items: center; gap: 10px; width: 100%;
-        padding: 10px 14px; background: transparent; border: 0; cursor: pointer;
-        font: inherit; color: inherit; text-align: left;
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        width: 100%; padding: 0 2px; border: 0; background: transparent;
+        color: var(--dsw-alias-label-primary); font: inherit; text-align: left; cursor: pointer;
+        min-height: 26px;
       }
-      .sc-group-head:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.03)); }
-      .sc-group-chevron { width: 14px; color: var(--dsw-alias-label-tertiary, #9ca3af); flex: none; }
-      .sc-group-name { font-weight: 600; }
-      .sc-group-path {
-        color: var(--dsw-alias-label-tertiary, #9ca3af);
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
-        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
-      }
+      .sc-group-head:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; border-radius: 6px; }
+      .sc-group-chevron { flex: none; color: var(--dsw-alias-label-tertiary); display: inline-flex; }
+      .sc-group-title { font-size: 15px; font-weight: 600; line-height: 22px; }
+      .sc-group-count { color: var(--dsw-alias-label-tertiary); font-size: 13px; font-weight: 500; }
       .sc-group-spacer { flex: 1 1 auto; }
-      .sc-group-count {
-        flex: none; color: var(--dsw-alias-label-secondary, #6b7280);
-        border: 1px solid var(--dsw-alias-border-l3, #d1d5db); border-radius: 999px;
-        padding: 0 8px; font-size: 11px; line-height: 18px;
-      }
-      .sc-rows { display: flex; flex-direction: column; }
-      .sc-row {
-        display: flex; flex-direction: column; gap: 3px; width: 100%;
-        padding: 10px 14px; border: 0; border-top: 1px solid var(--dsw-alias-border-l2, #f0f0f0);
-        background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer;
-      }
-      .sc-row:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.03)); }
-      .sc-row:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, #4f46e5); outline-offset: -2px; }
-      .sc-row-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-      .sc-row-name { font-weight: 600; }
-      .sc-row-desc { color: var(--dsw-alias-label-secondary, #6b7280); }
-      .sc-row-path {
-        color: var(--dsw-alias-label-tertiary, #9ca3af); font-size: 11px;
+      .sc-group-path {
+        color: var(--dsw-alias-label-tertiary); font-size: 11.5px; line-height: 16px;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
       }
-      .sc-chip {
-        flex: none; display: inline-flex; align-items: center; gap: 4px;
-        border: 1px solid var(--dsw-alias-border-l3, #d1d5db); border-radius: 999px;
-        padding: 0 7px; font-size: 11px; line-height: 18px;
-        color: var(--dsw-alias-label-secondary, #6b7280); background: var(--dsw-alias-bg-layer-2, #f9fafb);
+      .sc-card {
+        border: .5px solid var(--dsw-alias-settings-card-stroke, var(--dsw-alias-border-l4));
+        border-radius: 12px;
+        background: var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-1));
+        overflow: hidden;
       }
-      .sc-chip.is-error { color: var(--dsw-alias-state-error-primary, #dc2626); border-color: var(--dsw-alias-state-error-primary, #dc2626); }
-      .sc-chip.is-warn { color: var(--dsw-alias-state-warn-primary, #b45309); border-color: var(--dsw-alias-state-warn-primary, #b45309); }
-      .sc-chip.is-info { color: var(--dsw-alias-label-tertiary, #9ca3af); }
-      .sc-overlay {
-        position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
-        background: var(--dsw-alias-bg-mask-1, rgba(15, 23, 42, 0.45)); padding: 24px;
-      }
-      .sc-modal {
-        display: flex; flex-direction: column; width: min(860px, 100%); max-height: min(860px, 92vh);
-        background: var(--dsw-alias-bg-layer-1, #fff); color: var(--dsw-alias-label-primary, #1c1c1e);
-        border-radius: 14px; border: 1px solid var(--dsw-alias-border-l2, #e5e7eb); overflow: hidden;
-        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
-      }
-      .sc-modal-head { display: flex; flex-direction: column; gap: 8px; padding: 16px 18px 12px; border-bottom: 1px solid var(--dsw-alias-border-l2, #e5e7eb); }
-      .sc-modal-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-      .sc-modal-title { margin: 0; font-size: 18px; font-weight: 650; word-break: break-word; }
-      .sc-modal-desc { margin: 0; color: var(--dsw-alias-label-secondary, #6b7280); }
-      .sc-modal-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px 18px; font-size: 12px; }
-      .sc-meta { display: flex; flex-direction: column; min-width: 0; }
-      .sc-meta-label { color: var(--dsw-alias-label-tertiary, #9ca3af); font-size: 11px; }
-      .sc-meta-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .sc-meta-value.sc-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      .sc-tabs { display: flex; gap: 4px; padding: 10px 18px 0; border-bottom: 1px solid var(--dsw-alias-border-l2, #e5e7eb); }
-      .sc-tab {
-        border: 0; background: transparent; font: inherit; color: var(--dsw-alias-label-secondary, #6b7280);
-        padding: 7px 10px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
-      }
-      .sc-tab[aria-selected="true"] { color: var(--dsw-alias-label-primary, #1c1c1e); border-bottom-color: var(--dsw-alias-brand-primary, #4f46e5); }
-      .sc-tab:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, #4f46e5); outline-offset: -2px; }
-      .sc-modal-body { padding: 12px 18px 18px; overflow: auto; }
-      .sc-pre {
-        margin: 0; padding: 12px; border: 1px solid var(--dsw-alias-border-l2, #e5e7eb); border-radius: 10px;
-        background: var(--dsw-alias-bg-layer-2, #f9fafb); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; overflow: auto; max-height: 52vh;
-      }
-      .sc-files { display: flex; flex-direction: column; gap: 2px; }
-      .sc-file {
-        display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 0;
-        background: transparent; border-radius: 8px; font: inherit; color: inherit; text-align: left; cursor: pointer;
-      }
-      .sc-file:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.04)); }
-      .sc-file-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .sc-file-size { margin-left: auto; color: var(--dsw-alias-label-tertiary, #9ca3af); font-size: 11px; flex: none; }
-      .sc-diag { display: flex; flex-direction: column; gap: 8px; }
-      .sc-diag-item { border: 1px solid var(--dsw-alias-border-l2, #e5e7eb); border-radius: 10px; padding: 8px 10px; }
-      .sc-diag-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-      .sc-diag-params { color: var(--dsw-alias-label-tertiary, #9ca3af); font-size: 11px; margin-top: 2px; word-break: break-word; }
-      .sc-muted { color: var(--dsw-alias-label-secondary, #6b7280); }
-      .sc-note { color: var(--dsw-alias-label-tertiary, #9ca3af); font-size: 12px; }
-      .sc-row-wrap {
-        display: flex; align-items: stretch; gap: 8px;
-        border-top: 1px solid var(--dsw-alias-border-l2, #f0f0f0);
-      }
-      .sc-row-wrap:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.03)); }
       .sc-row {
-        display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0;
-        padding: 10px 0 10px 14px; border: 0; background: transparent;
-        font: inherit; color: inherit; text-align: left; cursor: pointer;
+        display: flex; align-items: flex-start; gap: 12px;
+        padding: 12px 14px; min-height: 72px;
       }
-      .sc-row:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, #4f46e5); outline-offset: -2px; }
-      .sc-row-switch { display: flex; align-items: center; padding: 0 14px 0 6px; }
+      .sc-row + .sc-row { border-top: .5px solid var(--dsw-alias-border-l2); }
+      .sc-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
+      .sc-row-main {
+        display: flex; align-items: flex-start; gap: 12px; flex: 1 1 auto;
+        min-width: 0; padding: 0; border: 0; background: transparent;
+        color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: 8px;
+      }
+      .sc-row-main:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 4px; }
+      .sc-row-icon {
+        flex: none; display: inline-flex; align-items: center; justify-content: center;
+        width: 36px; height: 36px; margin-top: 2px; border-radius: 50%;
+        border: .5px solid var(--dsw-alias-border-l3);
+        background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary);
+      }
+      .sc-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+      .sc-row-name { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+      .sc-row-name-text { font-size: 15px; font-weight: 600; line-height: 20px; overflow-wrap: anywhere; }
+      .sc-row-desc {
+        color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 20px;
+        overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      }
+      .sc-row-meta {
+        color: var(--dsw-alias-label-tertiary); font-size: 11.5px; line-height: 16px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+      }
+      .sc-row-end { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
+      .sc-row-end-row { display: flex; align-items: center; gap: 6px; }
       .sc-switch {
-        position: relative; width: 34px; height: 20px; padding: 0; flex: none;
-        border: 1px solid var(--dsw-alias-border-l3, #d1d5db); border-radius: 999px;
-        background: var(--dsw-alias-bg-layer-3, #e5e7eb); cursor: pointer;
-        transition: background 120ms ease;
+        position: relative; flex: none; width: 44px; height: 26px; padding: 2px;
+        border: 0; border-radius: 999px; background: var(--dsw-alias-border-l3); cursor: pointer;
       }
-      .sc-switch.is-on { background: var(--dsw-alias-brand-primary, #4f46e5); border-color: var(--dsw-alias-brand-primary, #4f46e5); }
-      .sc-switch:disabled { opacity: 0.55; cursor: default; }
-      .sc-switch-knob {
-        position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
-        border-radius: 50%; background: var(--dsw-alias-switch-thumb, #fff); transition: transform 120ms ease;
+      .sc-switch[aria-checked="true"] { background: var(--dsw-alias-button-primary-fill); }
+      .sc-switch:disabled { opacity: .5; cursor: default; }
+      .sc-switch:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
+      .sc-switch-thumb {
+        display: block; width: 22px; height: 22px; border-radius: 50%;
+        background: var(--dsw-alias-switch-thumb, #fff); transition: transform .14s ease;
       }
-      .sc-switch.is-on .sc-switch-knob { transform: translateX(14px); }
-      .sc-toolbar-tabs { display: flex; gap: 4px; }
-      .sc-toolbar-tabs .sc-tab { padding: 6px 10px; border-bottom: 2px solid transparent; }
-      .sc-toolbar-tabs .sc-tab[aria-selected="true"] { border-bottom-color: var(--dsw-alias-brand-primary, #4f46e5); }
-      .sc-button.is-danger { border-color: var(--dsw-alias-state-error-primary, #dc2626); color: var(--dsw-alias-state-error-primary, #dc2626); }
-      .sc-button-primary {
-        border: 1px solid var(--dsw-alias-button-primary-fill, #1f2937);
-        background: var(--dsw-alias-button-primary-fill, #1f2937);
-        color: var(--dsw-alias-label-primary-foreground, #fff);
+      .sc-switch[aria-checked="true"] .sc-switch-thumb { transform: translateX(18px); }
+      .sc-tag {
+        display: inline-flex; align-items: center; gap: 4px; flex: none;
+        padding: 0 7px; border-radius: 999px; font-size: 11px; line-height: 17px; font-weight: 500;
+        color: var(--dsw-alias-label-secondary);
+        background: var(--dsw-alias-bg-module-platform);
       }
-      .sc-button-primary:hover { background: var(--dsw-alias-button-primary-hover, #111827); }
-      .sc-button:disabled { opacity: 0.55; cursor: default; }
-      .sc-input, .sc-textarea, .sc-select {
-        width: 100%; padding: 7px 9px; font: inherit; color: inherit;
-        border: 1px solid var(--dsw-alias-border-l3, #d1d5db); border-radius: 8px;
-        background: var(--dsw-alias-bg-layer-1, #fff);
+      .sc-tag[data-tone="info"] { color: var(--dsw-alias-state-business-primary); background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 12%, transparent); }
+      .sc-tag[data-tone="error"] { color: var(--dsw-alias-state-error-primary); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent); }
+      .sc-tag[data-tone="warn"] { color: var(--dsw-alias-label-primary); background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 16%, transparent); }
+      .sc-tag[data-tone="success"] { color: var(--dsw-alias-state-success-primary); background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 12%, transparent); }
+      .sc-help-wrap { position: relative; display: inline-flex; flex: none; }
+      .sc-help {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 18px; height: 18px; padding: 0; border-radius: 50%;
+        border: .5px solid var(--dsw-alias-border-l3); background: transparent;
+        color: var(--dsw-alias-label-tertiary); font: inherit; font-size: 11px; line-height: 1;
+        cursor: pointer;
       }
-      .sc-input:focus-visible, .sc-textarea:focus-visible, .sc-select:focus-visible {
-        outline: 2px solid var(--dsw-alias-brand-primary, #4f46e5); outline-offset: 1px;
+      .sc-help:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+      .sc-help:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
+      .sc-help-pop {
+        position: fixed; z-index: 90; width: 290px; max-width: calc(100vw - 24px);
+        padding: 10px 12px; border-radius: 10px;
+        background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary);
+        border: .5px solid var(--dsw-alias-border-l3);
+        box-shadow: 0 12px 36px color-mix(in srgb, var(--dsw-alias-label-primary) 20%, transparent);
+        font-size: 12px; line-height: 18px; font-weight: 400; text-align: left;
       }
-      .sc-textarea {
-        min-height: 220px; resize: vertical;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.55;
+      .sc-menu-wrap { position: relative; display: inline-flex; }
+      .sc-menu {
+        position: absolute; z-index: 50; top: calc(100% + 6px); right: 0; min-width: 200px;
+        display: flex; flex-direction: column; gap: 2px; padding: 6px;
+        border: .5px solid var(--dsw-alias-border-l3); border-radius: 10px;
+        background: var(--dsw-alias-bg-layer-2);
+        box-shadow: 0 10px 30px color-mix(in srgb, var(--dsw-alias-label-primary) 16%, transparent);
       }
-      .sc-form { display: flex; flex-direction: column; gap: 10px; }
-      .sc-field { display: flex; flex-direction: column; gap: 4px; }
-      .sc-field-label { font-size: 12px; font-weight: 600; }
-      .sc-form-row { display: flex; gap: 10px; flex-wrap: wrap; }
+      .sc-menu[data-align="left"] { left: 0; right: auto; }
+      .sc-menu-item {
+        display: flex; align-items: center; gap: 8px; width: 100%;
+        padding: 8px 10px; border: 0; border-radius: 7px; background: transparent;
+        color: var(--dsw-alias-label-primary); font: inherit; font-size: 13px; line-height: 20px;
+        text-align: left; cursor: pointer;
+      }
+      .sc-menu-item:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+      .sc-menu-item:disabled { color: var(--dsw-alias-label-tertiary); cursor: default; }
+      .sc-menu-item[data-danger="true"] { color: var(--dsw-alias-state-error-primary); }
+      .sc-menu-item:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: -2px; }
+      .sc-menu-note { margin-left: auto; color: var(--dsw-alias-label-tertiary); font-size: 11px; }
+      .sc-menu-sep { height: 1px; margin: 4px 2px; background: var(--dsw-alias-border-l2); }
+      .sc-banner {
+        display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap;
+        padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 20px;
+        background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent);
+        color: var(--dsw-alias-state-error-primary);
+      }
+      .sc-banner[data-tone="info"] { background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); }
+      .sc-banner[data-tone="success"] { background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 12%, transparent); color: var(--dsw-alias-state-success-primary); }
+      .sc-banner-text { flex: 1 1 220px; min-width: 0; }
+      .sc-banner-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+      .sc-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+      .sc-empty {
+        display: flex; flex-direction: column; align-items: center; gap: 8px;
+        padding: 28px 16px; border: .5px dashed var(--dsw-alias-border-l3); border-radius: 12px;
+        text-align: center; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 20px;
+      }
+      .sc-empty-title { color: var(--dsw-alias-label-primary); font-size: 15px; font-weight: 600; line-height: 22px; }
+      .sc-tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--dsw-alias-bg-module-platform); flex-wrap: wrap; }
+      .sc-tab {
+        height: 30px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent;
+        color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13px; line-height: 20px; cursor: pointer;
+      }
+      .sc-tab[aria-selected="true"] { background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font-weight: 500; box-shadow: 0 1px 2px color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent); }
+      .sc-tab:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
+      .sc-facts { display: flex; flex-direction: column; gap: 0; border: .5px solid var(--dsw-alias-settings-card-stroke, var(--dsw-alias-border-l4)); border-radius: 12px; background: var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-1)); }
+      .sc-fact { display: flex; align-items: baseline; gap: 12px; padding: 8px 14px; font-size: 13px; line-height: 20px; }
+      .sc-fact + .sc-fact { border-top: .5px solid var(--dsw-alias-border-l2); }
+      .sc-fact-label { flex: 0 0 122px; color: var(--dsw-alias-label-tertiary); font-size: 12px; }
+      .sc-fact-value { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; }
+      .sc-fact-value[data-mono="true"] { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+      .sc-model { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: .5px solid var(--dsw-alias-settings-card-stroke, var(--dsw-alias-border-l4)); border-radius: 12px; background: var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-1)); }
+      .sc-model-title { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; line-height: 20px; }
+      .sc-model-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+      .sc-model-desc { color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 20px; }
+      .sc-toggles { display: flex; gap: 18px; flex-wrap: wrap; }
+      .sc-toggle-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+      .sc-pre {
+        margin: 0; padding: 12px; border-radius: 10px;
+        border: .5px solid var(--dsw-alias-border-l2);
+        background: var(--dsw-alias-bg-module-platform);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px; line-height: 20px; white-space: pre-wrap; overflow-wrap: anywhere;
+        max-height: 52vh; overflow: auto;
+      }
+      .sc-pre.sc-prompt { max-height: 220px; }
+      .sc-md { font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
+      .sc-md h1, .sc-md h2, .sc-md h3 { margin: 14px 0 6px; font-size: 16px; line-height: 24px; font-weight: 600; }
+      .sc-md h1:first-child, .sc-md h2:first-child { margin-top: 0; }
+      .sc-md p { margin: 0 0 8px; }
+      .sc-md ul { margin: 0 0 8px; padding-left: 20px; }
+      .sc-md li { margin: 2px 0; }
+      .sc-file-list { display: flex; flex-direction: column; gap: 2px; }
+      .sc-file {
+        display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px;
+        border: 0; border-radius: 8px; background: transparent; color: inherit; font: inherit;
+        text-align: left; cursor: pointer;
+      }
+      .sc-file:hover { background: var(--dsw-alias-interactive-bg-hover); }
+      .sc-file-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .sc-file-size { margin-left: auto; color: var(--dsw-alias-label-tertiary); font-size: 11.5px; flex: none; }
+      .sc-diag { display: flex; flex-direction: column; gap: 8px; }
+      .sc-diag-item { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: .5px solid var(--dsw-alias-settings-card-stroke, var(--dsw-alias-border-l4)); border-radius: 10px; background: var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-1)); }
+      .sc-diag-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; }
+      .sc-diag-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+      .sc-diag-params { color: var(--dsw-alias-label-tertiary); font-size: 11.5px; line-height: 16px; overflow-wrap: anywhere; }
+      .sc-field { display: flex; flex-direction: column; gap: 6px; }
+      .sc-field-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+      .sc-field-label { font-size: 13px; font-weight: 500; line-height: 20px; }
+      .sc-field-hint { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
+      .sc-field-error { color: var(--dsw-alias-state-error-primary); font-size: 12px; line-height: 18px; }
+      .sc-counter { margin-left: auto; color: var(--dsw-alias-label-tertiary); font-size: 11.5px; line-height: 16px; font-variant-numeric: tabular-nums; }
+      .sc-form { display: flex; flex-direction: column; gap: 14px; }
+      .sc-form-row { display: flex; gap: 12px; flex-wrap: wrap; }
       .sc-form-row > .sc-field { flex: 1 1 200px; }
-      .sc-editor-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
-      .sc-editor-actions .sc-note { margin-left: auto; }
+      .sc-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--dsw-alias-bg-module-platform); flex-wrap: wrap; }
+      .sc-seg-btn {
+        height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent;
+        color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12.5px; line-height: 18px; cursor: pointer;
+      }
+      .sc-seg-btn[aria-pressed="true"] { background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font-weight: 500; box-shadow: 0 1px 2px color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent); }
+      .sc-seg-btn:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
+      .sc-sticky-foot {
+        position: sticky; bottom: 0; z-index: 20;
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        margin: 4px -2px 0; padding: 12px 16px;
+        border-top: .5px solid var(--dsw-alias-border-l2);
+        background: var(--dsw-alias-bg-layer-1);
+        box-shadow: 0 -8px 24px color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent);
+      }
+      .sc-sticky-foot .sc-note { margin-left: auto; }
+      .sc-note { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
+      .sc-note-muted { color: var(--dsw-alias-label-tertiary); font-size: 11.5px; line-height: 16px; }
+      .sc-import-bar { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+      .sc-import-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+      .sc-import-row > .sc-field { flex: 1 1 190px; }
+      .sc-cand-list { display: flex; flex-direction: column; }
+      .sc-cand {
+        display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px;
+      }
+      .sc-cand + .sc-cand { border-top: .5px solid var(--dsw-alias-border-l2); }
+      .sc-cand[data-skipped="true"] { opacity: .62; }
+      .sc-cand-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+      .sc-cand-name { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13.5px; font-weight: 600; line-height: 20px; }
+      .sc-cand-desc { color: var(--dsw-alias-label-secondary); font-size: 12.5px; line-height: 18px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+      .sc-cand-path { color: var(--dsw-alias-label-tertiary); font-size: 11px; line-height: 16px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .sc-cand-reason { color: var(--dsw-alias-label-secondary); font-size: 11.5px; line-height: 16px; }
+      .sc-check { flex: none; width: 16px; height: 16px; margin-top: 3px; accent-color: var(--dsw-alias-state-business-primary); cursor: pointer; }
+      .sc-check:disabled { cursor: default; }
+      .sc-actions-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .sc-breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 20px; }
+      .sc-breadcrumb button { border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; padding: 0; cursor: pointer; }
+      .sc-breadcrumb button:hover { color: var(--dsw-alias-label-primary); }
+      .sc-breadcrumb button:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; border-radius: 4px; }
+      .sc-breadcrumb-sep { color: var(--dsw-alias-label-tertiary); }
+      .sc-breadcrumb-current { color: var(--dsw-alias-label-primary); overflow-wrap: anywhere; }
+      .sc-list { display: flex; flex-direction: column; }
       .sc-toast {
-        position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
-        z-index: 80; padding: 9px 14px; border-radius: 10px; max-width: 560px;
-        background: var(--dsw-alias-bg-layer-1, #fff); color: var(--dsw-alias-label-primary, #1c1c1e);
-        border: 1px solid var(--dsw-alias-border-l3, #d1d5db);
-        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22); font-size: 13px;
+        position: fixed; z-index: 95; left: 50%; bottom: 28px; transform: translateX(-50%);
+        max-width: min(560px, calc(100vw - 32px)); padding: 9px 14px; border-radius: 10px;
+        background: var(--dsw-alias-toast-bg, var(--dsw-alias-bg-layer-2));
+        color: var(--dsw-alias-toast-label, var(--dsw-alias-label-primary));
+        border: .5px solid var(--dsw-alias-border-l3);
+        box-shadow: 0 12px 32px color-mix(in srgb, var(--dsw-alias-label-primary) 22%, transparent);
+        font-size: 13px; line-height: 20px;
       }
-      .sc-toggle-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-      .sc-trash-list { display: flex; flex-direction: column; gap: 8px; }
-      .sc-trash-item {
-        display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
-        border: 1px solid var(--dsw-alias-border-l2, #e5e7eb); border-radius: 10px; padding: 10px 12px;
+      .sc-mt-0 { margin-top: 0; }
+      .sc-mb-0 { margin-bottom: 0; }
+      @media (max-width: 720px) {
+        .sc-title { font-size: 24px; line-height: 32px; }
+        .sc-row { flex-wrap: wrap; }
+        .sc-row-end { flex-direction: row; width: 100%; justify-content: flex-end; }
+        .sc-fact { flex-wrap: wrap; }
+        .sc-fact-label { flex-basis: 100%; }
+        .sc-sticky-foot { padding: 10px 12px; }
       }
-      .sc-trash-main { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-      .sc-trash-name { font-weight: 600; }
-      .sc-trash-path {
-        color: var(--dsw-alias-label-tertiary, #9ca3af); font-size: 11px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      }
-      .sc-import-controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-end; }
-      .sc-import-field { display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
-      .sc-import-field-label { font-size: 11px; color: var(--dsw-alias-label-tertiary, #9ca3af); }
-      .sc-segment { display: flex; gap: 4px; }
-      .sc-segment .sc-button[aria-pressed="true"] {
-        border-color: var(--dsw-alias-brand-primary, #4f46e5);
-        color: var(--dsw-alias-brand-primary, #4f46e5);
-        background: var(--dsw-alias-bg-layer-2, #f9fafb);
-      }
-      .sc-import-group { border: 1px solid var(--dsw-alias-border-l2, #e5e7eb); border-radius: 12px; overflow: hidden; }
-      .sc-import-group-head {
-        display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
-        padding: 10px 14px; background: var(--dsw-alias-bg-layer-2, #f9fafb);
-      }
-      .sc-import-group-name { font-weight: 600; }
-      .sc-import-group-path {
-        color: var(--dsw-alias-label-tertiary, #9ca3af); font-size: 11px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
-      }
-      .sc-import-group-spacer { flex: 1 1 auto; }
-      .sc-candidate {
-        display: flex; align-items: flex-start; gap: 10px;
-        padding: 9px 14px; border-top: 1px solid var(--dsw-alias-border-l2, #f0f0f0);
-      }
-      .sc-candidate.is-skipped { opacity: 0.62; }
-      .sc-candidate-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-      .sc-candidate-name { font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-      .sc-candidate-desc { color: var(--dsw-alias-label-secondary, #6b7280); font-size: 12px; }
-      .sc-candidate-path {
-        color: var(--dsw-alias-label-tertiary, #9ca3af); font-size: 11px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      }
-      .sc-check { margin-top: 2px; width: 15px; height: 15px; flex: none; accent-color: var(--dsw-alias-brand-primary, #4f46e5); }
-      .sc-import-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-      .sc-import-footer .sc-note { margin-left: auto; }
-      .sc-results { display: flex; flex-direction: column; gap: 6px; }
-      .sc-result-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
-      .sc-result-count { color: var(--dsw-alias-label-secondary, #6b7280); }
-      .sc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     `;
 
     /* ------------------------------------------------------------------ */
     /* Helpers                                                             */
     /* ------------------------------------------------------------------ */
+
+    const PLURAL = {
+      ru: {
+        skills: ['навык', 'навыка', 'навыков'],
+        sources: ['источник', 'источника', 'источников'],
+        errors: ['ошибка', 'ошибки', 'ошибок'],
+        warnings: ['предупреждение', 'предупреждения', 'предупреждений'],
+        chars: ['символ', 'символа', 'символов'],
+        lines: ['строка', 'строки', 'строк'],
+        selected: ['навык', 'навыка', 'навыков'],
+      },
+      en: {
+        skills: ['skill', 'skills', 'skills'],
+        sources: ['source', 'sources', 'sources'],
+        errors: ['error', 'errors', 'errors'],
+        warnings: ['warning', 'warnings', 'warnings'],
+        chars: ['character', 'characters', 'characters'],
+        lines: ['line', 'lines', 'lines'],
+        selected: ['skill', 'skills', 'skills'],
+      },
+    };
+
+    function plural(runtime, count, kind) {
+      const forms = (PLURAL[runtime.language] ?? PLURAL.ru)[kind] ?? ['', '', ''];
+      const value = Math.abs(Number(count) || 0) % 100;
+      const last = value % 10;
+      if (value > 10 && value < 20) return forms[2];
+      if (last > 1 && last < 5) return forms[1];
+      if (last === 1) return forms[0];
+      return forms[2];
+    }
 
     function installStyles() {
       if (typeof document === 'undefined' || !document.head) return () => {};
@@ -729,7 +908,7 @@ window.__ModuleLoader__.load({
     }
 
     function formatDate(value, language) {
-      if (typeof value !== 'number' || !Number.isFinite(value)) return '';
+      if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return '';
       try {
         return new Intl.DateTimeFormat(language === 'en' ? 'en-GB' : 'ru-RU', {
           year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit',
@@ -739,17 +918,8 @@ window.__ModuleLoader__.load({
       }
     }
 
-    function severityRank(diagnostics) {
-      let rank = 99;
-      for (const item of diagnostics || []) {
-        const value = SEVERITY_ORDER[item?.severity];
-        if (typeof value === 'number' && value < rank) rank = value;
-      }
-      return rank;
-    }
-
     function countSeverity(diagnostics, severity) {
-      return (diagnostics || []).filter((item) => item?.severity === severity).length;
+      return (diagnostics || []).filter((item) => item && item.severity === severity).length;
     }
 
     function formatParams(params) {
@@ -762,6 +932,60 @@ window.__ModuleLoader__.load({
         parts.push(key + '=' + text.slice(0, 120));
       }
       return parts.join(' · ');
+    }
+
+    function errorText(runtime, error) {
+      const code = error && typeof error.code === 'string' && error.code !== '' ? error.code : 'OPERATION_FAILED';
+      const key = 'error.' + code;
+      const text = runtime.t(key);
+      return text === key ? code : text;
+    }
+
+    function hasErrors(skill) {
+      return countSeverity(skill && skill.diagnostics, 'error') > 0;
+    }
+
+    function skillEnabled(skill) {
+      return !skill || !skill.invocation || (skill.invocation.modelInvocable !== false && skill.invocation.userInvocable !== false);
+    }
+
+    function sourceLabel(runtime, source) {
+      if (source && typeof source.label === 'string' && source.label !== '') return source.label;
+      const key = source && typeof source.labelKey === 'string' ? source.labelKey : '';
+      return key !== '' ? runtime.t(key) : (source && (source.agent || source.key)) || '';
+    }
+
+
+    function agentSourceKey(skill) {
+      if (!skill) return null;
+      if (skill.scope === 'project') return 'source.project';
+      const map = {
+        dsh: 'source.dshUser',
+        claude: 'source.claude',
+        codex: 'source.codex',
+        hermes: 'source.hermes',
+        zcode: 'source.zcode',
+        cursor: 'source.cursor',
+        gemini: 'source.gemini',
+        kimi: 'source.kimi',
+        opencode: 'source.opencode',
+      };
+      if (skill.sourceKind === 'bundled') return 'source.bundled';
+      return map[skill.agent] ?? null;
+    }
+
+    function scopeLabel(runtime, scope) {
+      return runtime.t(scope === 'project' ? 'create.scope.project' : 'create.scope.user');
+    }
+
+    function statusLabel(runtime, skill) {
+      if (!skill) return '';
+      if (skill.readOnly) return runtime.t('detail.status.readOnly');
+      return skillEnabled(skill) ? runtime.t('detail.status.enabled') : runtime.t('detail.status.disabled');
+    }
+
+    function maskArrow(text) {
+      return String(text ?? '').replace(/\s+/g, ' ').trim();
     }
 
     /* ------------------------------------------------------------------ */
@@ -805,6 +1029,31 @@ window.__ModuleLoader__.load({
           }
           return () => {};
         },
+        /**
+         * Start a real DSH chat with a prefilled draft. Synchronous by contract:
+         * navigation unmounts the settings page, so it must run before any await.
+         */
+        startSkillChat(prompt) {
+          try {
+            const nav = typeof ctx.get === 'function' ? ctx.get('uiWorkspace') : undefined;
+            if (!nav || typeof nav.startSession !== 'function') return false;
+            nav.startSession(undefined, { prompt, whenDraftExists: 'replace' });
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        async copyText(text) {
+          try {
+            if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+              await navigator.clipboard.writeText(String(text));
+              return true;
+            }
+          } catch {
+            // Fall through.
+          }
+          return false;
+        },
       };
       runtime.refreshLanguage();
       return runtime;
@@ -819,136 +1068,105 @@ window.__ModuleLoader__.load({
       return runtime;
     }
 
-    function sourceLabel(runtime, source) {
-      if (source && typeof source.label === 'string' && source.label !== '') return source.label;
-      const key = source && typeof source.labelKey === 'string' ? source.labelKey : '';
-      return key !== '' ? runtime.t(key) : (source?.agent ?? source?.key ?? '');
-    }
-
-    function scopeLabel(runtime, scope) {
-      return runtime.t('scope.' + (scope === 'project' ? 'project' : 'user'));
-    }
-
-    function statusLabel(runtime, skill) {
-      if (skill.readOnlyReason === 'BUNDLED') return runtime.t('status.bundled');
-      if (skill.readOnlyReason === 'EXTERNAL') return runtime.t('status.external');
-      if (skill.readOnlyReason === 'PROJECT') return runtime.t('status.projectLocked');
-      return skill.readOnly ? runtime.t('status.readOnly') : runtime.t('status.writable');
-    }
-
     /* ------------------------------------------------------------------ */
-    /* Components                                                          */
+    /* Primitives                                                          */
     /* ------------------------------------------------------------------ */
 
-    function Chip({ text, tone }) {
-      const className = 'sc-chip' + (tone ? ' is-' + tone : '');
-      return h('span', { className }, text);
-    }
+    const ICON_PATHS = {
+      search: ['M10.5 17a6.5 6.5 0 1 1 0-13 6.5 6.5 0 0 1 0 13Z', 'm15.5 15.5 4 4'],
+      plus: ['M12 5v14', 'M5 12h14'],
+      import: ['M12 3v12', 'm7 10 5 5 5-5', 'M5 19h14'],
+      refresh: ['M20 11a8 8 0 1 0-2.3 6.7', 'M20 5v6h-6'],
+      more: ['M6 12h.01M12 12h.01M18 12h.01'],
+      help: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M9.6 9a2.5 2.5 0 1 1 3.4 2.4c-.7.3-1 1-1 1.7v.4', 'M12 17h.01'],
+      back: ['M15 5l-7 7 7 7'],
+      down: ['m6 9 6 6 6-6'],
+      right: ['m9 6 6 6-6 6'],
+      file: ['M7 3h7l4 4v14H7V3Z', 'M13 3v5h5'],
+      folder: ['M3 7h7l2 2h9v10H3V7Z'],
+      trash: ['M4 7h16', 'M9 7V5h6v2', 'M6 7l1 13h10l1-13', 'M10 11v6M14 11v6'],
+      edit: ['M4 20h4l11-11-4-4L4 16v4Z', 'm13 5 4 4'],
+      copy: ['M9 9h11v11H9V9Z', 'M5 15V4h11'],
+      check: ['m5 12 5 5 9-10'],
+      close: ['M6 6l12 12', 'M18 6 6 18'],
+      skill: ['M6 4h9a2 2 0 0 1 2 2v14H8a2 2 0 0 1-2-2V4Z', 'M6 17a2 2 0 0 1 2-2h9', 'm17 2 .5 1.5L19 4l-1.5.5L17 6l-.5-1.5L15 4l1.5-.5L17 2Z'],
+      spark: ['m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z'],
+      terminal: ['M4 5h16v14H4V5Z', 'm7 9 3 3-3 3', 'M13 15h4'],
+      link: ['M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1', 'M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1'],
+      source: ['M12 3v18', 'M5 8h14', 'M5 16h14'],
+    };
 
-    function errorText(runtime, error) {
-      const code = error && typeof error.code === 'string' && error.code !== '' ? error.code : 'OPERATION_FAILED';
-      const key = 'error.' + code;
-      const translated = runtime.t(key);
-      return translated === key ? code : translated;
-    }
-
-    function SkillRow({ runtime, skill, onOpen, capabilities, onToggle, busy }) {
-      const errors = countSeverity(skill.diagnostics, 'error');
-      const warnings = countSeverity(skill.diagnostics, 'warn');
-      const chips = [];
-      if (skill.isSymlink) chips.push(h(Chip, { key: 'symlink', text: runtime.t('badge.symlink') }));
-      if (skill.system) chips.push(h(Chip, { key: 'system', text: runtime.t('group.system') }));
-      if (skill.shadowed) chips.push(h(Chip, { key: 'shadowed', text: runtime.t('badge.shadowed'), tone: 'info' }));
-      else if (skill.duplicateName) chips.push(h(Chip, { key: 'duplicate', text: runtime.t('badge.duplicate'), tone: 'info' }));
-      if (skill.invocation && skill.invocation.modelInvocable === false) {
-        chips.push(h(Chip, { key: 'modelOff', text: runtime.t('badge.modelOff'), tone: 'info' }));
-      }
-      if (skill.invocation && skill.invocation.userInvocable === false) {
-        chips.push(h(Chip, { key: 'userOff', text: runtime.t('badge.userOff'), tone: 'info' }));
-      }
-      if (skill.truncated) chips.push(h(Chip, { key: 'truncated', text: runtime.t('badge.truncated'), tone: 'warn' }));
-      if (errors > 0) chips.push(h(Chip, { key: 'errors', text: errors + ' ' + runtime.t('badge.errors'), tone: 'error' }));
-      else if (warnings > 0) chips.push(h(Chip, { key: 'warnings', text: warnings + ' ' + runtime.t('badge.warnings'), tone: 'warn' }));
-
-      const enabled = !skill.invocation || (skill.invocation.modelInvocable !== false && skill.invocation.userInvocable !== false);
-      const canToggle = capabilities && capabilities.write === true && skill.writable === true;
-      const switchEl = canToggle
-        ? h(ToggleSwitch, {
-          checked: enabled,
-          disabled: busy === true,
-          label: enabled ? runtime.t('row.enabled') : runtime.t('row.disabled'),
-          onChange: (next) => onToggle(skill, next),
-        })
-        : null;
-
+    function Icon({ name, size = 16 }) {
+      const paths = ICON_PATHS[name] ?? ICON_PATHS.skill;
       return h(
-        'div',
-        { className: 'sc-row-wrap' },
-        h(
-          'button',
-          { type: 'button', className: 'sc-row', onClick: () => onOpen(skill), 'aria-label': skill.name },
-          h('span', { className: 'sc-row-top' }, h('span', { className: 'sc-row-name' }, skill.name), chips),
-          skill.description ? h('span', { className: 'sc-row-desc' }, skill.description) : null,
-          h('span', { className: 'sc-row-path' }, skill.relativePath || skill.path),
-        ),
-        switchEl ? h('div', { className: 'sc-row-switch' }, switchEl) : null,
+        'svg',
+        { viewBox: '0 0 24 24', width: size, height: size, fill: 'none', 'aria-hidden': 'true', focusable: 'false' },
+        paths.map((d, index) => h('path', {
+          key: index,
+          d,
+          stroke: 'currentColor',
+          strokeWidth: name === 'more' ? 2.4 : 1.6,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+        })),
       );
     }
 
-    function SourceGroup({ runtime, source, skills, collapsed, onToggleGroup, onOpen, capabilities, onToggleSkill, busyId }) {
-      const errors = skills.reduce((total, skill) => total + countSeverity(skill.diagnostics, 'error'), 0);
-      const warnings = skills.reduce((total, skill) => total + countSeverity(skill.diagnostics, 'warn'), 0);
-      const summary = [h(Chip, { key: 'count', text: String(skills.length) })];
-      if (source.readOnly) summary.push(h(Chip, { key: 'readonly', text: runtime.t('group.readOnly'), tone: 'info' }));
-      if (source.systemCount > 0) summary.push(h(Chip, { key: 'system', text: runtime.t('group.system') }));
-      if (errors > 0) summary.push(h(Chip, { key: 'errors', text: errors + ' ' + runtime.t('badge.errors'), tone: 'error' }));
-      else if (warnings > 0) summary.push(h(Chip, { key: 'warnings', text: warnings + ' ' + runtime.t('badge.warnings'), tone: 'warn' }));
+    function Tag({ tone, children }) {
+      return h('span', { className: 'sc-tag', 'data-tone': tone ?? undefined }, children);
+    }
 
+    function HelpTip({ label, children }) {
+      const [open, setOpen] = useState(false);
+      const [pos, setPos] = useState(null);
+      const wrapRef = useRef(null);
+      const popRef = useRef(null);
+      const toggle = () => {
+        if (!open && wrapRef.current) {
+          const rect = wrapRef.current.getBoundingClientRect();
+          const width = 290;
+          const left = Math.min(Math.max(8, rect.left - width + 18), (window.innerWidth || 1200) - width - 8);
+          const top = Math.min(rect.bottom + 6, (window.innerHeight || 800) - 140);
+          setPos({ left: Math.max(8, left), top });
+        }
+        setOpen((value) => !value);
+      };
+      useEffect(() => {
+        if (!open) return undefined;
+        const onDown = (event) => {
+          const wrap = wrapRef.current;
+          const pop = popRef.current;
+          if (wrap && wrap.contains(event.target)) return;
+          if (pop && pop.contains(event.target)) return;
+          setOpen(false);
+        };
+        const onKey = (event) => {
+          if (event.key === 'Escape') setOpen(false);
+        };
+        document.addEventListener('mousedown', onDown);
+        document.addEventListener('keydown', onKey);
+        return () => {
+          document.removeEventListener('mousedown', onDown);
+          document.removeEventListener('keydown', onKey);
+        };
+      }, [open]);
       return h(
-        'section',
-        { className: 'sc-group' },
-        h(
-          'button',
-          {
-            type: 'button',
-            className: 'sc-group-head',
-            onClick: onToggleGroup,
-            'aria-expanded': collapsed ? 'false' : 'true',
-          },
-          h('span', { className: 'sc-group-chevron' }, collapsed ? '▸' : '▾'),
-          h('span', { className: 'sc-group-name' }, sourceLabel(runtime, source)),
-          source.path ? h('span', { className: 'sc-group-path' }, source.path) : null,
-          h('span', { className: 'sc-group-spacer' }),
-          summary,
-        ),
-        collapsed ? null : h(
-          'div',
-          { className: 'sc-rows' },
-          skills.length === 0
-            ? h('div', { className: 'sc-note', style: { padding: '10px 14px' } }, runtime.t('group.empty'))
-            : skills.map((skill) => h(SkillRow, {
-              key: skill.id,
-              runtime,
-              skill,
-              onOpen,
-              capabilities,
-              onToggle: onToggleSkill,
-              busy: busyId === skill.id,
-            })),
-        ),
+        'span',
+        { className: 'sc-help-wrap', ref: wrapRef },
+        h('button', {
+          type: 'button',
+          className: 'sc-help',
+          'aria-label': label ?? 'Help',
+          'aria-expanded': open ? 'true' : 'false',
+          onClick: toggle,
+        }, '?'),
+        open && pos !== null
+          ? h('span', { className: 'sc-help-pop', role: 'tooltip', ref: popRef, style: pos }, children)
+          : null,
       );
     }
 
-    function MetaItem({ label, value, mono }) {
-      return h(
-        'div',
-        { className: 'sc-meta' },
-        h('span', { className: 'sc-meta-label' }, label),
-        h('span', { className: 'sc-meta-value' + (mono ? ' sc-mono' : ''), title: value }, value),
-      );
-    }
-
-    function ToggleSwitch({ checked, disabled, label, onChange }) {
+    function Switch({ checked, disabled, label, onChange }) {
       return h(
         'button',
         {
@@ -957,66 +1175,529 @@ window.__ModuleLoader__.load({
           'aria-checked': checked ? 'true' : 'false',
           'aria-label': label,
           title: label,
-          className: 'sc-switch' + (checked ? ' is-on' : ''),
+          className: 'sc-switch',
           disabled: disabled === true,
           onClick: (event) => {
             event.stopPropagation();
             if (disabled !== true) onChange(!checked);
           },
         },
-        h('span', { className: 'sc-switch-knob' }),
+        h('span', { className: 'sc-switch-thumb' }),
       );
     }
 
-    function ConfirmButton({ label, confirmLabel, disabled, tone, onConfirm }) {
-      const [armed, setArmed] = useState(false);
+    function MenuButton({ label, items, align = 'right', triggerLabel }) {
+      const [open, setOpen] = useState(false);
+      const [pos, setPos] = useState(null);
+      const wrapRef = useRef(null);
+      const menuRef = useRef(null);
+      const toggle = () => {
+        if (!open && wrapRef.current) {
+          const rect = wrapRef.current.getBoundingClientRect();
+          const width = 220;
+          const right = align === 'right' ? rect.right : rect.left + width;
+          const left = Math.min(Math.max(8, right - width), (window.innerWidth || 1200) - width - 8);
+          setPos({ left, top: Math.min(rect.bottom + 6, (window.innerHeight || 800) - 220) });
+        }
+        setOpen((value) => !value);
+      };
       useEffect(() => {
-        if (!armed) return undefined;
-        const timer = setTimeout(() => setArmed(false), 5000);
-        return () => clearTimeout(timer);
-      }, [armed]);
-      const className = 'sc-button' + (tone === 'primary' ? ' sc-button-primary' : '') + (armed ? ' is-danger' : '');
+        if (!open) return undefined;
+        const onDown = (event) => {
+          const wrap = wrapRef.current;
+          const menu = menuRef.current;
+          if (wrap && wrap.contains(event.target)) return;
+          if (menu && menu.contains(event.target)) return;
+          setOpen(false);
+        };
+        const onKey = (event) => {
+          if (event.key === 'Escape') setOpen(false);
+        };
+        document.addEventListener('mousedown', onDown);
+        document.addEventListener('keydown', onKey);
+        return () => {
+          document.removeEventListener('mousedown', onDown);
+          document.removeEventListener('keydown', onKey);
+        };
+      }, [open]);
       return h(
-        'button',
-        {
+        'span',
+        { className: 'sc-menu-wrap', ref: wrapRef },
+        h('button', {
           type: 'button',
-          className,
-          disabled: disabled === true,
-          onClick: () => {
-            if (armed) {
-              setArmed(false);
-              onConfirm();
-            } else {
-              setArmed(true);
-            }
-          },
-        },
-        armed ? confirmLabel : label,
+          className: 'sc-icon-btn',
+          'aria-label': triggerLabel ?? label ?? 'Menu',
+          'aria-haspopup': 'menu',
+          'aria-expanded': open ? 'true' : 'false',
+          onClick: toggle,
+        }, h(Icon, { name: 'more', size: 16 })),
+        open && pos !== null
+          ? h(
+            'span',
+            { className: 'sc-menu', role: 'menu', ref: menuRef, style: pos },
+            items.map((item, index) => (item.separator
+              ? h('span', { key: 'sep-' + index, className: 'sc-menu-sep' })
+              : h('button', {
+                key: item.key ?? index,
+                type: 'button',
+                role: 'menuitem',
+                className: 'sc-menu-item',
+                'data-danger': item.danger ? 'true' : undefined,
+                disabled: item.disabled === true,
+                onClick: () => {
+                  setOpen(false);
+                  if (typeof item.onSelect === 'function') item.onSelect();
+                },
+              }, item.icon ? h(Icon, { name: item.icon, size: 14 }) : null, item.label, item.note ? h('span', { className: 'sc-menu-note' }, item.note) : null))),
+          )
+          : null,
       );
     }
 
-    function DiagnosticsList({ runtime, diagnostics }) {
+    function Banner({ tone, children, actions }) {
+      return h('div', { className: 'sc-banner', 'data-tone': tone ?? undefined, role: 'status' },
+        h('span', { className: 'sc-banner-text' }, children),
+        actions ? h('span', { className: 'sc-banner-actions' }, actions) : null);
+    }
+
+    function EmptyState({ title, body, actions }) {
+      return h('div', { className: 'sc-empty' },
+        h('div', { className: 'sc-empty-title' }, title),
+        body ? h('div', null, body) : null,
+        actions ? h('div', { className: 'sc-actions-row' }, actions) : null);
+    }
+
+    function PillTabs({ items, value, onChange }) {
+      return h('div', { className: 'sc-tabs', role: 'tablist' },
+        items.map((item) => h('button', {
+          key: item.value,
+          type: 'button',
+          role: 'tab',
+          className: 'sc-tab',
+          'aria-selected': value === item.value ? 'true' : 'false',
+          onClick: () => onChange(item.value),
+        }, item.label)));
+    }
+
+    function renderInline(text) {
+      const parts = [];
+      const pattern = /(`[^`]+`|\*\*[^*]+\*\*)/g;
+      let last = 0;
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        if (match.index > last) parts.push(text.slice(last, match.index));
+        const token = match[0];
+        if (token.startsWith('`')) parts.push(h('code', { key: parts.length }, token.slice(1, -1)));
+        else parts.push(h('strong', { key: parts.length }, token.slice(2, -2)));
+        last = match.index + token.length;
+      }
+      if (last < text.length) parts.push(text.slice(last));
+      return parts;
+    }
+
+    function Markdown({ text }) {
+      const blocks = useMemo(() => {
+        const lines = String(text ?? '').replace(/\r\n/g, '\n').split('\n');
+        const out = [];
+        let index = 0;
+        let key = 0;
+        while (index < lines.length) {
+          const line = lines[index];
+          if (/^```/.test(line.trim())) {
+            index += 1;
+            const code = [];
+            while (index < lines.length && !/^```/.test(lines[index].trim())) {
+              code.push(lines[index]);
+              index += 1;
+            }
+            index += 1;
+            out.push(h('pre', { key: key++, className: 'sc-pre' }, code.join('\n')));
+            continue;
+          }
+          const heading = /^(#{1,3})\s+(.*)$/.exec(line);
+          if (heading) {
+            const level = heading[1].length;
+            out.push(h('h' + level, { key: key++ }, renderInline(heading[2])));
+            index += 1;
+            continue;
+          }
+          if (/^\s*[-*]\s+/.test(line)) {
+            const items = [];
+            while (index < lines.length && /^\s*[-*]\s+/.test(lines[index])) {
+              items.push(h('li', { key: key++ }, renderInline(lines[index].replace(/^\s*[-*]\s+/, ''))));
+              index += 1;
+            }
+            out.push(h('ul', { key: key++ }, items));
+            continue;
+          }
+          if (/^\s*\d+\.\s+/.test(line)) {
+            const items = [];
+            while (index < lines.length && /^\s*\d+\.\s+/.test(lines[index])) {
+              items.push(h('li', { key: key++ }, renderInline(lines[index].replace(/^\s*\d+\.\s+/, ''))));
+              index += 1;
+            }
+            out.push(h('ol', { key: key++ }, items));
+            continue;
+          }
+          if (line.trim() === '') {
+            index += 1;
+            continue;
+          }
+          const paragraph = [];
+          while (index < lines.length && lines[index].trim() !== ''
+            && !/^(#{1,3})\s+/.test(lines[index])
+            && !/^\s*[-*]\s+/.test(lines[index])
+            && !/^\s*\d+\.\s+/.test(lines[index])
+            && !/^```/.test(lines[index].trim())) {
+            paragraph.push(lines[index]);
+            index += 1;
+          }
+          out.push(h('p', { key: key++ }, renderInline(paragraph.join(' '))));
+        }
+        return out;
+      }, [text]);
+      return h('div', { className: 'sc-md' }, blocks);
+    }
+
+    function Toast({ text }) {
+      return h('div', { className: 'sc-toast', role: 'status' }, text);
+    }
+
+    function ConfirmOverlay({ runtime, title, body, confirmLabel, tone, busy, onConfirm, onCancel }) {
+      useEffect(() => {
+        const onKey = (event) => {
+          if (event.key === 'Escape') onCancel();
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+      }, [onCancel]);
+      return h(
+        'div',
+        { className: 'sc-overlay', role: 'dialog', 'aria-modal': 'true', style: { position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', background: 'var(--dsw-alias-bg-mask-1, rgba(15,23,42,.45))' } },
+        h(
+          'div',
+          { className: 'sc-card', style: { width: 'min(440px, 100%)', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' } },
+          h('div', { style: { fontSize: '16px', fontWeight: '600', lineHeight: '24px' } }, title),
+          body ? h('div', { className: 'sc-note' }, body) : null,
+          h(
+            'div',
+            { className: 'sc-actions-row', style: { justifyContent: 'flex-end' } },
+            h('button', { type: 'button', className: 'sc-btn', onClick: onCancel }, runtime.t('actions.cancel')),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn ' + (tone === 'danger' ? 'sc-btn-danger' : 'sc-btn-primary'),
+              disabled: busy === true,
+              onClick: onConfirm,
+            }, confirmLabel),
+          ),
+        ),
+      );
+    }
+
+    function sourceGlyph(skill) {
+      const key = skill.sourceKey || '';
+      if (key.startsWith('claude')) return 'spark';
+      if (key.startsWith('codex')) return 'terminal';
+      if (key.startsWith('hermes')) return 'link';
+      if (key.startsWith('zcode')) return 'skill';
+      if (key.startsWith('custom')) return 'folder';
+      if (skill.sourceKind === 'bundled') return 'folder';
+      if (skill.sourceKind === 'project') return 'folder';
+      if (skill.sourceKind === 'external') return 'link';
+      return 'skill';
+    }
+
+    function SkillRow({ runtime, skill, source, onOpen, onToggle, onDelete, busy }) {
+      const errors = countSeverity(skill.diagnostics, 'error');
+      const warnings = countSeverity(skill.diagnostics, 'warn');
+      const enabled = skillEnabled(skill);
+      const tags = [];
+      if (skill.isSymlink) tags.push(h(Tag, { key: 'link' }, runtime.t('badge.symlink')));
+      if (skill.system) tags.push(h(Tag, { key: 'system' }, runtime.t('badge.system')));
+      if (skill.shadowed) tags.push(h(Tag, { key: 'shadow', tone: 'info' }, runtime.t('badge.shadowed')));
+      else if (skill.duplicateName) tags.push(h(Tag, { key: 'dup', tone: 'info' }, runtime.t('badge.duplicate')));
+      if (skill.invocation && skill.invocation.modelInvocable === false) tags.push(h(Tag, { key: 'modelOff', tone: 'info' }, runtime.t('badge.modelOff')));
+      if (errors > 0) tags.push(h(Tag, { key: 'errors', tone: 'error' }, errors + ' ' + runtime.t('badge.errors')));
+      else if (warnings > 0) tags.push(h(Tag, { key: 'warnings', tone: 'warn' }, warnings + ' ' + runtime.t('badge.warnings')));
+      if (skill.truncated) tags.push(h(Tag, { key: 'trunc', tone: 'warn' }, runtime.t('badge.truncated')));
+
+      const menuItems = [
+        { key: 'open', label: runtime.t('actions.open'), icon: 'file', onSelect: () => onOpen(skill) },
+        {
+          key: 'edit',
+          label: runtime.t('actions.edit'),
+          icon: 'edit',
+          disabled: skill.writable !== true,
+          onSelect: () => onOpen(skill, { edit: true }),
+        },
+        { key: 'copy', label: runtime.t('actions.copyPath'), icon: 'copy', onSelect: () => onOpen(skill, { copyPath: true }) },
+        { separator: true },
+        {
+          key: 'delete',
+          label: runtime.t('actions.delete'),
+          icon: 'trash',
+          danger: true,
+          disabled: skill.writable !== true,
+          onSelect: () => onDelete(skill),
+        },
+      ];
+
+      return h(
+        'div',
+        { className: 'sc-row' },
+        h(
+          'button',
+          { type: 'button', className: 'sc-row-main', onClick: () => onOpen(skill) },
+          h('span', { className: 'sc-row-icon' }, h(Icon, { name: sourceGlyph(skill), size: 18 })),
+          h(
+            'span',
+            { className: 'sc-row-text' },
+            h('span', { className: 'sc-row-name' }, h('span', { className: 'sc-row-name-text' }, skill.name), tags),
+            skill.description ? h('span', { className: 'sc-row-desc' }, skill.description) : null,
+            h('span', { className: 'sc-row-meta' }, [sourceLabel(runtime, source), scopeLabel(runtime, skill.scope), skill.relativePath || skill.path].filter(Boolean).join(' · ')),
+          ),
+        ),
+        h(
+          'span',
+          { className: 'sc-row-end' },
+          h(
+            'span',
+            { className: 'sc-row-end-row' },
+            skill.writable
+              ? h(Switch, {
+                checked: enabled,
+                disabled: busy === true,
+                label: enabled ? runtime.t('detail.status.enabled') : runtime.t('detail.status.disabled'),
+                onChange: (next) => onToggle(skill, next),
+              })
+              : null,
+            h(MenuButton, {
+              label: runtime.t('actions.more'),
+              triggerLabel: runtime.t('actions.more') + ': ' + skill.name,
+              items: menuItems,
+            }),
+          ),
+        ),
+      );
+    }
+
+    function LibraryView({ runtime, snapshot, onRefresh, onCreate, onImport, onOpenSkill, onToggle, onDelete, onOpenSources, onOpenTrash, notify }) {
+      const [query, setQuery] = useState('');
+      const [filter, setFilter] = useState('all');
+      const [collapsed, setCollapsed] = useState({});
+      const [busyId, setBusyId] = useState(null);
+      const skills = snapshot && Array.isArray(snapshot.skills) ? snapshot.skills : [];
+      const sources = snapshot && Array.isArray(snapshot.sources) ? snapshot.sources : [];
+      const trashCount = 0;
+      const liveCount = sources.filter((source) => source.live === true).length;
+
+      const counts = useMemo(() => ({
+        all: skills.length,
+        on: skills.filter(skillEnabled).length,
+        off: skills.filter((skill) => !skillEnabled(skill)).length,
+        errors: skills.filter(hasErrors).length,
+        mine: skills.filter((skill) => skill.writable === true).length,
+      }), [skills]);
+
+      const filtered = useMemo(() => {
+        const text = query.trim().toLowerCase();
+        return skills.filter((skill) => {
+          if (filter === 'on' && !skillEnabled(skill)) return false;
+          if (filter === 'off' && skillEnabled(skill)) return false;
+          if (filter === 'errors' && !hasErrors(skill)) return false;
+          if (filter === 'mine' && skill.writable !== true) return false;
+          if (text === '') return true;
+          return String(skill.name || '').toLowerCase().includes(text)
+            || String(skill.description || '').toLowerCase().includes(text)
+            || String(skill.path || '').toLowerCase().includes(text);
+        });
+      }, [skills, filter, query]);
+
+      const groups = useMemo(() => {
+        const bySource = new Map();
+        for (const source of sources) bySource.set(source.key, []);
+        for (const skill of filtered) {
+          if (!bySource.has(skill.sourceKey)) bySource.set(skill.sourceKey, []);
+          bySource.get(skill.sourceKey).push(skill);
+        }
+        return sources
+          .filter((source) => (bySource.get(source.key) || []).length > 0)
+          .map((source) => ({ source, skills: bySource.get(source.key) }));
+      }, [sources, filtered]);
+
+      const sourceByKey = useMemo(() => {
+        const map = new Map();
+        for (const source of sources) map.set(source.key, source);
+        return map;
+      }, [sources]);
+
+      const summary = snapshot && snapshot.summary ? snapshot.summary : { skills: 0, sources: 0, errors: 0, warnings: 0 };
+      const filters = [
+        { key: 'all', label: runtime.t('page.filters.all'), count: counts.all },
+        { key: 'on', label: runtime.t('page.filters.on'), count: counts.on },
+        { key: 'off', label: runtime.t('page.filters.off'), count: counts.off },
+        { key: 'errors', label: runtime.t('page.filters.errors'), count: counts.errors },
+        { key: 'mine', label: runtime.t('page.filters.mine'), count: counts.mine },
+      ];
+
+      const handleToggle = async (skill, enabled) => {
+        setBusyId(skill.id);
+        try {
+          await onToggle(skill, enabled);
+        } finally {
+          setBusyId(null);
+        }
+      };
+
+      const groupCollapsed = (source) => {
+        if (Object.prototype.hasOwnProperty.call(collapsed, source.key)) return collapsed[source.key];
+        if (source.kind === 'external' || source.kind === 'custom' || source.kind === 'bundled') return true;
+        return false;
+      };
+
+      return h(
+        'div',
+        { className: 'sc-page' },
+        h(
+          'header',
+          { className: 'sc-head' },
+          h(
+            'div',
+            { className: 'sc-head-row' },
+            h(
+              'div',
+              { className: 'sc-head-titles' },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } },
+                h('h1', { className: 'sc-title' }, runtime.t('page.title')),
+                h(HelpTip, { label: runtime.t('page.help') }, runtime.t('page.help'))),
+              h('p', { className: 'sc-subtitle' }, runtime.t('page.subtitle')),
+            ),
+            h(
+              'div',
+              { className: 'sc-head-actions' },
+              h('button', {
+                type: 'button',
+                className: 'sc-icon-btn',
+                'aria-label': runtime.t('actions.refresh'),
+                title: runtime.t('actions.refresh'),
+                onClick: onRefresh,
+              }, h(Icon, { name: 'refresh', size: 15 })),
+              h(MenuButton, {
+                label: runtime.t('actions.more'),
+                triggerLabel: runtime.t('actions.more'),
+                items: [
+                  { key: 'sources', label: runtime.t('sources.title'), icon: 'source', note: liveCount > 0 ? String(liveCount) : undefined, onSelect: onOpenSources },
+                  { key: 'trash', label: runtime.t('trash.title'), icon: 'trash', onSelect: onOpenTrash },
+                ],
+              }),
+              h('button', { type: 'button', className: 'sc-btn sc-btn-outline', onClick: onImport }, h(Icon, { name: 'import', size: 15 }), runtime.t('actions.import')),
+              h('button', { type: 'button', className: 'sc-btn sc-btn-primary', onClick: onCreate }, h(Icon, { name: 'plus', size: 15 }), runtime.t('actions.create')),
+            ),
+          ),
+          h(
+            'div',
+            { className: 'sc-toolbar' },
+            h('div', { className: 'sc-search' },
+              h('span', { className: 'sc-search-icon' }, h(Icon, { name: 'search', size: 15 })),
+              h('input', {
+                className: 'sc-input',
+                type: 'search',
+                value: query,
+                placeholder: runtime.t('search.placeholder'),
+                'aria-label': runtime.t('search.placeholder'),
+                onChange: (event) => setQuery(event.target.value),
+              })),
+            h('div', { className: 'sc-filters' },
+              filters.map((item) => h('button', {
+                key: item.key,
+                type: 'button',
+                className: 'sc-filter',
+                'aria-pressed': filter === item.key ? 'true' : 'false',
+                onClick: () => setFilter(item.key),
+              }, item.label + ' ' + item.count))),
+          ),
+          h('div', { className: 'sc-summary' },
+            h('span', null, h('b', null, String(summary.skills)), ' ', plural(runtime, summary.skills, 'skills')),
+            h('span', null, h('b', null, String(summary.sources)), ' ', plural(runtime, summary.sources, 'sources')),
+            summary.errors > 0 ? h('span', null, h('b', null, String(summary.errors)), ' ', plural(runtime, summary.errors, 'errors')) : null,
+            summary.warnings > 0 ? h('span', null, h('b', null, String(summary.warnings)), ' ', plural(runtime, summary.warnings, 'warnings')) : null,
+            snapshot && snapshot.complete === false ? h('span', null, runtime.t('page.error.title')) : null),
+        ),
+        skills.length === 0
+          ? h(EmptyState, {
+            title: runtime.t('page.empty.title'),
+            body: runtime.t('page.empty.body'),
+            actions: [
+              h('button', { key: 'import', type: 'button', className: 'sc-btn sc-btn-outline', onClick: onImport }, runtime.t('actions.import')),
+              h('button', { key: 'create', type: 'button', className: 'sc-btn sc-btn-primary', onClick: onCreate }, runtime.t('actions.create')),
+            ],
+          })
+          : groups.length === 0
+            ? h(EmptyState, {
+              title: runtime.t('page.noResults.title'),
+              body: runtime.t('page.noResults.body'),
+              actions: [h('button', { key: 'clear', type: 'button', className: 'sc-btn sc-btn-outline', onClick: () => { setQuery(''); setFilter('all'); } }, runtime.t('actions.clearAll'))],
+            })
+            : groups.map(({ source, skills: groupSkills }) => {
+              const isCollapsed = groupCollapsed(source);
+              const errors = groupSkills.reduce((total, skill) => total + countSeverity(skill.diagnostics, 'error'), 0);
+              return h(
+                'section',
+                { key: source.key, className: 'sc-group' },
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'sc-group-head',
+                    'aria-expanded': isCollapsed ? 'false' : 'true',
+                    onClick: () => setCollapsed((current) => ({ ...current, [source.key]: !isCollapsed })),
+                  },
+                  h('span', { className: 'sc-group-chevron' }, h(Icon, { name: isCollapsed ? 'right' : 'down', size: 14 })),
+                  h('span', { className: 'sc-group-title' }, sourceLabel(runtime, source)),
+                  h('span', { className: 'sc-group-count' }, groupSkills.length),
+                  source.readOnly ? h(Tag, null, runtime.t('group.readOnly')) : null,
+                  source.live ? h(Tag, { tone: 'info' }, runtime.t('sources.modelOnly')) : null,
+                  errors > 0 ? h(Tag, { tone: 'error' }, errors + ' ' + runtime.t('badge.errors')) : null,
+                  h('span', { className: 'sc-group-spacer' }),
+                  h('span', { className: 'sc-group-path', title: source.path }, source.path),
+                ),
+                isCollapsed
+                  ? null
+                  : h(
+                    'div',
+                    { className: 'sc-card' },
+                    groupSkills.map((skill) => h(SkillRow, {
+                      key: skill.id,
+                      runtime,
+                      skill,
+                      source: sourceByKey.get(skill.sourceKey) ?? source,
+                      busy: busyId === skill.id,
+                      onOpen: (item, options) => onOpenSkill(item, options),
+                      onToggle: handleToggle,
+                      onDelete,
+                    })),
+                  ),
+              );
+            }),
+      );
+    }
+
+    function DiagnosticsList({ runtime, diagnostics, onHelp }) {
       if (!Array.isArray(diagnostics) || diagnostics.length === 0) {
-        return h('p', { className: 'sc-note' }, runtime.t('detail.diagnostics.none'));
+        return h(EmptyState, { title: runtime.t('detail.diagnostics.empty') });
       }
       return h(
         'div',
         { className: 'sc-diag' },
         diagnostics.map((item, index) => h(
           'div',
-          { key: item.code + ':' + index, className: 'sc-diag-item' },
+          { key: (item.code ?? 'diag') + ':' + index, className: 'sc-diag-item' },
           h(
             'div',
-            { className: 'sc-diag-code' },
-            h(
-              'span',
-              {
-                className: 'sc-chip' + (item.severity === 'error' ? ' is-error' : item.severity === 'warn' ? ' is-warn' : ' is-info'),
-                style: { marginRight: '8px' },
-              },
-              runtime.t('detail.diagnostics.severity.' + (item.severity || 'info')),
-            ),
-            item.code,
+            { className: 'sc-diag-head' },
+            h(Tag, { tone: item.severity === 'error' ? 'error' : item.severity === 'warn' ? 'warn' : 'info' },
+              runtime.t(item.severity === 'error' ? 'badge.errors' : item.severity === 'warn' ? 'badge.warnings' : 'detail.tabs.diagnostics')),
+            h('span', { className: 'sc-diag-code' }, item.code),
           ),
           item.params && Object.keys(item.params).length > 0
             ? h('div', { className: 'sc-diag-params' }, formatParams(item.params))
@@ -1025,25 +1706,28 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function SkillDetail({ runtime, skillId, source, revision, capabilities, onClose, onChanged, onMessage }) {
+    function SkillDetailView({ runtime, skillId, initialEdit, revision, onBack, onChanged, notify }) {
       const [detail, setDetail] = useState(null);
       const [state, setState] = useState({ loading: true, error: null });
-      const [tab, setTab] = useState('content');
-      const [currentRevision, setCurrentRevision] = useState(revision);
+      const [tab, setTab] = useState('overview');
+      const [localRevision, setLocalRevision] = useState(revision);
+      const [editing, setEditing] = useState(initialEdit === true);
       const [editText, setEditText] = useState(null);
-      const [editState, setEditState] = useState({ busy: false, diagnostics: null, error: null });
+      const [check, setCheck] = useState({ busy: false, diagnostics: null, error: null });
+      const [saving, setSaving] = useState(false);
+      const [confirmDelete, setConfirmDelete] = useState(false);
+      const [deleting, setDeleting] = useState(false);
       const [file, setFile] = useState(null);
       const [fileState, setFileState] = useState({ loading: false, error: null });
       const [fileEdit, setFileEdit] = useState(null);
-      const [fileEditState, setFileEditState] = useState({ busy: false, error: null });
-      const [mutationBusy, setMutationBusy] = useState(false);
-      const [mutationError, setMutationError] = useState(null);
+      const [fileBusy, setFileBusy] = useState(false);
+      const [toggleBusy, setToggleBusy] = useState(false);
 
       useEffect(() => {
-        if (typeof revision === 'string') setCurrentRevision(revision);
+        if (typeof revision === 'string') setLocalRevision(revision);
       }, [revision]);
 
-      const loadDetail = useCallback(async () => {
+      const load = useCallback(async () => {
         setState({ loading: true, error: null });
         try {
           const value = await requestApi('detail', { id: skillId });
@@ -1056,134 +1740,135 @@ window.__ModuleLoader__.load({
 
       useEffect(() => {
         setDetail(null);
-        setTab('content');
-        setEditText(null);
+        setTab('overview');
+        setCheck({ busy: false, diagnostics: null, error: null });
         setFile(null);
         setFileEdit(null);
-        setMutationError(null);
-        loadDetail();
-      }, [skillId, loadDetail]);
+        const wantsEdit = initialEdit === true;
+        setEditing(wantsEdit);
+        load().then(() => {
+          if (wantsEdit) setTab('raw');
+        });
+      }, [skillId, initialEdit, load]);
 
-      useEffect(() => {
-        const onKey = (event) => {
-          if (event.key === 'Escape') onClose();
-        };
-        if (typeof document !== 'undefined') {
-          document.addEventListener('keydown', onKey);
-          return () => document.removeEventListener('keydown', onKey);
-        }
-        return undefined;
-      }, [onClose]);
-
-      useEffect(() => {
-        if (tab === 'edit' && editText === null && detail !== null) setEditText(detail.content);
-      }, [tab, detail, editText]);
-
-      const writable = capabilities?.write === true && detail?.skill?.writable === true;
-      const skill = detail?.skill ?? null;
+      const skill = detail ? detail.skill : null;
+      const writable = Boolean(skill && skill.writable === true);
       const diagnostics = skill ? (skill.diagnostics || []) : [];
       const errors = countSeverity(diagnostics, 'error');
       const warnings = countSeverity(diagnostics, 'warn');
+      const bodyText = useMemo(() => {
+        if (!detail || typeof detail.content !== 'string') return '';
+        const lines = detail.content.split('\n');
+        const start = Math.max(0, (detail.bodyStartLine || 1) - 1);
+        return lines.slice(start).join('\n').trim();
+      }, [detail]);
 
-      const applyRevision = (value) => {
-        if (value && typeof value.revision === 'string') {
-          setCurrentRevision(value.revision);
-          if (typeof onChanged === 'function') onChanged(value.revision);
-        }
+      const beginEdit = () => {
+        if (!detail) return;
+        setEditText(detail.content);
+        setCheck({ busy: false, diagnostics: null, error: null });
+        setEditing(true);
+        setTab('raw');
       };
 
-      const reportError = (error) => {
-        setMutationError(errorText(runtime, error));
-        if (error && error.code === 'STALE_REVISION') {
-          if (typeof onMessage === 'function') onMessage('toast.stale');
-          if (typeof onChanged === 'function') onChanged();
-        }
+      const cancelEdit = () => {
+        setEditing(false);
+        setEditText(null);
+        setCheck({ busy: false, diagnostics: null, error: null });
+        setTab('overview');
       };
 
-      const saveContent = async () => {
+      const validateEdit = async () => {
         if (editText === null) return;
-        setEditState({ busy: true, diagnostics: null, error: null });
-        setMutationError(null);
-        try {
-          const value = await requestApi('save', {
-            id: skillId,
-            content: editText,
-            revision: currentRevision,
-            confirm: true,
-          });
-          applyRevision(value);
-          setEditText(null);
-          setTab('content');
-          await loadDetail();
-          if (typeof onMessage === 'function') onMessage('toast.saved');
-        } catch (error) {
-          if (error.code === 'VALIDATION_FAILED' && error.details && Array.isArray(error.details.diagnostics)) {
-            setEditState({ busy: false, diagnostics: error.details.diagnostics, error: null });
-          } else {
-            setEditState({ busy: false, diagnostics: null, error: error.code || 'OPERATION_FAILED' });
-            reportError(error);
-          }
-        }
-      };
-
-      const validateContent = async () => {
-        if (editText === null) return;
-        setEditState({ busy: true, diagnostics: null, error: null });
+        setCheck({ busy: true, diagnostics: null, error: null });
         try {
           const value = await requestApi('validate', { id: skillId, content: editText });
-          setEditState({ busy: false, diagnostics: value.diagnostics, error: null });
+          setCheck({ busy: false, diagnostics: value.diagnostics || [], error: null });
         } catch (error) {
-          setEditState({ busy: false, diagnostics: null, error: error.code || 'OPERATION_FAILED' });
+          setCheck({ busy: false, diagnostics: null, error: error.code || 'OPERATION_FAILED' });
+        }
+      };
+
+      const saveEdit = async () => {
+        if (editText === null) return;
+        setSaving(true);
+        setCheck({ busy: false, diagnostics: null, error: null });
+        try {
+          const value = await requestApi('save', { id: skillId, content: editText, revision: localRevision, confirm: true });
+          if (value && typeof value.revision === 'string') {
+            setLocalRevision(value.revision);
+            onChanged(value.revision);
+          }
+          setEditing(false);
+          setEditText(null);
+          await load();
+          setTab('overview');
+          notify('toast.saved');
+        } catch (error) {
+          if (error.code === 'VALIDATION_FAILED' && error.details && Array.isArray(error.details.diagnostics)) {
+            setCheck({ busy: false, diagnostics: error.details.diagnostics, error: null });
+          } else {
+            if (error.code === 'STALE_REVISION') notify('toast.stale');
+            setCheck({ busy: false, diagnostics: null, error: error.code || 'OPERATION_FAILED' });
+          }
+        } finally {
+          setSaving(false);
         }
       };
 
       const toggleInvocation = async (field, next) => {
         if (!skill) return;
-        setMutationBusy(true);
-        setMutationError(null);
-        const payload = {
-          id: skillId,
-          revision: currentRevision,
-          confirm: true,
-          modelInvocable: skill.invocation.modelInvocable !== false,
-          userInvocable: skill.invocation.userInvocable !== false,
-        };
-        if (field === 'model') payload.modelInvocable = next;
-        else payload.userInvocable = next;
+        setToggleBusy(true);
         try {
+          const payload = {
+            id: skillId,
+            revision: localRevision,
+            confirm: true,
+            modelInvocable: skill.invocation.modelInvocable !== false,
+            userInvocable: skill.invocation.userInvocable !== false,
+          };
+          if (field === 'model') payload.modelInvocable = next;
+          else payload.userInvocable = next;
           const value = await requestApi('toggle', payload);
-          applyRevision(value);
-          setDetail((current) => (current !== null ? { ...current, skill: value.skill } : current));
-          if (typeof onMessage === 'function') onMessage('toast.updated');
+          if (value && typeof value.revision === 'string') {
+            setLocalRevision(value.revision);
+            onChanged(value.revision);
+          }
+          if (value && value.skill) {
+            setDetail((current) => (current ? { ...current, skill: value.skill } : current));
+          }
+          notify('toast.updated');
         } catch (error) {
-          reportError(error);
+          if (error.code === 'STALE_REVISION') notify('toast.stale');
+          else notify(errorText(runtime, error));
         } finally {
-          setMutationBusy(false);
+          setToggleBusy(false);
         }
       };
 
       const removeSkill = async () => {
-        setMutationBusy(true);
-        setMutationError(null);
+        setDeleting(true);
         try {
-          const value = await requestApi('remove', { id: skillId, revision: currentRevision, confirm: true });
-          applyRevision(value);
-          if (typeof onMessage === 'function') onMessage('toast.trashed');
-          onClose();
+          const value = await requestApi('remove', { id: skillId, revision: localRevision, confirm: true });
+          if (value && typeof value.revision === 'string') onChanged(value.revision);
+          notify('toast.trashed');
+          setConfirmDelete(false);
+          onBack();
         } catch (error) {
-          reportError(error);
-          setMutationBusy(false);
+          if (error.code === 'STALE_REVISION') notify('toast.stale');
+          else notify(errorText(runtime, error));
+        } finally {
+          setDeleting(false);
         }
       };
 
       const openFile = useCallback(async (relativePath) => {
-        setTab('files');
         setFileState({ loading: true, error: null });
         setFile(null);
         setFileEdit(null);
         try {
           const value = await requestApi('readFile', { id: skillId, path: relativePath });
-          setFile({ relativePath, ...value });
+          setFile({ path: relativePath, ...value });
           setFileState({ loading: false, error: null });
         } catch (error) {
           setFileState({ loading: false, error: error.code || 'OPERATION_FAILED' });
@@ -1191,371 +1876,308 @@ window.__ModuleLoader__.load({
       }, [skillId]);
 
       const saveFile = async () => {
-        if (fileEdit === null) return;
-        setFileEditState({ busy: true, error: null });
+        if (!fileEdit) return;
+        setFileBusy(true);
         try {
           const value = await requestApi('writeFile', {
             id: skillId,
             path: fileEdit.path,
             content: fileEdit.text,
-            revision: currentRevision,
+            revision: localRevision,
             confirm: true,
           });
-          applyRevision(value);
+          if (value && typeof value.revision === 'string') {
+            setLocalRevision(value.revision);
+            onChanged(value.revision);
+          }
           setFileEdit(null);
-          await loadDetail();
-          if (typeof onMessage === 'function') onMessage('toast.saved');
+          await load();
+          notify('toast.saved');
         } catch (error) {
-          setFileEditState({ busy: false, error: error.code || 'OPERATION_FAILED' });
+          if (error.code === 'STALE_REVISION') notify('toast.stale');
+          else notify(errorText(runtime, error));
+        } finally {
+          setFileBusy(false);
         }
       };
 
-      const tabs = writable ? ['content', 'edit', 'files', 'diagnostics'] : ['content', 'files', 'diagnostics'];
+      const copy = async (text, successKey) => {
+        const ok = await runtime.copyText(text);
+        notify(ok ? (successKey ?? 'toast.copied') : 'toast.copyFailed');
+      };
+
+      const tabs = [
+        { value: 'overview', label: runtime.t('detail.tabs.overview') },
+        { value: 'raw', label: runtime.t('detail.tabs.raw') },
+        { value: 'files', label: runtime.t('detail.tabs.files') },
+        { value: 'diagnostics', label: runtime.t('detail.tabs.diagnostics') + (errors > 0 ? ' (' + errors + ')' : '') },
+      ];
+
+      const menuItems = [
+        { key: 'copyPath', label: runtime.t('actions.copyPath'), icon: 'copy', onSelect: () => copy(skill ? skill.path : '') },
+        { key: 'copyName', label: runtime.t('detail.copyName'), icon: 'copy', onSelect: () => copy(skill ? skill.name : '') },
+        { separator: true },
+        { key: 'delete', label: runtime.t('actions.delete'), icon: 'trash', danger: true, disabled: !writable, onSelect: () => setConfirmDelete(true) },
+      ];
+
+      if (state.loading) {
+        return h('div', { className: 'sc-page' },
+          h('div', { className: 'sc-breadcrumb' }, h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back'))),
+          h('div', { className: 'sc-note' }, runtime.t('editor.busy')));
+      }
+      if (state.error) {
+        return h('div', { className: 'sc-page' },
+          h('div', { className: 'sc-breadcrumb' }, h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back'))),
+          h(Banner, { actions: [h('button', { key: 'retry', type: 'button', className: 'sc-btn sc-btn-sm sc-btn-outline', onClick: load }, runtime.t('actions.retry'))] }, errorText(runtime, { code: state.error })));
+      }
 
       return h(
         'div',
-        {
-          className: 'sc-overlay',
-          role: 'dialog',
-          'aria-modal': 'true',
-          onMouseDown: (event) => {
-            if (event.target === event.currentTarget) onClose();
-          },
-        },
+        { className: 'sc-page' },
+        h('div', { className: 'sc-breadcrumb' },
+          h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back')),
+          h('span', { className: 'sc-breadcrumb-sep' }, '/'),
+          h('span', { className: 'sc-breadcrumb-current' }, skill ? skill.name : '')),
         h(
-          'div',
-          { className: 'sc-modal' },
+          'header',
+          { className: 'sc-head' },
           h(
             'div',
-            { className: 'sc-modal-head' },
+            { className: 'sc-head-row' },
             h(
               'div',
-              { className: 'sc-modal-title-row' },
-              h('h2', { className: 'sc-modal-title' }, skill ? skill.name : runtime.t('detail.loading')),
-              h(
-                'div',
-                { style: { display: 'flex', gap: '8px', flex: 'none' } },
-                writable
-                  ? h(ConfirmButton, {
-                    label: runtime.t('actions.delete'),
-                    confirmLabel: runtime.t('actions.confirmDelete'),
-                    disabled: mutationBusy,
-                    onConfirm: removeSkill,
-                  })
-                  : null,
-                h('button', { type: 'button', className: 'sc-button', onClick: onClose }, runtime.t('detail.close')),
-              ),
+              { className: 'sc-head-titles' },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
+                h('h1', { className: 'sc-title', style: { fontSize: '24px', lineHeight: '32px' } }, skill.name),
+                skill.readOnly ? h(Tag, null, runtime.t('badge.readOnly')) : null,
+                skill.isSymlink ? h(Tag, null, runtime.t('badge.symlink')) : null,
+                errors > 0 ? h(Tag, { tone: 'error' }, errors + ' ' + runtime.t('badge.errors')) : null,
+                warnings > 0 ? h(Tag, { tone: 'warn' }, warnings + ' ' + runtime.t('badge.warnings')) : null),
+              skill.description ? h('p', { className: 'sc-subtitle' }, skill.description) : null,
             ),
-            skill && skill.description ? h('p', { className: 'sc-modal-desc' }, skill.description) : null,
-            skill
-              ? h(
-                'div',
-                { className: 'sc-modal-meta' },
-                h(MetaItem, { label: runtime.t('detail.source'), value: sourceLabel(runtime, source ?? { key: skill.sourceKey }) }),
-                h(MetaItem, { label: runtime.t('detail.scope'), value: scopeLabel(runtime, skill.scope) }),
-                h(MetaItem, { label: runtime.t('detail.path'), value: skill.path, mono: true }),
-                h(MetaItem, { label: runtime.t('detail.size'), value: formatBytes(skill.sizeBytes) }),
-                h(MetaItem, { label: runtime.t('detail.lines'), value: String(skill.bodyLines) }),
-                h(MetaItem, { label: runtime.t('detail.status'), value: statusLabel(runtime, skill) }),
-                h(MetaItem, { label: runtime.t('detail.mtime'), value: formatDate(skill.mtimeMs, runtime.language) }),
-              )
-              : null,
-            writable && skill
-              ? h(
-                'div',
-                { style: { display: 'flex', gap: '18px', flexWrap: 'wrap' } },
-                h(
-                  'div',
-                  { className: 'sc-toggle-row' },
-                  h('span', null, runtime.t('toggle.model')),
-                  h(ToggleSwitch, {
-                    checked: skill.invocation.modelInvocable !== false,
-                    disabled: mutationBusy,
-                    label: runtime.t('toggle.model'),
-                    onChange: (next) => toggleInvocation('model', next),
-                  }),
-                ),
-                h(
-                  'div',
-                  { className: 'sc-toggle-row' },
-                  h('span', null, runtime.t('toggle.user')),
-                  h(ToggleSwitch, {
-                    checked: skill.invocation.userInvocable !== false,
-                    disabled: mutationBusy,
-                    label: runtime.t('toggle.user'),
-                    onChange: (next) => toggleInvocation('user', next),
-                  }),
-                ),
-              )
-              : null,
-            mutationError
-              ? h('div', { className: 'sc-banner', role: 'alert', style: { margin: '8px 0 0' } },
-                h('div', { className: 'sc-banner-code' }, mutationError))
-              : null,
             h(
               'div',
-              { className: 'sc-tabs', role: 'tablist' },
-              tabs.map((item) => h(
-                'button',
-                {
-                  key: item,
-                  type: 'button',
-                  role: 'tab',
-                  className: 'sc-tab',
-                  'aria-selected': tab === item ? 'true' : 'false',
-                  onClick: () => setTab(item),
-                },
-                runtime.t('detail.' + item),
-              )),
+              { className: 'sc-head-actions' },
+              writable && !editing
+                ? h('button', { type: 'button', className: 'sc-btn sc-btn-primary', onClick: beginEdit }, h(Icon, { name: 'edit', size: 15 }), runtime.t('actions.edit'))
+                : null,
+              h(MenuButton, { label: runtime.t('actions.more'), triggerLabel: runtime.t('actions.more'), items: menuItems }),
             ),
-          ),
-          h(
-            'div',
-            { className: 'sc-modal-body' },
-            state.loading ? h('div', { className: 'sc-note' }, runtime.t('detail.loading')) : null,
-            state.error
-              ? h(
-                'div',
-                { className: 'sc-banner' },
-                h('div', { className: 'sc-banner-title' }, runtime.t('page.error.title')),
-                h('div', { className: 'sc-banner-code' }, runtime.t('page.error.code') + ': ' + state.error),
-              )
-              : null,
-            !state.loading && !state.error && detail
-              ? [
-                tab === 'content'
-                  ? h(
-                    'div',
-                    null,
-                    detail.truncated ? h('p', { className: 'sc-note' }, runtime.t('detail.rawTruncated')) : null,
-                    h('pre', { className: 'sc-pre' }, detail.content),
-                  )
-                  : null,
-                tab === 'edit'
-                  ? h(
-                    'div',
-                    { className: 'sc-form' },
-                    h('p', { className: 'sc-note' }, runtime.t('editor.hint')),
-                    h('textarea', {
-                      className: 'sc-textarea',
-                      value: editText === null ? detail.content : editText,
-                      onChange: (event) => setEditText(event.target.value),
-                      spellCheck: false,
-                    }),
-                    h(
-                      'div',
-                      { className: 'sc-editor-actions' },
-                      h('button', {
-                        type: 'button',
-                        className: 'sc-button',
-                        disabled: editState.busy,
-                        onClick: validateContent,
-                      }, runtime.t('actions.validate')),
-                      h('button', {
-                        type: 'button',
-                        className: 'sc-button sc-button-primary',
-                        disabled: editState.busy || editText === null,
-                        onClick: saveContent,
-                      }, editState.busy ? runtime.t('editor.busy') : runtime.t('actions.save')),
-                      h('button', {
-                        type: 'button',
-                        className: 'sc-button',
-                        disabled: editState.busy,
-                        onClick: () => {
-                          setEditText(null);
-                          setTab('content');
-                        },
-                      }, runtime.t('actions.cancel')),
-                      editText !== null ? h('span', { className: 'sc-note' }, runtime.t('editor.unsaved')) : null,
-                    ),
-                    editState.diagnostics !== null
-                      ? h(
-                        'div',
-                        null,
-                        h(
-                          'div',
-                          { className: 'sc-note', style: { marginBottom: '6px' } },
-                          countSeverity(editState.diagnostics, 'error') > 0
-                            ? runtime.t('editor.errors')
-                            : runtime.t('editor.noErrors'),
-                        ),
-                        h(DiagnosticsList, { runtime, diagnostics: editState.diagnostics }),
-                      )
-                      : null,
-                    editState.error
-                      ? h('div', { className: 'sc-banner' }, h('div', { className: 'sc-banner-code' }, errorText(runtime, { code: editState.error })))
-                      : null,
-                  )
-                  : null,
-                tab === 'files'
-                  ? h(
-                    'div',
-                    null,
-                    fileState.loading ? h('div', { className: 'sc-note' }, runtime.t('detail.loading')) : null,
-                    fileState.error
-                      ? h('div', { className: 'sc-banner' }, h('div', { className: 'sc-banner-code' }, fileState.error))
-                      : null,
-                    file
-                      ? h(
-                        'div',
-                        null,
-                        h('div', { className: 'sc-note', style: { marginBottom: '8px' } }, file.relativePath + ' · ' + formatBytes(file.size)),
-                        file.binary ? h('p', { className: 'sc-note' }, runtime.t('detail.files.binary')) : null,
-                        !file.binary && fileEdit === null
-                          ? h(
-                            'div',
-                            null,
-                            file.truncated ? h('p', { className: 'sc-note' }, runtime.t('detail.files.tooLarge')) : null,
-                            h('pre', { className: 'sc-pre' }, file.content),
-                            writable && file.relativePath !== 'SKILL.md'
-                              ? h(
-                                'div',
-                                { className: 'sc-editor-actions' },
-                                h('button', {
-                                  type: 'button',
-                                  className: 'sc-button',
-                                  onClick: () => setFileEdit({ path: file.relativePath, text: file.content }),
-                                }, runtime.t('actions.editFile')),
-                              )
-                              : null,
-                          )
-                          : null,
-                        fileEdit !== null
-                          ? h(
-                            'div',
-                            { className: 'sc-form' },
-                            h('p', { className: 'sc-note' }, runtime.t('editor.fileTitle') + ': ' + fileEdit.path),
-                            h('textarea', {
-                              className: 'sc-textarea',
-                              value: fileEdit.text,
-                              onChange: (event) => setFileEdit({ path: fileEdit.path, text: event.target.value }),
-                              spellCheck: false,
-                            }),
-                            h(
-                              'div',
-                              { className: 'sc-editor-actions' },
-                              h('button', {
-                                type: 'button',
-                                className: 'sc-button sc-button-primary',
-                                disabled: fileEditState.busy,
-                                onClick: saveFile,
-                              }, fileEditState.busy ? runtime.t('editor.busy') : runtime.t('actions.save')),
-                              h('button', {
-                                type: 'button',
-                                className: 'sc-button',
-                                disabled: fileEditState.busy,
-                                onClick: () => setFileEdit(null),
-                              }, runtime.t('actions.cancel')),
-                            ),
-                          )
-                          : null,
-                      )
-                      : null,
-                    h(
-                      'div',
-                      { className: 'sc-files', style: { marginTop: file ? '12px' : 0 } },
-                      (detail.files || []).length === 0
-                        ? h('p', { className: 'sc-note' }, runtime.t('detail.files.empty'))
-                        : detail.files.map((entry) => h(
-                          'button',
-                          {
-                            key: entry.relativePath,
-                            type: 'button',
-                            className: 'sc-file',
-                            onClick: () => openFile(entry.relativePath),
-                            disabled: entry.kind === 'directory',
-                          },
-                          h('span', { className: 'sc-file-name' }, (entry.kind === 'directory' ? '📁 ' : '') + entry.relativePath),
-                          h('span', { className: 'sc-file-size' }, entry.kind === 'directory' ? '' : formatBytes(entry.size)),
-                        )),
-                    ),
-                  )
-                  : null,
-                tab === 'diagnostics'
-                  ? h(DiagnosticsList, { runtime, diagnostics })
-                  : null,
-              ]
-              : null,
           ),
         ),
+        h(
+          'div',
+          { className: 'sc-facts' },
+          h('div', { className: 'sc-fact' }, h('span', { className: 'sc-fact-label' }, runtime.t('detail.facts.source')), h('span', { className: 'sc-fact-value' }, sourceLabel(runtime, { key: skill.sourceKey, labelKey: agentSourceKey(skill) }))),
+          h('div', { className: 'sc-fact' }, h('span', { className: 'sc-fact-label' }, runtime.t('detail.facts.scope')), h('span', { className: 'sc-fact-value' }, scopeLabel(runtime, skill.scope))),
+          h('div', { className: 'sc-fact' }, h('span', { className: 'sc-fact-label' }, runtime.t('detail.facts.status')), h('span', { className: 'sc-fact-value' }, statusLabel(runtime, skill))),
+          h('div', { className: 'sc-fact' }, h('span', { className: 'sc-fact-label' }, runtime.t('detail.facts.size')), h('span', { className: 'sc-fact-value' }, formatBytes(skill.sizeBytes))),
+          h('div', { className: 'sc-fact' }, h('span', { className: 'sc-fact-label' }, runtime.t('detail.facts.lines')), h('span', { className: 'sc-fact-value' }, String(skill.bodyLines))),
+          h('div', { className: 'sc-fact' }, h('span', { className: 'sc-fact-label' }, runtime.t('detail.facts.modified')), h('span', { className: 'sc-fact-value' }, formatDate(skill.mtimeMs, runtime.language))),
+          h('div', { className: 'sc-fact' }, h('span', { className: 'sc-fact-label' }, runtime.t('detail.facts.path')), h('span', { className: 'sc-fact-value', 'data-mono': 'true' }, skill.path)),
+        ),
+        h(
+          'div',
+          { className: 'sc-model' },
+          h('div', { className: 'sc-model-title' }, runtime.t('detail.model.title'), h(HelpTip, { label: runtime.t('help.description') }, runtime.t('detail.model.hint'))),
+          h('div', { className: 'sc-model-name' }, skill.name),
+          h('div', { className: 'sc-model-desc' }, skill.description || ''),
+          h('div', { className: 'sc-toggles' },
+            writable
+              ? h('div', { className: 'sc-toggle-row' }, runtime.t('help.modelToggle'), h(Switch, {
+                checked: skill.invocation.modelInvocable !== false,
+                disabled: toggleBusy,
+                label: runtime.t('help.modelToggle'),
+                onChange: (next) => toggleInvocation('model', next),
+              }))
+              : null,
+            writable
+              ? h('div', { className: 'sc-toggle-row' }, runtime.t('help.userToggle'), h(Switch, {
+                checked: skill.invocation.userInvocable !== false,
+                disabled: toggleBusy,
+                label: runtime.t('help.userToggle'),
+                onChange: (next) => toggleInvocation('user', next),
+              }))
+              : null),
+        ),
+        errors > 0 || warnings > 0
+          ? h(Banner, {
+            tone: errors > 0 ? 'error' : 'info',
+            actions: [h('button', { key: 'diag', type: 'button', className: 'sc-btn sc-btn-sm sc-btn-outline', onClick: () => setTab('diagnostics') }, runtime.t('detail.tabs.diagnostics'))],
+          }, errors > 0
+            ? errors + ' ' + plural(runtime, errors, 'errors') + (warnings > 0 ? ' · ' + warnings + ' ' + plural(runtime, warnings, 'warnings') : '')
+            : warnings + ' ' + plural(runtime, warnings, 'warnings'))
+          : null,
+        h('div', { className: 'sc-toolbar' }, h(PillTabs, { items: tabs, value: tab, onChange: (next) => setTab(next) })),
+        tab === 'overview'
+          ? h('div', null,
+            h(Markdown, { text: bodyText }),
+            h('div', { className: 'sc-actions-row', style: { marginTop: '12px' } },
+              writable ? h('button', { type: 'button', className: 'sc-btn sc-btn-outline', onClick: beginEdit }, h(Icon, { name: 'edit', size: 15 }), runtime.t('actions.edit')) : null))
+          : null,
+        tab === 'raw'
+          ? h(
+            'div',
+            { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
+            h('p', { className: 'sc-note', style: { margin: 0 } }, runtime.t('editor.hint')),
+            editing
+              ? h('textarea', {
+                className: 'sc-textarea',
+                style: { minHeight: '360px' },
+                value: editText === null && detail ? detail.content : (editText ?? ''),
+                onChange: (event) => setEditText(event.target.value),
+                spellCheck: false,
+              })
+              : h('pre', { className: 'sc-pre' }, detail.content),
+            editing
+              ? h(
+                'div',
+                { className: 'sc-sticky-foot' },
+                h('button', { type: 'button', className: 'sc-btn sc-btn-primary', disabled: saving, onClick: saveEdit }, saving ? runtime.t('editor.busy') : runtime.t('actions.save')),
+                h('button', { type: 'button', className: 'sc-btn sc-btn-outline', disabled: saving, onClick: validateEdit }, runtime.t('actions.validate')),
+                h('button', { type: 'button', className: 'sc-btn', disabled: saving, onClick: cancelEdit }, runtime.t('actions.cancel')),
+                editing ? h('span', { className: 'sc-note' }, runtime.t('detail.unsaved')) : null,
+              )
+              : (writable ? h('div', { className: 'sc-actions-row' }, h('button', { type: 'button', className: 'sc-btn sc-btn-primary', onClick: beginEdit }, runtime.t('actions.edit'))) : null),
+            check.diagnostics !== null
+              ? h('div', null,
+                h('p', { className: 'sc-note' }, countSeverity(check.diagnostics, 'error') > 0 ? runtime.t('editor.errors') : runtime.t('editor.ok')),
+                h(DiagnosticsList, { runtime, diagnostics: check.diagnostics }))
+              : null,
+            check.error
+              ? h(Banner, null, errorText(runtime, { code: check.error }))
+              : null,
+          )
+          : null,
+        tab === 'files'
+          ? h(
+            'div',
+            { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
+            fileState.loading ? h('div', { className: 'sc-note' }, runtime.t('editor.busy')) : null,
+            fileState.error ? h(Banner, null, errorText(runtime, { code: fileState.error })) : null,
+            file && !file.binary
+              ? h('div', null,
+                h('div', { className: 'sc-note' }, file.path + ' · ' + formatBytes(file.size)),
+                file.truncated ? h('p', { className: 'sc-note' }, runtime.t('detail.fileTooLarge')) : null,
+                fileEdit
+                  ? h('div', { className: 'sc-form' },
+                    h('textarea', {
+                      className: 'sc-textarea',
+                      style: { minHeight: '260px' },
+                      value: fileEdit.text,
+                      onChange: (event) => setFileEdit({ path: fileEdit.path, text: event.target.value }),
+                      spellCheck: false,
+                    }),
+                    h('div', { className: 'sc-actions-row' },
+                      h('button', { type: 'button', className: 'sc-btn sc-btn-primary', disabled: fileBusy, onClick: saveFile }, fileBusy ? runtime.t('editor.busy') : runtime.t('actions.save')),
+                      h('button', { type: 'button', className: 'sc-btn', disabled: fileBusy, onClick: () => setFileEdit(null) }, runtime.t('actions.cancel'))))
+                  : h('div', null,
+                    h('pre', { className: 'sc-pre' }, file.content),
+                    writable && file.path !== 'SKILL.md'
+                      ? h('div', { className: 'sc-actions-row' }, h('button', {
+                        type: 'button',
+                        className: 'sc-btn sc-btn-outline',
+                        onClick: () => setFileEdit({ path: file.path, text: file.content }),
+                      }, runtime.t('detail.editFile')))
+                      : null))
+              : null,
+            file && file.binary ? h('p', { className: 'sc-note' }, runtime.t('detail.binary')) : null,
+            h('div', { className: 'sc-card' },
+              (detail.files || []).length === 0
+                ? h('div', { style: { padding: '14px' } }, h('p', { className: 'sc-note sc-mb-0' }, runtime.t('detail.files.empty')))
+                : h('div', { className: 'sc-file-list' },
+                  detail.files.map((entry) => h('button', {
+                    key: entry.relativePath,
+                    type: 'button',
+                    className: 'sc-file',
+                    onClick: () => openFile(entry.relativePath),
+                    disabled: entry.kind === 'directory',
+                  }, h(Icon, { name: entry.kind === 'directory' ? 'folder' : 'file', size: 14 }),
+                  h('span', { className: 'sc-file-name' }, entry.relativePath),
+                  h('span', { className: 'sc-file-size' }, entry.kind === 'directory' ? '' : formatBytes(entry.size))))),
+            ),
+          )
+          : null,
+        tab === 'diagnostics'
+          ? h(DiagnosticsList, { runtime, diagnostics })
+          : null,
+        confirmDelete
+          ? h(ConfirmOverlay, {
+            runtime,
+            title: runtime.t('actions.delete') + ' «' + skill.name + '»?',
+            body: runtime.t('detail.deleteHint'),
+            confirmLabel: runtime.t('actions.confirmDelete'),
+            tone: 'danger',
+            busy: deleting,
+            onConfirm: removeSkill,
+            onCancel: () => setConfirmDelete(false),
+          })
+          : null,
       );
     }
 
-    function createPromptText(runtime, text) {
-      const task = String(text || '').trim();
+    const CREATOR_SKILL = 'skill-curator-creator';
+
+    function buildCreatorPrompt(runtime, description, extra) {
+      const text = String(description ?? '').trim();
+      const more = String(extra ?? '').trim();
+      const empty = runtime.language === 'en'
+        ? '(the user has not written a description yet — ask 1–2 short questions and propose a structure)'
+        : '(пользователь ещё не написал описание — задай 1–2 коротких вопроса и предложи структуру)';
       if (runtime.language === 'en') {
         return [
+          '/' + CREATOR_SKILL,
+          '',
           'Create a DeepSeek Harness skill from the description below.',
+          'Follow the skill instructions: ask 1–2 clarifying questions if needed, keep SKILL.md short,',
+          'move long material into references/ and scripts/, and save the result with skill_curator_create',
+          '(not by hand and not through bash). Finish with a short report: name, destination, files.',
           '',
-          'Requirements:',
-          '- name: lowercase kebab-case, 1-64 characters, identical to the directory name;',
-          '- description: what the skill does AND when to use it (routing triggers);',
-          '- body: concise instructions with the sections "When to Use", "Procedure", "Pitfalls", "Verification";',
-          '- keep SKILL.md short; put reference material, scripts or assets into references/, scripts/ or assets/ as separate files;',
-          '- write the result with the skill_curator_create tool; do not invent commands.',
-          '',
-          'Description: ' + (task || '…'),
-        ].join('\n');
+          'User description:',
+          text === '' ? empty : text,
+          more === '' ? '' : '',
+          more === '' ? '' : 'Additional details: ' + more,
+        ].filter((line) => line !== '').join('\n');
       }
       return [
-        'Создай навык для DeepSeek Harness по описанию ниже.',
+        '/' + CREATOR_SKILL,
         '',
-        'Требования:',
-        '- имя: kebab-case, 1–64 символа, совпадает с именем папки;',
-        '- description: что делает навык И когда его использовать (триггерные фразы);',
-        '- тело: короткие инструкции с разделами «Когда использовать», «Порядок действий», «Типичные ошибки», «Проверка»;',
-        '- SKILL.md держи коротким; справочники, скрипты и ассеты — отдельными файлами в references/, scripts/ или assets/;',
-        '- запиши результат инструментом skill_curator_create; не выдумывай команды.',
+        'Создай навык DeepSeek Harness по описанию ниже.',
+        'Действуй по инструкции навыка: при необходимости задай 1–2 уточняющих вопроса,',
+        'держи SKILL.md коротким, длинные материалы вынеси в references/ и scripts/,',
+        'сохрани результат инструментом skill_curator_create (не руками и не через bash).',
+        'В конце коротко отчитайся: имя, куда сохранено, какие файлы добавлены.',
         '',
-        'Описание: ' + (task || '…'),
-      ].join('\n');
+        'Описание пользователя:',
+        text === '' ? empty : text,
+        more === '' ? '' : '',
+        more === '' ? '' : 'Дополнительные детали: ' + more,
+      ].filter((line) => line !== '').join('\n');
     }
 
-    function skillBodyTemplate(runtime) {
+    function manualSkillTemplate(runtime) {
       if (runtime.language === 'en') {
-        return [
-          '# When to Use',
-          '',
-          'Describe the situations and user phrases that should trigger this skill.',
-          '',
-          '## Procedure',
-          '',
-          '1. First step.',
-          '2. Second step.',
-          '',
-          '## Pitfalls',
-          '',
-          '- What to avoid.',
-          '',
-          '## Verification',
-          '',
-          '- How to check the result.',
-        ].join('\n');
+        return ['# When to Use', '', 'Describe triggers and situations.', '', '## Procedure', '', '1. First step.', '2. Second step.', '', '## Pitfalls', '', '- What to avoid.', '', '## Verification', '', '- How to check the result.'].join('\n');
       }
-      return [
-        '# Когда использовать',
-        '',
-        'Опишите ситуации и фразы пользователя, при которых нужен этот навык.',
-        '',
-        '## Порядок действий',
-        '',
-        '1. Первый шаг.',
-        '2. Второй шаг.',
-        '',
-        '## Типичные ошибки',
-        '',
-        '- Чего избегать.',
-        '',
-        '## Проверка',
-        '',
-        '- Как проверить результат.',
-      ].join('\n');
+      return ['# Когда использовать', '', 'Опишите триггеры и ситуации.', '', '## Порядок действий', '', '1. Первый шаг.', '2. Второй шаг.', '', '## Типичные ошибки', '', '- Чего избегать.', '', '## Проверка', '', '- Как проверить результат.'].join('\n');
     }
 
-    function CreateSkillModal({ runtime, snapshot, onClose, onChanged, onMessage }) {
+    const NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+    function CreateSkillView({ runtime, snapshot, onBack, onDone, notify, closeSettings }) {
       const projectSources = (snapshot && Array.isArray(snapshot.sources) ? snapshot.sources : [])
         .filter((source) => source.kind === 'project');
-      const [mode, setMode] = useState('manual');
+      const workspacePath = (sourcePath) => {
+        const marker = '/.dsh/skills';
+        const text = String(sourcePath ?? '');
+        const index = text.indexOf(marker);
+        return index >= 0 ? text.slice(0, index) : text;
+      };
+
+      const [mode, setMode] = useState('ai');
+      const [aiDescription, setAiDescription] = useState('');
+      const [aiExtra, setAiExtra] = useState('');
+      const [aiNotice, setAiNotice] = useState(null);
       const [form, setForm] = useState({
         name: '',
         description: '',
@@ -1563,246 +2185,248 @@ window.__ModuleLoader__.load({
         scope: 'user',
         workspace: projectSources[0] ? projectSources[0].path : '',
       });
-      const [aiText, setAiText] = useState('');
-      const [copied, setCopied] = useState(false);
-      const [state, setState] = useState({ busy: false, error: null });
+      const [touched, setTouched] = useState(false);
+      const [busy, setBusy] = useState(false);
+      const [error, setError] = useState(null);
 
-      const workspacePath = (sourcePath) => {
-        const marker = '/.dsh/skills';
-        const index = String(sourcePath).indexOf(marker);
-        return index >= 0 ? String(sourcePath).slice(0, index) : String(sourcePath);
+      const prompt = useMemo(() => buildCreatorPrompt(runtime, aiDescription, aiExtra), [runtime, aiDescription, aiExtra]);
+
+      const nameError = form.name.trim() !== '' && !NAME_RE.test(form.name.trim())
+        ? runtime.t('create.field.nameInvalid')
+        : (touched && form.name.trim() === '' ? runtime.t('create.field.required') : '');
+      const descriptionError = form.description.trim().length > 1024
+        ? runtime.t('create.field.descriptionLong')
+        : (touched && form.description.trim() === '' ? runtime.t('create.field.required') : '');
+      const bodyError = touched && form.body.trim() === '' ? runtime.t('create.field.bodyEmpty') : '';
+      const canCreate = form.name.trim() !== '' && NAME_RE.test(form.name.trim())
+        && form.description.trim() !== '' && form.description.trim().length <= 1024
+        && form.body.trim() !== '';
+
+      const openAiChat = async () => {
+        const started = runtime.startSkillChat(prompt);
+        if (started) {
+          if (typeof closeSettings === 'function') closeSettings();
+          return;
+        }
+        const copied = await runtime.copyText(prompt);
+        setAiNotice(copied ? runtime.t('create.ai.fallback') : runtime.t('create.ai.failed'));
       };
-
-      const prompt = createPromptText(runtime, aiText);
 
       const copyPrompt = async () => {
-        try {
-          if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-            await navigator.clipboard.writeText(prompt);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2500);
-          }
-        } catch {
-          setCopied(false);
-        }
+        const ok = await runtime.copyText(prompt);
+        notify(ok ? 'toast.copied' : 'toast.copyFailed');
       };
 
-      const submit = async () => {
-        setState({ busy: true, error: null });
+      const submitManual = async () => {
+        setTouched(true);
+        if (!canCreate) return;
+        setBusy(true);
+        setError(null);
         try {
           const payload = {
             confirm: true,
-            revision: snapshot.revision,
+            revision: snapshot ? snapshot.revision : undefined,
             scope: form.scope,
-            name: form.name,
-            description: form.description,
+            name: form.name.trim(),
+            description: form.description.trim(),
             body: form.body,
           };
           if (form.scope === 'project') payload.workspacePath = workspacePath(form.workspace);
           const value = await requestApi('create', payload);
-          if (typeof onChanged === 'function') onChanged(value.revision);
-          if (typeof onMessage === 'function') onMessage('toast.created');
-          onClose();
-        } catch (error) {
-          setState({ busy: false, error: error.code || 'OPERATION_FAILED' });
+          notify('toast.created');
+          onDone(value && value.revision ? value.revision : undefined);
+        } catch (caught) {
+          if (caught.code === 'STALE_REVISION') notify('toast.stale');
+          setError(caught.code || 'OPERATION_FAILED');
+        } finally {
+          setBusy(false);
         }
       };
 
+      const examples = runtime.language === 'en'
+        ? ['Review pull requests for security risks', 'Prepare a commercial offer from a call transcript', 'Turn a document into a short checklist']
+        : ['Проверять пул-реквесты на риски безопасности', 'Готовить коммерческое предложение из транскрипта звонка', 'Превращать документ в короткий чек-лист'];
+
       return h(
         'div',
-        {
-          className: 'sc-overlay',
-          role: 'dialog',
-          'aria-modal': 'true',
-          onMouseDown: (event) => {
-            if (event.target === event.currentTarget) onClose();
-          },
-        },
-        h(
-          'div',
-          { className: 'sc-modal', style: { maxWidth: '760px' } },
-          h(
+        { className: 'sc-page' },
+        h('div', { className: 'sc-breadcrumb' },
+          h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back')),
+          h('span', { className: 'sc-breadcrumb-sep' }, '/'),
+          h('span', { className: 'sc-breadcrumb-current' }, runtime.t('create.title'))),
+        h('header', { className: 'sc-head' },
+          h('div', { className: 'sc-head-titles' },
+            h('h1', { className: 'sc-title' }, runtime.t('create.title')),
+            h('p', { className: 'sc-subtitle' }, runtime.t('create.intro'))),
+          h('div', { className: 'sc-head-actions' },
+            h(PillTabs, {
+              items: [
+                { value: 'ai', label: runtime.t('create.mode.ai') },
+                { value: 'manual', label: runtime.t('create.mode.manual') },
+              ],
+              value: mode,
+              onChange: setMode,
+            }),
+          )),
+        mode === 'ai'
+          ? h(
             'div',
-            { className: 'sc-modal-head' },
-            h('h2', { className: 'sc-modal-title' }, runtime.t('create.title')),
+            { className: 'sc-form' },
+            h(Banner, { tone: 'info' }, runtime.t('create.ai.hint')),
             h(
               'div',
-              { className: 'sc-toolbar-tabs', role: 'tablist' },
-              h('button', {
-                type: 'button',
-                role: 'tab',
-                className: 'sc-tab',
-                'aria-selected': mode === 'manual' ? 'true' : 'false',
-                onClick: () => setMode('manual'),
-              }, runtime.t('create.mode.manual')),
-              h('button', {
-                type: 'button',
-                role: 'tab',
-                className: 'sc-tab',
-                'aria-selected': mode === 'ai' ? 'true' : 'false',
-                onClick: () => setMode('ai'),
-              }, runtime.t('create.mode.ai')),
+              { className: 'sc-field' },
+              h('div', { className: 'sc-field-head' },
+                h('span', { className: 'sc-field-label' }, runtime.t('create.ai.description')),
+                h(HelpTip, { label: runtime.t('help.ai') }, runtime.t('help.ai'))),
+              h('textarea', {
+                className: 'sc-textarea',
+                value: aiDescription,
+                onChange: (event) => setAiDescription(event.target.value),
+                placeholder: runtime.t('create.ai.descriptionHint'),
+                'aria-label': runtime.t('create.ai.description'),
+              }),
+              h('span', { className: 'sc-field-hint' }, runtime.t('create.ai.descriptionHint')),
+              h('div', { className: 'sc-actions-row', style: { flexWrap: 'wrap' } },
+                h('span', { className: 'sc-field-hint' }, runtime.t('create.ai.examples')),
+                examples.map((example, index) => h('button', {
+                  key: index,
+                  type: 'button',
+                  className: 'sc-btn sc-btn-sm sc-btn-outline',
+                  onClick: () => setAiDescription((current) => (current.trim() === '' ? example : current + ' ' + example)),
+                }, example))),
+            ),
+            h(
+              'div',
+              { className: 'sc-field' },
+              h('span', { className: 'sc-field-label' }, runtime.t('create.ai.extra')),
+              h('textarea', {
+                className: 'sc-textarea',
+                style: { minHeight: '70px' },
+                value: aiExtra,
+                onChange: (event) => setAiExtra(event.target.value),
+                'aria-label': runtime.t('create.ai.extra'),
+              }),
+            ),
+            h('details', null,
+              h('summary', { className: 'sc-note', style: { cursor: 'pointer' } }, runtime.t('create.ai.promptPreview')),
+              h('pre', { className: 'sc-pre sc-prompt', style: { marginTop: '8px' } }, prompt)),
+            h('p', { className: 'sc-note sc-mb-0' }, runtime.t('create.ai.openChatHint')),
+            aiNotice ? h(Banner, { tone: 'info' }, aiNotice) : null,
+            h(
+              'div',
+              { className: 'sc-sticky-foot' },
+              h('button', { type: 'button', className: 'sc-btn sc-btn-primary', onClick: openAiChat }, h(Icon, { name: 'spark', size: 15 }), runtime.t('actions.openChat')),
+              h('button', { type: 'button', className: 'sc-btn sc-btn-outline', onClick: copyPrompt }, h(Icon, { name: 'copy', size: 15 }), runtime.t('actions.copyPrompt')),
+              h('span', { className: 'sc-note' }, runtime.t('create.ai.openChatHint')),
+            ),
+          )
+          : h(
+            'div',
+            { className: 'sc-form' },
+            error ? h(Banner, null, errorText(runtime, { code: error })) : null,
+            h('div', { className: 'sc-form-row' },
+              h('label', { className: 'sc-field' },
+                h('div', { className: 'sc-field-head' },
+                  h('span', { className: 'sc-field-label' }, runtime.t('create.manual.name')),
+                  h(HelpTip, { label: runtime.t('help.name') }, runtime.t('help.name'))),
+                h('input', {
+                  className: 'sc-input',
+                  value: form.name,
+                  placeholder: 'my-skill',
+                  onChange: (event) => setForm({ ...form, name: event.target.value }),
+                  'aria-invalid': nameError ? 'true' : 'false',
+                }),
+                h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
+                  h('span', { className: 'sc-field-hint' }, runtime.t('create.manual.nameHint')),
+                  h('span', { className: 'sc-counter' }, form.name.length + ' / 64')),
+                nameError ? h('span', { className: 'sc-field-error' }, nameError) : null),
+              h('label', { className: 'sc-field' },
+                h('span', { className: 'sc-field-label' }, runtime.t('create.manual.destination')),
+                h('select', {
+                  className: 'sc-select',
+                  value: form.scope,
+                  onChange: (event) => setForm({ ...form, scope: event.target.value }),
+                },
+                h('option', { value: 'user' }, runtime.t('create.scope.user')),
+                h('option', { value: 'agents' }, runtime.t('create.scope.agents')),
+                projectSources.length > 0 ? h('option', { value: 'project' }, runtime.t('create.scope.project')) : null)),
+            ),
+            form.scope === 'project' && projectSources.length > 0
+              ? h('label', { className: 'sc-field' },
+                h('span', { className: 'sc-field-label' }, runtime.t('create.manual.workspace')),
+                h('select', {
+                  className: 'sc-select',
+                  value: form.workspace,
+                  onChange: (event) => setForm({ ...form, workspace: event.target.value }),
+                }, projectSources.map((source) => h('option', { key: source.key, value: source.path }, source.label || workspacePath(source.path)))))
+              : null,
+            h('label', { className: 'sc-field' },
+              h('div', { className: 'sc-field-head' },
+                h('span', { className: 'sc-field-label' }, runtime.t('create.manual.description')),
+                h(HelpTip, { label: runtime.t('help.description') }, runtime.t('help.description'))),
+              h('textarea', {
+                className: 'sc-textarea',
+                style: { minHeight: '80px' },
+                value: form.description,
+                onChange: (event) => setForm({ ...form, description: event.target.value }),
+                'aria-invalid': descriptionError ? 'true' : 'false',
+              }),
+              h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
+                h('span', { className: 'sc-field-hint' }, runtime.t('create.manual.descriptionHint')),
+                h('span', { className: 'sc-counter' }, form.description.length + ' / 1024')),
+              descriptionError ? h('span', { className: 'sc-field-error' }, descriptionError) : null),
+            h('label', { className: 'sc-field' },
+              h('div', { className: 'sc-field-head' },
+                h('span', { className: 'sc-field-label' }, runtime.t('create.manual.body')),
+                h(HelpTip, { label: runtime.t('help.body') }, runtime.t('help.body')),
+                h('button', {
+                  type: 'button',
+                  className: 'sc-btn sc-btn-sm sc-btn-ghost',
+                  style: { marginLeft: 'auto' },
+                  onClick: () => setForm((current) => ({ ...current, body: current.body.trim() === '' ? manualSkillTemplate(runtime) : current.body })),
+                }, runtime.t('create.manual.template'))),
+              h('textarea', {
+                className: 'sc-textarea sc-body',
+                value: form.body,
+                onChange: (event) => setForm({ ...form, body: event.target.value }),
+                'aria-invalid': bodyError ? 'true' : 'false',
+              }),
+              h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
+                h('span', { className: 'sc-field-hint' }, runtime.t('create.manual.bodyHint')),
+                h('span', { className: 'sc-counter' }, form.body.split('\n').length + ' ' + runtime.t('create.counter.lines'))),
+              bodyError ? h('span', { className: 'sc-field-error' }, bodyError) : null),
+            h(
+              'div',
+              { className: 'sc-sticky-foot' },
+              h('button', { type: 'button', className: 'sc-btn sc-btn-primary', disabled: busy || !canCreate, onClick: submitManual }, busy ? runtime.t('editor.busy') : runtime.t('actions.create')),
+              h('button', { type: 'button', className: 'sc-btn', onClick: onBack }, runtime.t('actions.cancel')),
+              h('span', { className: 'sc-note' }, runtime.t('editor.hint')),
             ),
           ),
-          h(
-            'div',
-            { className: 'sc-modal-body' },
-            state.error
-              ? h('div', { className: 'sc-banner' }, h('div', { className: 'sc-banner-code' }, errorText(runtime, { code: state.error })))
-              : null,
-            mode === 'manual'
-              ? h(
-                'div',
-                { className: 'sc-form' },
-                h('p', { className: 'sc-note', style: { marginTop: 0 } }, runtime.t('create.hint')),
-                h('div', { className: 'sc-form-row' },
-                  h('label', { className: 'sc-field' },
-                    h('span', { className: 'sc-field-label' }, runtime.t('create.name')),
-                    h('input', {
-                      className: 'sc-input',
-                      value: form.name,
-                      onChange: (event) => setForm({ ...form, name: event.target.value }),
-                      placeholder: 'my-skill',
-                    })),
-                  h('label', { className: 'sc-field' },
-                    h('span', { className: 'sc-field-label' }, runtime.t('create.scope')),
-                    h('select', {
-                      className: 'sc-select',
-                      value: form.scope,
-                      onChange: (event) => setForm({ ...form, scope: event.target.value }),
-                    },
-                    h('option', { value: 'user' }, runtime.t('create.scope.user')),
-                    h('option', { value: 'agents' }, runtime.t('create.scope.agents')),
-                    projectSources.length > 0 ? h('option', { value: 'project' }, runtime.t('create.scope.project')) : null)),
-                ),
-                form.scope === 'project' && projectSources.length > 0
-                  ? h('label', { className: 'sc-field' },
-                    h('span', { className: 'sc-field-label' }, runtime.t('create.workspace')),
-                    h('select', {
-                      className: 'sc-select',
-                      value: form.workspace,
-                      onChange: (event) => setForm({ ...form, workspace: event.target.value }),
-                    },
-                    projectSources.map((source) => h('option', { key: source.key, value: source.path }, source.label || workspacePath(source.path)))))
-                  : null,
-                h('label', { className: 'sc-field' },
-                  h('span', { className: 'sc-field-label' }, runtime.t('create.description')),
-                  h('textarea', {
-                    className: 'sc-textarea',
-                    style: { minHeight: '70px' },
-                    value: form.description,
-                    onChange: (event) => setForm({ ...form, description: event.target.value }),
-                  })),
-                h('label', { className: 'sc-field' },
-                  h('span', { className: 'sc-field-label' }, runtime.t('create.body')),
-                  h('textarea', {
-                    className: 'sc-textarea',
-                    value: form.body,
-                    onChange: (event) => setForm({ ...form, body: event.target.value }),
-                  })),
-                h(
-                  'div',
-                  { className: 'sc-editor-actions' },
-                  h('button', {
-                    type: 'button',
-                    className: 'sc-button',
-                    onClick: () => setForm({ ...form, body: form.body.trim() === '' ? skillBodyTemplate(runtime) : form.body }),
-                  }, runtime.t('create.template')),
-                  h('button', {
-                    type: 'button',
-                    className: 'sc-button sc-button-primary',
-                    disabled: state.busy,
-                    onClick: submit,
-                  }, state.busy ? runtime.t('editor.busy') : runtime.t('create.submit')),
-                  h('button', { type: 'button', className: 'sc-button', onClick: onClose }, runtime.t('create.cancel')),
-                ),
-              )
-              : h(
-                'div',
-                { className: 'sc-form' },
-                h('p', { className: 'sc-note', style: { marginTop: 0 } }, runtime.t('create.aiHint')),
-                h('label', { className: 'sc-field' },
-                  h('span', { className: 'sc-field-label' }, runtime.t('create.aiDescription')),
-                  h('textarea', {
-                    className: 'sc-textarea',
-                    style: { minHeight: '120px' },
-                    value: aiText,
-                    onChange: (event) => setAiText(event.target.value),
-                  })),
-                h('div', { className: 'sc-field-label' }, runtime.t('create.aiPromptTitle')),
-                h('pre', { className: 'sc-pre', style: { maxHeight: '260px' } }, prompt),
-                h(
-                  'div',
-                  { className: 'sc-editor-actions' },
-                  h('button', { type: 'button', className: 'sc-button sc-button-primary', onClick: copyPrompt }, copied ? runtime.t('create.copied') : runtime.t('create.copyPrompt')),
-                  h('button', {
-                    type: 'button',
-                    className: 'sc-button',
-                    onClick: () => {
-                      setForm((current) => ({
-                        ...current,
-                        description: current.description.trim() === '' ? aiText : current.description,
-                        body: current.body.trim() === '' ? skillBodyTemplate(runtime) : current.body,
-                      }));
-                      setMode('manual');
-                    },
-                  }, runtime.t('create.useInForm')),
-                  h('button', { type: 'button', className: 'sc-button', onClick: onClose }, runtime.t('create.cancel')),
-                ),
-              ),
-          ),
-        ),
       );
     }
 
-    function TrashPanel({ runtime, items, loading, error, busyId, onRestore }) {
-      if (loading) return h('div', { className: 'sc-loading' }, runtime.t('page.loading'));
-      if (error) {
-        return h('div', { className: 'sc-banner' }, h('div', { className: 'sc-banner-code' }, errorText(runtime, { code: error })));
-      }
-      if (!Array.isArray(items) || items.length === 0) {
-        return h('div', { className: 'sc-empty' }, h('div', { className: 'sc-empty-title' }, runtime.t('trash.title')), h('div', null, runtime.t('trash.empty')));
-      }
-      return h(
-        'div',
-        { className: 'sc-trash-list' },
-        items.map((item) => h(
-          'div',
-          { key: item.id, className: 'sc-trash-item' },
-          h(
-            'div',
-            { className: 'sc-trash-main' },
-            h('span', { className: 'sc-trash-name' }, item.name || runtime.t('trash.item')),
-            h('span', { className: 'sc-trash-path' }, runtime.t('trash.originalPath') + ': ' + item.originalPath),
-            h('span', { className: 'sc-trash-path' }, runtime.t('trash.deletedAt') + ': ' + formatDate(Date.parse(item.at), runtime.language)),
-          ),
-          h(ConfirmButton, {
-            label: runtime.t('actions.restore'),
-            confirmLabel: runtime.t('trash.confirmRestore'),
-            disabled: busyId === item.id,
-            onConfirm: () => onRestore(item),
-          }),
-        )),
-      );
-    }
-
-    function ImportPanel({ runtime, snapshot, capabilities, onChanged, onMessage }) {
+    function ImportView({ runtime, snapshot, onBack, onDone, notify }) {
       const projectSources = (snapshot && Array.isArray(snapshot.sources) ? snapshot.sources : [])
         .filter((source) => source.kind === 'project');
       const workspacePath = (sourcePath) => {
         const marker = '/.dsh/skills';
-        const index = String(sourcePath).indexOf(marker);
-        return index >= 0 ? String(sourcePath).slice(0, index) : String(sourcePath);
+        const text = String(sourcePath ?? '');
+        const index = text.indexOf(marker);
+        return index >= 0 ? text.slice(0, index) : text;
       };
 
       const [target, setTarget] = useState('user');
       const [workspace, setWorkspace] = useState(projectSources[0] ? projectSources[0].path : '');
       const [mode, setMode] = useState('copy');
       const [plan, setPlan] = useState({ loading: true, error: null, data: null });
+      const [query, setQuery] = useState('');
       const [selected, setSelected] = useState(() => new Set());
       const [applying, setApplying] = useState(false);
-      const [applyError, setApplyError] = useState(null);
       const [results, setResults] = useState(null);
+      const [applyError, setApplyError] = useState(null);
+      const [confirmOpen, setConfirmOpen] = useState(false);
 
       const loadPlan = useCallback(async () => {
         setPlan({ loading: true, error: null, data: null });
@@ -1822,13 +2446,9 @@ window.__ModuleLoader__.load({
         loadPlan();
       }, [loadPlan]);
 
-      useEffect(() => {
-        setResults(null);
-      }, [target, workspace, mode]);
-
       const data = plan.data;
       const groups = data ? data.groups : [];
-      const byId = useMemo(() => {
+      const selectedCandidates = useMemo(() => {
         const map = new Map();
         for (const group of groups) {
           for (const candidate of group.candidates) map.set(candidate.id, candidate);
@@ -1836,7 +2456,29 @@ window.__ModuleLoader__.load({
         return map;
       }, [groups]);
 
-      const toggleCandidate = (id, next) => {
+      const reasonLabel = (code) => {
+        if (!code) return '';
+        const key = 'import.reason.' + code;
+        const text = runtime.t(key);
+        return text === key ? code : text;
+      };
+
+      const filteredGroups = useMemo(() => {
+        const text = query.trim().toLowerCase();
+        if (text === '') return groups;
+        return groups
+          .map((group) => ({
+            ...group,
+            candidates: group.candidates.filter((candidate) => (
+              String(candidate.name || '').toLowerCase().includes(text)
+              || String(candidate.description || '').toLowerCase().includes(text)
+              || String(candidate.targetPath || '').toLowerCase().includes(text)
+            )),
+          }))
+          .filter((group) => group.candidates.length > 0);
+      }, [groups, query]);
+
+      const toggle = (id, next) => {
         setSelected((current) => {
           const copy = new Set(current);
           if (next) copy.add(id);
@@ -1857,20 +2499,19 @@ window.__ModuleLoader__.load({
         });
       };
 
-      const reasonLabel = (code) => {
-        if (!code) return '';
-        const key = 'import.reason.' + code;
-        const text = runtime.t(key);
-        return text === key ? code : text;
-      };
+      const allImportable = useMemo(() => groups.flatMap((group) => group.candidates).filter((candidate) => candidate.skipReason === null), [groups]);
+
+      const selectAll = () => setSelected(new Set(allImportable.map((candidate) => candidate.id)));
+      const clearAll = () => setSelected(new Set());
 
       const apply = async () => {
+        setConfirmOpen(false);
         setApplying(true);
         setApplyError(null);
         try {
           const body = {
             confirm: true,
-            revision: snapshot.revision,
+            revision: snapshot ? snapshot.revision : undefined,
             target,
             mode,
             ids: [...selected],
@@ -1878,12 +2519,12 @@ window.__ModuleLoader__.load({
           if (target === 'project') body.workspacePath = workspacePath(workspace);
           const value = await requestApi('importApply', body);
           setResults(value);
-          if (typeof onChanged === 'function') onChanged(value.revision);
-          if (typeof onMessage === 'function') onMessage('toast.imported');
+          notify('toast.imported');
+          if (value && typeof value.revision === 'string') onDone(value.revision);
           await loadPlan();
         } catch (error) {
           if (error.code === 'STALE_REVISION') {
-            if (typeof onMessage === 'function') onMessage('toast.stale');
+            notify('toast.stale');
             await loadPlan();
           } else {
             setApplyError(error.code || 'OPERATION_FAILED');
@@ -1893,195 +2534,189 @@ window.__ModuleLoader__.load({
         }
       };
 
-      const targetOptions = [
-        { value: 'user', label: runtime.t('import.target.user') },
-        { value: 'agents', label: runtime.t('import.target.agents') },
-      ];
-      if (projectSources.length > 0) targetOptions.push({ value: 'project', label: runtime.t('import.target.project') });
+      const applyDisabled = selected.size === 0 || applying || confirmOpen === false;
+      const skippedCount = data ? data.counts.skipped : 0;
 
       return h(
-        'section',
-        { className: 'sc-form' },
-        h('p', { className: 'sc-note', style: { margin: 0 } }, runtime.t('import.hint')),
-        h(
-          'div',
-          { className: 'sc-import-controls' },
-          h(
-            'label',
-            { className: 'sc-import-field' },
-            h('span', { className: 'sc-import-field-label' }, runtime.t('import.target')),
-            h(
-              'select',
-              {
-                className: 'sc-select',
-                value: target,
-                onChange: (event) => setTarget(event.target.value),
-                disabled: applying,
-              },
-              targetOptions.map((option) => h('option', { key: option.value, value: option.value }, option.label)),
-            ),
-          ),
-          target === 'project' && projectSources.length > 0
-            ? h(
-              'label',
-              { className: 'sc-import-field' },
-              h('span', { className: 'sc-import-field-label' }, runtime.t('import.workspace')),
-              h(
-                'select',
-                {
-                  className: 'sc-select',
-                  value: workspace,
-                  onChange: (event) => setWorkspace(event.target.value),
-                  disabled: applying,
-                },
-                projectSources.map((source) => h('option', { key: source.key, value: source.path }, source.label || workspacePath(source.path))),
-              ),
-            )
-            : null,
-          h(
-            'div',
-            { className: 'sc-import-field' },
-            h('span', { className: 'sc-import-field-label' }, runtime.t('import.mode')),
-            h(
-              'div',
-              { className: 'sc-segment' },
-              h('button', {
-                type: 'button',
-                className: 'sc-button',
-                'aria-pressed': mode === 'copy' ? 'true' : 'false',
-                disabled: applying,
-                onClick: () => setMode('copy'),
-              }, runtime.t('import.mode.copy')),
-              h('button', {
-                type: 'button',
-                className: 'sc-button',
-                'aria-pressed': mode === 'symlink' ? 'true' : 'false',
-                disabled: applying,
-                onClick: () => setMode('symlink'),
-              }, runtime.t('import.mode.symlink')),
-            ),
-          ),
-          h(
-            'button',
-            { type: 'button', className: 'sc-button', onClick: loadPlan, disabled: plan.loading || applying },
-            runtime.t('import.rescan'),
-          ),
-        ),
-        h('p', { className: 'sc-note', style: { margin: 0 } }, runtime.t(mode === 'copy' ? 'import.mode.copyHint' : 'import.mode.symlinkHint')),
-        applyError
-          ? h('div', { className: 'sc-banner' }, h('div', { className: 'sc-banner-code' }, errorText(runtime, { code: applyError })))
-          : null,
-        plan.loading ? h('div', { className: 'sc-loading' }, runtime.t('import.loading')) : null,
-        plan.error
-          ? h('div', { className: 'sc-banner' }, h('div', { className: 'sc-banner-code' }, errorText(runtime, { code: plan.error })))
-          : null,
-        data && data.counts.importable === 0 && groups.length === 0
-          ? h('div', { className: 'sc-empty' }, h('div', null, runtime.t('import.empty')))
-          : null,
-        groups.map((group) => {
-          const importable = group.candidates.filter((candidate) => candidate.skipReason === null);
-          const allSelected = importable.length > 0 && importable.every((candidate) => selected.has(candidate.id));
-          return h(
-            'div',
-            { key: group.key, className: 'sc-import-group' },
-            h(
-              'div',
-              { className: 'sc-import-group-head' },
-              h('span', { className: 'sc-import-group-name' }, sourceLabel(runtime, group)),
-              h('span', { className: 'sc-import-group-path' }, group.path),
-              h('span', { className: 'sc-import-group-spacer' }),
-              h(Chip, { text: String(group.candidates.length) }),
-              h(Chip, { text: importable.length + ' ' + runtime.t('import.importable') }),
-              importable.length > 0
-                ? h('button', {
-                  type: 'button',
-                  className: 'sc-button',
-                  onClick: () => toggleGroup(group, !allSelected),
-                  disabled: applying,
-                }, allSelected ? runtime.t('import.clear') : runtime.t('import.selectAll'))
-                : null,
-            ),
-            group.candidates.map((candidate) => {
-              const disabled = candidate.skipReason !== null || applying;
-              return h(
-                'div',
-                { key: candidate.id, className: 'sc-candidate' + (candidate.skipReason !== null ? ' is-skipped' : '') },
-                h('input', {
-                  type: 'checkbox',
-                  className: 'sc-check',
-                  checked: selected.has(candidate.id),
-                  disabled,
-                  onChange: (event) => toggleCandidate(candidate.id, event.target.checked),
-                  'aria-label': candidate.name,
-                }),
-                h(
-                  'div',
-                  { className: 'sc-candidate-main' },
-                  h(
-                    'span',
-                    { className: 'sc-candidate-name' },
-                    candidate.name,
-                    candidate.isSymlinkSource ? h(Chip, { text: runtime.t('badge.symlink'), tone: 'info' }) : null,
-                    candidate.diagnostics && candidate.diagnostics.length > 0
-                      ? h(Chip, { text: runtime.t('import.diagnostics'), tone: 'warn' })
-                      : null,
-                    candidate.skipReason !== null ? h(Chip, { text: reasonLabel(candidate.skipReason), tone: 'warn' }) : null,
-                  ),
-                  candidate.description ? h('span', { className: 'sc-candidate-desc' }, candidate.description) : null,
-                  h('span', { className: 'sc-candidate-path' }, candidate.targetPath || candidate.sourcePath),
-                ),
-              );
-            }),
-          );
-        }),
-        data && groups.length > 0
-          ? h(
-            'div',
-            { className: 'sc-import-footer' },
-            h(ConfirmButton, {
-              label: runtime.t('import.apply') + ' (' + selected.size + ')',
-              confirmLabel: runtime.t('import.confirmApply') + ' (' + selected.size + ')',
-              disabled: selected.size === 0 || applying,
-              tone: 'primary',
-              onConfirm: apply,
-            }),
-            h('span', { className: 'sc-note' }, selected.size + ' ' + runtime.t('import.selected')),
-            applying ? h('span', { className: 'sc-note' }, runtime.t('editor.busy')) : null,
-          )
-          : null,
+        'div',
+        { className: 'sc-page' },
+        h('div', { className: 'sc-breadcrumb' },
+          h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back')),
+          h('span', { className: 'sc-breadcrumb-sep' }, '/'),
+          h('span', { className: 'sc-breadcrumb-current' }, runtime.t('import.title'))),
+        h('header', { className: 'sc-head' },
+          h('div', { className: 'sc-head-titles' },
+            h('h1', { className: 'sc-title' }, runtime.t('import.title')),
+            h('p', { className: 'sc-subtitle' }, runtime.t('import.intro'))),
+          h('div', { className: 'sc-head-actions' },
+            h('button', { type: 'button', className: 'sc-btn sc-btn-outline', onClick: loadPlan, disabled: plan.loading || applying }, h(Icon, { name: 'refresh', size: 15 }), runtime.t('import.rescan')))),
         results
           ? h(
             'div',
             { className: 'sc-form' },
-            h('div', { className: 'sc-result-count' }, runtime.t('import.results') + ': '
-              + results.counts.imported + ' ' + runtime.t('import.imported') + ' · '
-              + results.counts.skipped + ' ' + runtime.t('import.skipped') + ' · '
-              + results.counts.failed + ' ' + runtime.t('import.failed')),
-            h(
-              'div',
-              { className: 'sc-results' },
-              results.results.map((item, index) => h(
-                'div',
-                { key: item.id + ':' + index, className: 'sc-result-row' },
-                h(Chip, {
-                  text: item.status,
-                  tone: item.status === 'imported' ? 'info' : item.status === 'failed' ? 'error' : 'warn',
-                }),
-                h('span', null, item.name || item.id),
-                item.code ? h('span', { className: 'sc-result-count' }, reasonLabel(item.code)) : null,
+            h('div', { className: 'sc-card' },
+              h('div', { className: 'sc-import-bar' },
+                h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' } },
+                  h('h2', { style: { margin: 0, fontSize: '18px', lineHeight: '26px', fontWeight: 600 } }, runtime.t('import.results')),
+                  h(Tag, { tone: results.counts.failed > 0 ? 'warn' : 'success' }, results.counts.imported + ' ' + runtime.t('import.imported'))),
+                h('div', { className: 'sc-summary' },
+                  h('span', null, results.counts.imported + ' ' + runtime.t('import.imported')),
+                  h('span', null, results.counts.skipped + ' ' + runtime.t('import.skipped')),
+                  h('span', null, results.counts.failed + ' ' + runtime.t('import.failed'))),
+                h('p', { className: 'sc-note sc-mb-0' }, runtime.t('import.resultHint')),
+                h('div', { className: 'sc-card' }, h('div', { className: 'sc-list' },
+                  results.results.map((item, index) => h('div', { key: (item.id ?? 'item') + ':' + index, className: 'sc-cand' },
+                    h('div', { className: 'sc-cand-main' },
+                      h('div', { className: 'sc-cand-name' }, item.name || item.id,
+                        h(Tag, { tone: item.status === 'imported' ? 'success' : item.status === 'failed' ? 'error' : 'warn' }, item.status)),
+                      item.code ? h('div', { className: 'sc-cand-reason' }, reasonLabel(item.code)) : null))))),
               )),
-            ),
+            h('div', { className: 'sc-sticky-foot' },
+              h('button', { type: 'button', className: 'sc-btn sc-btn-primary', onClick: () => { setResults(null); onBack(); } }, runtime.t('actions.openInLibrary')),
+              h('button', { type: 'button', className: 'sc-btn', onClick: () => { setResults(null); loadPlan(); } }, runtime.t('actions.importMore'))),
           )
+          : h(
+            'div',
+            { className: 'sc-form' },
+            h('div', { className: 'sc-card' },
+              h('div', { className: 'sc-import-bar' },
+                h('div', { className: 'sc-import-row' },
+                  h('label', { className: 'sc-field' },
+                    h('div', { className: 'sc-field-head' },
+                      h('span', { className: 'sc-field-label' }, runtime.t('import.destination')),
+                      h(HelpTip, { label: runtime.t('help.importTarget') }, runtime.t('help.destination'))),
+                    h('select', {
+                      className: 'sc-select',
+                      value: target,
+                      onChange: (event) => setTarget(event.target.value),
+                      disabled: applying,
+                    },
+                    h('option', { value: 'user' }, runtime.t('create.scope.user')),
+                    h('option', { value: 'agents' }, runtime.t('create.scope.agents')),
+                    projectSources.length > 0 ? h('option', { value: 'project' }, runtime.t('create.scope.project')) : null)),
+                  target === 'project' && projectSources.length > 0
+                    ? h('label', { className: 'sc-field' },
+                      h('span', { className: 'sc-field-label' }, runtime.t('import.workspace')),
+                      h('select', {
+                        className: 'sc-select',
+                        value: workspace,
+                        onChange: (event) => setWorkspace(event.target.value),
+                        disabled: applying,
+                      }, projectSources.map((source) => h('option', { key: source.key, value: source.path }, source.label || workspacePath(source.path)))))
+                    : null,
+                  h('div', { className: 'sc-field' },
+                    h('div', { className: 'sc-field-head' },
+                      h('span', { className: 'sc-field-label' }, runtime.t('import.mode')),
+                      h(HelpTip, { label: runtime.t('help.importMode') }, runtime.t('help.importMode'))),
+                    h('div', { className: 'sc-seg' },
+                      h('button', {
+                        type: 'button',
+                        className: 'sc-seg-btn',
+                        'aria-pressed': mode === 'copy' ? 'true' : 'false',
+                        onClick: () => setMode('copy'),
+                        disabled: applying,
+                      }, runtime.t('import.mode.copy')),
+                      h('button', {
+                        type: 'button',
+                        className: 'sc-seg-btn',
+                        'aria-pressed': mode === 'symlink' ? 'true' : 'false',
+                        onClick: () => setMode('symlink'),
+                        disabled: applying,
+                      }, runtime.t('import.mode.symlink'))),
+                    h('span', { className: 'sc-field-hint' }, runtime.t(mode === 'copy' ? 'import.mode.copyHint' : 'import.mode.symlinkHint')))),
+                data ? h('div', { className: 'sc-summary' },
+                  h('span', null, h('b', null, String(data.counts.importable)), ' ', plural(runtime, data.counts.importable, 'skills')),
+                  skippedCount > 0 ? h('span', null, skippedCount + ' ' + runtime.t('import.skipped')) : null,
+                  h('span', null, data.targetRoot)) : null,
+              )),
+            applyError ? h(Banner, null, errorText(runtime, { code: applyError })) : null,
+            plan.loading ? h('div', { className: 'sc-note' }, runtime.t('editor.busy')) : null,
+            plan.error ? h(Banner, null, errorText(runtime, { code: plan.error })) : null,
+            h('div', { className: 'sc-toolbar' },
+              h('div', { className: 'sc-search' },
+                h('span', { className: 'sc-search-icon' }, h(Icon, { name: 'search', size: 15 })),
+                h('input', {
+                  className: 'sc-input',
+                  type: 'search',
+                  value: query,
+                  placeholder: runtime.t('import.search'),
+                  'aria-label': runtime.t('import.search'),
+                  onChange: (event) => setQuery(event.target.value),
+                })),
+              h('button', { type: 'button', className: 'sc-btn sc-btn-sm sc-btn-outline', onClick: selectAll, disabled: allImportable.length === 0 }, runtime.t('import.selectAll')),
+              h('button', { type: 'button', className: 'sc-btn sc-btn-sm sc-btn-ghost', onClick: clearAll, disabled: selected.size === 0 }, runtime.t('import.clearAll'))),
+            !plan.loading && !plan.error && filteredGroups.length === 0
+              ? h(EmptyState, { title: runtime.t('import.empty') })
+              : filteredGroups.map((group) => {
+                const importable = group.candidates.filter((candidate) => candidate.skipReason === null);
+                const allSelected = importable.length > 0 && importable.every((candidate) => selected.has(candidate.id));
+                return h(
+                  'section',
+                  { key: group.key, className: 'sc-group' },
+                  h('div', { className: 'sc-group-head', style: { cursor: 'default' } },
+                    h('span', { className: 'sc-group-title' }, sourceLabel(runtime, group)),
+                    h('span', { className: 'sc-group-count' }, group.candidates.length),
+                    h('span', { className: 'sc-group-spacer' }),
+                    h('button', {
+                      type: 'button',
+                      className: 'sc-btn sc-btn-sm sc-btn-ghost',
+                      onClick: () => toggleGroup(group, !allSelected),
+                      disabled: importable.length === 0,
+                    }, allSelected ? runtime.t('import.clearAll') : runtime.t('import.selectAll'))),
+                  h('div', { className: 'sc-card' },
+                    group.candidates.map((candidate) => {
+                      const disabled = candidate.skipReason !== null;
+                      return h('div', { key: candidate.id, className: 'sc-cand', 'data-skipped': disabled ? 'true' : undefined },
+                        h('input', {
+                          type: 'checkbox',
+                          className: 'sc-check',
+                          checked: selected.has(candidate.id),
+                          disabled,
+                          onChange: (event) => toggle(candidate.id, event.target.checked),
+                          'aria-label': candidate.name,
+                        }),
+                        h('div', { className: 'sc-cand-main' },
+                          h('div', { className: 'sc-cand-name' },
+                            candidate.name,
+                            candidate.isSymlinkSource ? h(Tag, null, runtime.t('badge.symlink')) : null,
+                            candidate.diagnostics && candidate.diagnostics.length > 0 ? h(Tag, { tone: 'warn' }, runtime.t('badge.errors')) : null,
+                            disabled ? h(Tag, { tone: 'warn' }, reasonLabel(candidate.skipReason)) : null),
+                          candidate.description ? h('div', { className: 'sc-cand-desc' }, candidate.description) : null,
+                          h('div', { className: 'sc-cand-path' }, candidate.targetPath || candidate.sourcePath)));
+                    })),
+                );
+              }),
+            h('div', { className: 'sc-sticky-foot' },
+              h('button', {
+                type: 'button',
+                className: 'sc-btn sc-btn-primary',
+                disabled: selected.size === 0 || applying,
+                onClick: () => setConfirmOpen(true),
+              }, applying ? runtime.t('editor.busy') : runtime.t('actions.import') + ' (' + selected.size + ')'),
+              h('button', { type: 'button', className: 'sc-btn', onClick: onBack }, runtime.t('actions.cancel')),
+              h('span', { className: 'sc-note' }, selected.size + ' ' + runtime.t('import.footerSelected'))),
+          ),
+        confirmOpen
+          ? h(ConfirmOverlay, {
+            runtime,
+            title: runtime.t('import.confirm'),
+            body: runtime.t('import.footerSelected') + ': ' + selected.size,
+            confirmLabel: runtime.t('import.confirm') + ' (' + selected.size + ')',
+            busy: applying,
+            onConfirm: apply,
+            onCancel: () => setConfirmOpen(false),
+          })
           : null,
-        null,
       );
     }
 
-    function SourcesPanel({ runtime, snapshot, onChanged, onMessage }) {
+    function SourcesView({ runtime, snapshot, onBack, onChanged, notify }) {
       const [busyKey, setBusyKey] = useState(null);
       const [error, setError] = useState(null);
       const sources = (snapshot && Array.isArray(snapshot.sources) ? snapshot.sources : [])
-        .filter((source) => source.readOnly === true && source.exists === true);
+        .filter((source) => source.exists === true);
+      const readOnlySources = sources.filter((source) => source.readOnly === true);
+      const writableSources = sources.filter((source) => source.writable === true);
       const live = snapshot && snapshot.settings && snapshot.settings.liveSources
         ? snapshot.settings.liveSources
         : {};
@@ -2091,65 +2726,195 @@ window.__ModuleLoader__.load({
         setError(null);
         try {
           await requestApi('liveSetSource', { sourceKey: source.key, enabled, confirm: true });
-          if (typeof onChanged === 'function') await onChanged();
-          if (typeof onMessage === 'function') onMessage('toast.updated');
+          notify('toast.updated');
+          await onChanged();
         } catch (caught) {
-          setError(caught && caught.code ? caught.code : 'OPERATION_FAILED');
+          if (caught.code === 'STALE_REVISION') notify('toast.stale');
+          else setError(caught.code || 'OPERATION_FAILED');
         } finally {
           setBusyKey(null);
         }
       };
 
-      return h(
-        'section',
-        { className: 'sc-form' },
-        h('p', { className: 'sc-note', style: { margin: 0 } }, runtime.t('sources.hint')),
-        error
-          ? h('div', { className: 'sc-banner', role: 'alert' }, h('div', { className: 'sc-banner-code' }, errorText(runtime, { code: error })))
-          : null,
-        sources.length === 0
-          ? h('div', { className: 'sc-empty' }, h('div', null, runtime.t('sources.empty')))
-          : h(
-            'div',
-            { className: 'sc-import-group' },
-            sources.map((source) => h(
-              'div',
-              { key: source.key, className: 'sc-candidate' },
-              h(
-                'div',
-                { className: 'sc-candidate-main' },
-                h('span', { className: 'sc-candidate-name' }, sourceLabel(runtime, source)),
-                h('span', { className: 'sc-candidate-path' }, source.path),
-                h('span', { className: 'sc-candidate-desc' }, runtime.t('sources.modelOnly')),
-              ),
-              h(
-                'div',
-                { className: 'sc-row-switch' },
-                h(ToggleSwitch, {
-                  checked: live[source.key] === true,
-                  disabled: busyKey === source.key,
-                  label: runtime.t('sources.live'),
-                  onChange: (next) => toggle(source, next),
-                }),
-              ),
-            )),
+      const readOnlyRows = readOnlySources.map((source) => h(
+        'div',
+        { key: source.key, className: 'sc-row' },
+        h('span', { className: 'sc-row-icon' }, h(Icon, { name: sourceGlyph({ sourceKey: source.key, sourceKind: source.kind }), size: 18 })),
+        h(
+          'span',
+          { className: 'sc-row-text' },
+          h(
+            'span',
+            { className: 'sc-row-name' },
+            h('span', { className: 'sc-row-name-text' }, sourceLabel(runtime, source)),
+            source.live ? h(Tag, { tone: 'info' }, runtime.t('sources.modelOnly')) : null,
           ),
+          h('span', { className: 'sc-row-meta' }, source.path),
+          h('span', { className: 'sc-note' }, runtime.t('sources.hint')),
+        ),
+        h(
+          'span',
+          { className: 'sc-row-end' },
+          h(
+            'span',
+            { className: 'sc-row-end-row' },
+            h(Switch, {
+              checked: live[source.key] === true,
+              disabled: busyKey === source.key,
+              label: runtime.t('sources.live'),
+              onChange: (next) => toggle(source, next),
+            }),
+          ),
+        ),
+      ));
+
+      const writableRows = writableSources.map((source) => h(
+        'div',
+        { key: source.key, className: 'sc-row' },
+        h('span', { className: 'sc-row-icon' }, h(Icon, { name: 'folder', size: 18 })),
+        h(
+          'span',
+          { className: 'sc-row-text' },
+          h('span', { className: 'sc-row-name' }, h('span', { className: 'sc-row-name-text' }, sourceLabel(runtime, source))),
+          h('span', { className: 'sc-row-meta' }, source.path),
+        ),
+        h('span', { className: 'sc-row-end' }, h(Tag, null, runtime.t('badge.writable'))),
+      ));
+
+      return h(
+        'div',
+        { className: 'sc-page' },
+        h('div', { className: 'sc-breadcrumb' },
+          h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back')),
+          h('span', { className: 'sc-breadcrumb-sep' }, '/'),
+          h('span', { className: 'sc-breadcrumb-current' }, runtime.t('sources.title'))),
+        h('header', { className: 'sc-head' },
+          h('div', { className: 'sc-head-row' },
+            h('div', { className: 'sc-head-titles' },
+              h('h1', { className: 'sc-title' }, runtime.t('sources.title')),
+              h('p', { className: 'sc-subtitle' }, runtime.t('sources.intro'))),
+            h('div', { className: 'sc-head-actions' },
+              h(HelpTip, { label: runtime.t('help.live') }, runtime.t('help.live'))))),
+        error ? h(Banner, null, errorText(runtime, { code: error })) : null,
+        readOnlyRows.length === 0
+          ? h(EmptyState, { title: runtime.t('sources.empty') })
+          : h('div', { className: 'sc-card' }, readOnlyRows),
+        h('section', { className: 'sc-group' },
+          h('div', { className: 'sc-group-head', style: { cursor: 'default' } },
+            h('span', { className: 'sc-group-title' }, runtime.t('sources.writableTitle')),
+            h('span', { className: 'sc-group-count' }, writableSources.length)),
+          h('div', { className: 'sc-card' },
+            writableRows.length === 0
+              ? h('div', { style: { padding: '14px' } }, h('span', { className: 'sc-note' }, runtime.t('sources.empty')))
+              : writableRows)),
       );
     }
 
-    function SkillCuratorPage({ runtime }) {
+    function TrashView({ runtime, snapshot, onBack, onChanged, notify }) {
+      const [list, setList] = useState({ loading: true, error: null, items: [] });
+      const [pending, setPending] = useState(null);
+      const [busy, setBusy] = useState(false);
+      const [error, setError] = useState(null);
+
+      const load = useCallback(async () => {
+        setList({ loading: true, error: null, items: [] });
+        try {
+          const value = await requestApi('trashList');
+          setList({ loading: false, error: null, items: Array.isArray(value.items) ? value.items : [] });
+        } catch (caught) {
+          setList({ loading: false, error: caught.code || 'OPERATION_FAILED', items: [] });
+        }
+      }, []);
+
+      useEffect(() => {
+        load();
+      }, [load]);
+
+      const restore = async () => {
+        if (!pending) return;
+        setBusy(true);
+        setError(null);
+        try {
+          const value = await requestApi('restore', { id: pending.id, confirm: true });
+          notify('toast.restored');
+          if (value && typeof value.revision === 'string') onChanged(value.revision);
+          setPending(null);
+          await load();
+        } catch (caught) {
+          if (caught.code === 'STALE_REVISION') notify('toast.stale');
+          else setError(caught.code || 'OPERATION_FAILED');
+        } finally {
+          setBusy(false);
+        }
+      };
+
+      const rows = list.items.map((item) => h(
+        'div',
+        { key: item.id, className: 'sc-row' },
+        h('span', { className: 'sc-row-icon' }, h(Icon, { name: 'trash', size: 18 })),
+        h(
+          'span',
+          { className: 'sc-row-text' },
+          h('span', { className: 'sc-row-name' }, h('span', { className: 'sc-row-name-text' }, item.name || item.id)),
+          h('span', { className: 'sc-row-meta' }, runtime.t('trash.originalPath') + ': ' + (item.originalPath || '')),
+          h('span', { className: 'sc-row-meta' }, runtime.t('trash.deletedAt') + ': ' + formatDate(Date.parse(item.at), runtime.language)),
+        ),
+        h(
+          'span',
+          { className: 'sc-row-end' },
+          h(
+            'span',
+            { className: 'sc-row-end-row' },
+            h('button', { type: 'button', className: 'sc-btn sc-btn-sm sc-btn-outline', onClick: () => setPending(item) }, runtime.t('trash.restore')),
+          ),
+        ),
+      ));
+
+      return h(
+        'div',
+        { className: 'sc-page' },
+        h('div', { className: 'sc-breadcrumb' },
+          h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back')),
+          h('span', { className: 'sc-breadcrumb-sep' }, '/'),
+          h('span', { className: 'sc-breadcrumb-current' }, runtime.t('trash.title'))),
+        h('header', { className: 'sc-head' },
+          h('div', { className: 'sc-head-titles' },
+            h('h1', { className: 'sc-title' }, runtime.t('trash.title')),
+            h('p', { className: 'sc-subtitle' }, runtime.t('trash.intro')))),
+        error ? h(Banner, null, errorText(runtime, { code: error })) : null,
+        list.loading ? h('div', { className: 'sc-note' }, runtime.t('editor.busy')) : null,
+        list.error ? h(Banner, null, errorText(runtime, { code: list.error })) : null,
+        !list.loading && !list.error && rows.length === 0 ? h(EmptyState, { title: runtime.t('trash.empty') }) : null,
+        rows.length > 0 ? h('div', { className: 'sc-card' }, rows) : null,
+        pending
+          ? h(ConfirmOverlay, {
+            runtime,
+            title: runtime.t('trash.confirmRestore'),
+            body: (pending.name || pending.id) + ' → ' + (pending.originalPath || ''),
+            confirmLabel: runtime.t('trash.restore'),
+            busy,
+            onConfirm: restore,
+            onCancel: () => setPending(null),
+          })
+          : null,
+      );
+    }
+
+    function SkillCuratorPage({ runtime, close }) {
       useRuntime(runtime);
       const [snapshot, setSnapshot] = useState(null);
       const [state, setState] = useState({ loading: true, error: null });
-      const [tab, setTab] = useState('library');
-      const [query, setQuery] = useState('');
-      const [collapsed, setCollapsed] = useState({});
-      const [selectedSkill, setSelectedSkill] = useState(null);
-      const [createOpen, setCreateOpen] = useState(false);
-      const [trash, setTrash] = useState({ loading: false, items: [], error: null });
+      const [route, setRoute] = useState({ view: 'library' });
       const [toast, setToast] = useState(null);
-      const [busyId, setBusyId] = useState(null);
-      const [trashBusyId, setTrashBusyId] = useState(null);
+      const [pendingDelete, setPendingDelete] = useState(null);
+      const [deleteBusy, setDeleteBusy] = useState(false);
+
+      const notify = useCallback((value) => {
+        const text = typeof value === 'string' && Object.prototype.hasOwnProperty.call(runtime.language === 'en' ? DICT_EN : DICT_RU, value)
+          ? runtime.t(value)
+          : String(value ?? '');
+        setToast({ id: Date.now(), text });
+      }, [runtime]);
 
       useEffect(() => {
         if (!toast) return undefined;
@@ -2157,13 +2922,8 @@ window.__ModuleLoader__.load({
         return () => clearTimeout(timer);
       }, [toast]);
 
-      const notify = useCallback((key) => {
-        const message = runtime.t(key);
-        setToast({ id: Date.now(), message: message === key ? key : message });
-      }, [runtime]);
-
-      const loadSnapshot = useCallback(async (force) => {
-        setState((current) => ({ ...current, loading: true, error: null }));
+      const load = useCallback(async (force) => {
+        setState((current) => ({ ...current, loading: current.snapshot === null, error: null }));
         try {
           const value = await requestApi('snapshot', force === true ? { force: true } : undefined);
           setSnapshot(value);
@@ -2174,42 +2934,27 @@ window.__ModuleLoader__.load({
       }, []);
 
       useEffect(() => {
-        loadSnapshot(true);
-      }, [loadSnapshot]);
+        load(true);
+      }, [load]);
 
       const refresh = useCallback(async () => {
         try {
           const value = await requestApi('snapshot', { force: true });
           setSnapshot(value);
           return value;
-        } catch {
+        } catch (error) {
+          if (error.code === 'STALE_REVISION') notify('toast.stale');
           return null;
         }
-      }, []);
+      }, [notify]);
 
-      const loadTrash = useCallback(async () => {
-        setTrash((current) => ({ ...current, loading: true, error: null }));
-        try {
-          const value = await requestApi('trashList');
-          setTrash({ loading: false, items: Array.isArray(value.items) ? value.items : [], error: null });
-        } catch (error) {
-          setTrash({ loading: false, items: [], error: error.code || 'OPERATION_FAILED' });
-        }
-      }, []);
+      const revision = snapshot ? snapshot.revision : '';
 
-      useEffect(() => {
-        if (tab === 'trash') loadTrash();
-      }, [tab, loadTrash]);
-
-      const capabilities = snapshot ? snapshot.capabilities : null;
-
-      const onToggleSkill = useCallback(async (skill, enabled) => {
-        if (!snapshot) return;
-        setBusyId(skill.id);
+      const toggleSkill = useCallback(async (skill, enabled) => {
         try {
           await requestApi('toggle', {
             id: skill.id,
-            revision: snapshot.revision,
+            revision,
             confirm: true,
             modelInvocable: enabled,
             userInvocable: enabled,
@@ -2221,241 +2966,145 @@ window.__ModuleLoader__.load({
             await refresh();
             notify('toast.stale');
           } else {
-            setToast({ id: Date.now(), message: errorText(runtime, error) });
+            notify(errorText(runtime, error));
           }
-        } finally {
-          setBusyId(null);
         }
-      }, [snapshot, refresh, notify, runtime]);
+      }, [revision, refresh, notify, runtime]);
 
-      const onRestore = useCallback(async (item) => {
-        setTrashBusyId(item.id);
+      const askDelete = useCallback((skill) => setPendingDelete(skill), []);
+
+      const confirmDelete = async () => {
+        if (!pendingDelete) return;
+        setDeleteBusy(true);
         try {
-          await requestApi('restore', { id: item.id, confirm: true });
+          await requestApi('remove', { id: pendingDelete.id, revision, confirm: true });
+          notify('toast.trashed');
+          setPendingDelete(null);
           await refresh();
-          await loadTrash();
-          notify('toast.restored');
         } catch (error) {
-          setToast({ id: Date.now(), message: errorText(runtime, error) });
+          if (error.code === 'STALE_REVISION') notify('toast.stale');
+          else notify(errorText(runtime, error));
+          setPendingDelete(null);
         } finally {
-          setTrashBusyId(null);
+          setDeleteBusy(false);
         }
-      }, [refresh, loadTrash, notify, runtime]);
+      };
 
-      const filtered = useMemo(() => {
-        const skills = snapshot && Array.isArray(snapshot.skills) ? snapshot.skills : [];
-        const text = query.trim().toLowerCase();
-        if (text === '') return skills;
-        return skills.filter((skill) => (
-          String(skill.name || '').toLowerCase().includes(text)
-          || String(skill.description || '').toLowerCase().includes(text)
-          || String(skill.path || '').toLowerCase().includes(text)
-        ));
-      }, [snapshot, query]);
-
-      const groups = useMemo(() => {
-        if (!snapshot || !Array.isArray(snapshot.sources)) return [];
-        const bySource = new Map();
-        for (const source of snapshot.sources) bySource.set(source.key, []);
-        for (const skill of filtered) {
-          if (!bySource.has(skill.sourceKey)) bySource.set(skill.sourceKey, []);
-          bySource.get(skill.sourceKey).push(skill);
+      const openSkill = useCallback(async (skill, options) => {
+        if (options && options.copyPath) {
+          const ok = await runtime.copyText(skill.path);
+          notify(ok ? 'toast.copied' : 'toast.copyFailed');
+          return;
         }
-        return snapshot.sources
-          .filter((source) => (bySource.get(source.key) || []).length > 0)
-          .map((source) => ({ source, skills: bySource.get(source.key) || [] }));
-      }, [snapshot, filtered]);
+        setRoute({ view: 'detail', skillId: skill.id, initialEdit: Boolean(options && options.edit) });
+      }, [runtime, notify]);
 
-      const summary = snapshot && snapshot.summary ? snapshot.summary : null;
-      const showEmpty = !state.loading && !state.error && tab === 'library' && groups.length === 0;
-      const errorBanner = state.error
-        ? h(
-          'div',
-          { className: 'sc-banner', role: 'alert' },
-          h('div', { className: 'sc-banner-title' }, runtime.t('page.error.title')),
-          h('div', { className: 'sc-banner-code' }, runtime.t('page.error.code') + ': ' + state.error),
-          (state.error === 'UNAUTHENTICATED' || state.error === 'FORBIDDEN')
-            ? h('div', { className: 'sc-note', style: { marginTop: '4px' } }, runtime.t('page.error.unauthorized'))
-            : state.error === 'NETWORK'
-              ? h('div', { className: 'sc-note', style: { marginTop: '4px' } }, runtime.t('page.error.network'))
-              : null,
-          h('div', { style: { marginTop: '10px' } }, h('button', { type: 'button', className: 'sc-button', onClick: () => loadSnapshot(true) }, runtime.t('page.refresh'))),
-        )
-        : null;
-
-      const summaryBar = summary
-        ? h(
-          'div',
-          { className: 'sc-summary' },
-          h('span', null, h('strong', null, String(summary.skills)), ' ', runtime.t('summary.skills')),
-          h('span', null, h('strong', null, String(summary.sources)), ' ', runtime.t('summary.sources')),
-          summary.errors > 0
-            ? h('span', { className: 'sc-bad' }, h('strong', { className: 'sc-bad' }, String(summary.errors)), ' ', runtime.t('summary.errors'))
-            : null,
-          summary.warnings > 0
-            ? h('span', { className: 'sc-warn' }, h('strong', { className: 'sc-warn' }, String(summary.warnings)), ' ', runtime.t('summary.warnings'))
-            : null,
-          snapshot && snapshot.complete === false ? h('span', { className: 'sc-warn' }, runtime.t('summary.incomplete')) : null,
-        )
-        : null;
-
-      return h(
-        'div',
-        { className: 'sc-page' },
-        h(
-          'header',
-          { className: 'sc-header' },
-          h(
-            'div',
-            { className: 'sc-title-row' },
-            h(
-              'div',
-              null,
-              h('h1', { className: 'sc-title' }, runtime.t('page.title')),
-              h('p', { className: 'sc-subtitle' }, runtime.t('page.subtitle')),
-            ),
-            h(
-              'div',
-              { className: 'sc-header-actions' },
-              capabilities && capabilities.create && tab === 'library'
-                ? h('button', { type: 'button', className: 'sc-button sc-button-primary', onClick: () => setCreateOpen(true) }, runtime.t('actions.create'))
-                : null,
-              h('button', { type: 'button', className: 'sc-button', onClick: () => loadSnapshot(true), disabled: state.loading }, runtime.t('page.refresh')),
-            ),
-          ),
-          h(
-            'div',
-            { className: 'sc-toolbar' },
-            h(
-              'div',
-              { className: 'sc-toolbar-tabs', role: 'tablist' },
-              h('button', {
-                type: 'button',
-                role: 'tab',
-                className: 'sc-tab',
-                'aria-selected': tab === 'library' ? 'true' : 'false',
-                onClick: () => setTab('library'),
-              }, runtime.t('tabs.library')),
-              capabilities && capabilities.import
-                ? h('button', {
-                  type: 'button',
-                  role: 'tab',
-                  className: 'sc-tab',
-                  'aria-selected': tab === 'import' ? 'true' : 'false',
-                  onClick: () => setTab('import'),
-                }, runtime.t('tabs.import'))
-                : null,
-              capabilities && capabilities.liveSources
-                ? h('button', {
-                  type: 'button',
-                  role: 'tab',
-                  className: 'sc-tab',
-                  'aria-selected': tab === 'sources' ? 'true' : 'false',
-                  onClick: () => setTab('sources'),
-                }, runtime.t('tabs.sources'))
-                : null,
-              capabilities && capabilities.trash
-                ? h('button', {
-                  type: 'button',
-                  role: 'tab',
-                  className: 'sc-tab',
-                  'aria-selected': tab === 'trash' ? 'true' : 'false',
-                  onClick: () => setTab('trash'),
-                }, runtime.t('tabs.trash') + (trash.items.length > 0 ? ' (' + trash.items.length + ')' : ''))
-                : null,
-            ),
-            tab === 'library'
-              ? h('input', {
-                className: 'sc-search',
-                type: 'search',
-                placeholder: runtime.t('page.search'),
-                value: query,
-                onChange: (event) => setQuery(event.target.value),
-                'aria-label': runtime.t('page.search'),
-              })
-              : null,
-            tab === 'library' ? summaryBar : null,
-          ),
-        ),
-        errorBanner,
-        state.loading && tab === 'library' ? h('div', { className: 'sc-loading' }, runtime.t('page.loading')) : null,
-        showEmpty
-          ? h(
-            'div',
-            { className: 'sc-empty' },
-            h('div', { className: 'sc-empty-title' }, runtime.t('page.empty.title')),
-            h('div', null, runtime.t('page.empty.body')),
-          )
-          : null,
-        tab === 'library'
-          ? groups.map((group) => h(SourceGroup, {
-            key: group.source.key,
+      const renderView = () => {
+        if (route.view === 'detail') {
+          return h(SkillDetailView, {
             runtime,
-            source: group.source,
-            skills: group.skills,
-            collapsed: collapsed[group.source.key] === true,
-            onToggleGroup: () => setCollapsed((current) => ({ ...current, [group.source.key]: !current[group.source.key] })),
-            onOpen: (skill) => setSelectedSkill(skill),
-            capabilities,
-            onToggleSkill,
-            busyId,
-          }))
-          : tab === 'import'
-            ? h(ImportPanel, {
-              runtime,
-              snapshot,
-              capabilities,
-              onChanged: (revision) => {
-                if (typeof revision === 'string') setSnapshot((current) => (current !== null ? { ...current, revision } : current));
-                refresh();
-              },
-              onMessage: notify,
-            })
-            : tab === 'sources'
-              ? h(SourcesPanel, {
-                runtime,
-                snapshot,
-                onChanged: async () => {
-                  await refresh();
-                },
-                onMessage: notify,
-              })
-              : h(TrashPanel, {
-              runtime,
-              items: trash.items,
-              loading: trash.loading,
-              error: trash.error,
-              busyId: trashBusyId,
-              onRestore,
-            }),
-        selectedSkill !== null
-          ? h(SkillDetail, {
-            runtime,
-            skillId: selectedSkill.id,
-            source: (snapshot?.sources || []).find((item) => item.key === selectedSkill.sourceKey) ?? null,
-            revision: snapshot ? snapshot.revision : '',
-            capabilities,
-            onClose: () => setSelectedSkill(null),
-            onChanged: (revision) => {
-              if (typeof revision === 'string') setSnapshot((current) => (current !== null ? { ...current, revision } : current));
-              refresh();
+            skillId: route.skillId,
+            initialEdit: route.initialEdit === true,
+            revision,
+            onBack: () => setRoute({ view: 'library' }),
+            onChanged: async () => {
+              await refresh();
             },
-            onMessage: notify,
-          })
-          : null,
-        createOpen && snapshot
-          ? h(CreateSkillModal, {
+            notify,
+          });
+        }
+        if (route.view === 'create') {
+          return h(CreateSkillView, {
             runtime,
             snapshot,
-            onClose: () => setCreateOpen(false),
-            onChanged: (revision) => {
-              if (typeof revision === 'string') setSnapshot((current) => (current !== null ? { ...current, revision } : current));
-              refresh();
+            onBack: () => setRoute({ view: 'library' }),
+            onDone: async () => {
+              await refresh();
+              setRoute({ view: 'library' });
             },
-            onMessage: notify,
+            notify,
+            closeSettings: close,
+          });
+        }
+        if (route.view === 'import') {
+          return h(ImportView, {
+            runtime,
+            snapshot,
+            onBack: () => setRoute({ view: 'library' }),
+            onDone: async () => {
+              await refresh();
+            },
+            notify,
+          });
+        }
+        if (route.view === 'sources') {
+          return h(SourcesView, {
+            runtime,
+            snapshot,
+            onBack: () => setRoute({ view: 'library' }),
+            onChanged: async () => {
+              await refresh();
+            },
+            notify,
+          });
+        }
+        if (route.view === 'trash') {
+          return h(TrashView, {
+            runtime,
+            snapshot,
+            onBack: () => setRoute({ view: 'library' }),
+            onChanged: async () => {
+              await refresh();
+            },
+            notify,
+          });
+        }
+        return null;
+      };
+
+      return h(
+        React.Fragment,
+        null,
+        state.loading
+          ? h('div', { className: 'sc-page' },
+            h('h1', { className: 'sc-title' }, runtime.t('page.title')),
+            h('div', { className: 'sc-note' }, runtime.t('editor.busy')))
+          : state.error
+            ? h('div', { className: 'sc-page' },
+              h('h1', { className: 'sc-title' }, runtime.t('page.title')),
+              h(Banner, {
+                actions: [h('button', { key: 'retry', type: 'button', className: 'sc-btn sc-btn-outline', onClick: () => load(true) }, runtime.t('page.error.retry'))],
+              }, runtime.t('page.error.title') + ' — ' + (errorText(runtime, { code: state.error }))))
+            : route.view === 'library'
+              ? h(LibraryView, {
+                runtime,
+                snapshot,
+                onRefresh: async () => {
+                  await refresh();
+                },
+                onCreate: () => setRoute({ view: 'create' }),
+                onImport: () => setRoute({ view: 'import' }),
+                onOpenSkill: openSkill,
+                onToggle: toggleSkill,
+                onDelete: askDelete,
+                onOpenSources: () => setRoute({ view: 'sources' }),
+                onOpenTrash: () => setRoute({ view: 'trash' }),
+                notify,
+              })
+              : renderView(),
+        toast ? h(Toast, { text: toast.text }) : null,
+        pendingDelete
+          ? h(ConfirmOverlay, {
+            runtime,
+            title: runtime.t('actions.delete') + ' «' + pendingDelete.name + '»?',
+            body: runtime.t('detail.deleteHint'),
+            confirmLabel: runtime.t('actions.confirmDelete'),
+            tone: 'danger',
+            busy: deleteBusy,
+            onConfirm: confirmDelete,
+            onCancel: () => setPendingDelete(null),
           })
           : null,
-        toast ? h('div', { className: 'sc-toast', role: 'status' }, toast.message) : null,
       );
     }
 
@@ -2463,14 +3112,10 @@ window.__ModuleLoader__.load({
       return h(
         'svg',
         { viewBox: '0 0 24 24', width: 16, height: 16, fill: 'none', 'aria-hidden': 'true' },
-        h('path', {
-          d: 'M5 4.5h9.5A2.5 2.5 0 0 1 17 7v12.5H7.5A2.5 2.5 0 0 1 5 17V4.5Z',
-          stroke: 'currentColor',
-          strokeWidth: 1.6,
-          strokeLinejoin: 'round',
-        }),
-        h('path', { d: 'M5 17a2.5 2.5 0 0 1 2.5-2.5H17', stroke: 'currentColor', strokeWidth: 1.6 }),
-        h('path', { d: 'M8.5 8h5M8.5 11h5', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' }),
+        h('path', { d: 'M6 4h9a2 2 0 0 1 2 2v14H8a2 2 0 0 1-2-2V4Z', stroke: 'currentColor', strokeWidth: 1.6, strokeLinejoin: 'round' }),
+        h('path', { d: 'M6 17a2 2 0 0 1 2-2h9', stroke: 'currentColor', strokeWidth: 1.6 }),
+        h('path', { d: 'M9 8h5M9 11h5', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' }),
+        h('path', { d: 'm17.5 2 .6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6.6-1.4Z', fill: 'currentColor' }),
       );
     }
 

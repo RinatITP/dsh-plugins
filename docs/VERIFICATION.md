@@ -231,6 +231,40 @@ page and the Import tab were visually observed this way; the remaining tabs,
 editing, sources/live toggles, trash and the create/AI dialogs still need the
 owner's run-through.
 
+### UX redesign, embedded creator skill and AI chat handoff (2026-11-06, later)
+
+The owner reported that the first UI felt overcrowded, that import required
+scrolling to a bottom action, that creation had no guidance, and that the AI
+path was only a copyable prompt. The client was redesigned against a UX audit
+(`research` notes, repo-external) with a library-first information architecture:
+
+- one main surface (Library); Import/Create/Sources/Trash are in-page views with
+  a back breadcrumb, not peer tabs;
+- Import has a sticky footer with the primary action, search and select-all;
+- Create has manual guidance (rules, hints, counters, templates) and an AI
+  handoff that starts a real DSH chat with the plugin's embedded
+  `skill-curator-creator` skill and the description in the composer;
+- the page follows the `dsh-mcp-guard` typography, card, accent, pill-tab,
+  switch and `?` help-popover language;
+- the detail is a page with a facts card, “how the model sees it”, editable
+  `SKILL.md` and files, and a sticky save bar.
+
+Host additions verified statically and in unit tests: the runtime registration of
+`skill-curator-creator` (rank 250, source `plugin:skill-curator`) and the prompt
+builder (slash token, description, `skill_curator_create`, interview fallback).
+During the live session the embedded skill appeared in the agent skill catalog
+(`skill-curator-creator`) after the plugin was reloaded, which confirms the
+registry registration works end to end. Client-side coverage: 80 tests (including
+the new creator suite and host static inject test), validator 109 checks, CI
+unchanged.
+
+**Still unverified:** the redesigned rendered page has not been visually accepted
+yet. The client bundle injected `@deepseek-ai/dsh-client-ui-workspace`; the AI
+handoff was not exercised end to end from the page (does the chat open and does
+the composer accept the prompt), and the sticky footer, help popovers and the
+narrow settings width (~575 px) were not inspected after the redesign. A DSH
+restart (and a short visual run-through) is required for this pass.
+
 ### Not verified for dsh-skill-curator
 
 - **Rendered UI.** The working environment has no browser control and the app

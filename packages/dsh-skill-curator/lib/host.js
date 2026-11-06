@@ -11,6 +11,7 @@
  */
 import { createCatalog } from './catalog.js';
 import { createHandler, ROUTE } from './http.js';
+import { creatorSkillDefinition } from './creator.js';
 import { installLiveProvider } from './live.js';
 import { readSettings } from './settings.js';
 import { skillCuratorHome } from './state.js';
@@ -89,6 +90,11 @@ export async function apply(ctx) {
   const live = installLiveProvider(ctx, { getSettings: settingsLoader, loadCatalog: liveCatalog });
   liveRef.invalidate = live.invalidate;
   ctx.effect(() => live.dispose, 'dsh-skill-curator: live skill provider');
+
+  ctx.effect(
+    () => ctx.skills.register(creatorSkillDefinition()),
+    'dsh-skill-curator: embedded creator skill',
+  );
 
   const tools = typeof ctx.get === 'function' ? ctx.get('tools') : undefined;
   if (readConfig().creatorTool !== false && tools && typeof tools.register === 'function') {
