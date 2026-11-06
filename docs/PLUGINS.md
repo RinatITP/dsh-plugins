@@ -56,7 +56,7 @@ or install the same directory through DSH's Plugin Manager. See
 |---|---|
 | Package | `dsh-skill-curator` |
 | Directory | [`packages/dsh-skill-curator`](../packages/dsh-skill-curator/) |
-| Version | 0.1.0 (development preview, stage 3: catalog + editing + import) |
+| Version | 0.1.0 (development preview, stage 4: catalog + editing + import + creator + live sources) |
 | License | MIT |
 | DSH target | 0.2.2-rc.1 (`engines.dsh: ">=0.2.2-rc.1 <0.3.0-0"`) |
 | Node | ≥ 22.19.0 |
@@ -65,7 +65,7 @@ or install the same directory through DSH's Plugin Manager. See
 | Client injection | `settings.section` page "Skill Curator" / «Навыки» (id `skill-curator`, order 23) |
 | Docs | [package README](../packages/dsh-skill-curator/README.md) |
 
-**What it does (stage 3).** Adds a skill studio to the DSH settings UI: the union
+**What it does (stage 4).** Adds a skill studio to the DSH settings UI: the union
 of DSH user and shared roots, optional project roots, bundled `office-skills`, and
 read-only external agent roots (Claude Code, Codex including `.system`, Hermes
 nested categories, ZCode, Cursor, Gemini/Antigravity, Kimi, OpenCode, custom
@@ -79,10 +79,16 @@ create new skills in the user, shared or project root, and move skills into a
 restorable trash with backups. The Import tab plans a transfer from other agents
 into a writable DSH root, supports an independent `copy` or a live `symlink`,
 skips existing targets and invalid names, never overwrites, and reports every
-selected item as imported, skipped or failed.
+selected item as imported, skipped or failed. The Create dialog offers a manual
+wizard with a section template and an AI path: a ready prompt for a DSH agent
+whose `skill_curator_create` tool creates the skill only after a human
+confirmation. The Sources tab can expose read-only external sources **live** in
+the DSH catalog (opt-in, model-only, no copying) through a rank-350 provider that
+re-reads the external file on every load.
 
-**Not implemented yet.** The AI Skill Creator, live sources, the overlay provider
-for toggling read-only external skills, and the optional sidebar entry.
+**Not implemented yet.** The overlay provider for toggling read-only external
+skills, the optional sidebar entry, marketplaces and direct in-plugin LLM
+generation.
 
 **Security posture.** One exact route `/api/dsh-skill-curator` with the
 `x-dsh-skill-curator: 1` intent header and signed-peer admission; JSON-only
@@ -94,8 +100,11 @@ and paths outside a writable skill bundle. Deletions move the whole skill into
 bodies. Import targets must be writable, sources are re-resolved from the scanned
 catalog, symlinks point only at discovered source directories, existing target
 names are skipped (never overwritten) and the target path is re-checked before
-creation. Reads stay traversal-safe and bounded (2000 skills, 512 KiB per
-`SKILL.md`, 1 MiB per preview).
+creation. Live sources are read-only and model-only: the provider re-reads the
+external `SKILL.md` on every load and cannot write. The agent-facing
+`skill_curator_create` tool is confirmation-gated through `tools/pre-execute`.
+Reads stay traversal-safe and bounded (2000 skills, 512 KiB per `SKILL.md`, 1 MiB
+per preview).
 
 **Status and verification.** Development preview. Unit tests cover the frontmatter
 reader and editor, diagnostics, root resolution, discovery across synthetic
@@ -104,7 +113,8 @@ shadowing), the HTTP envelope and the static client contract, plus a full mutati
 cycle against an isolated home (create → save with backup → toggle → resource
 write → trash → restore, and read-only/symlink/flat/project/stale-revision
 refusals), plus import planning and execution in copy and symlink modes, flat
-files, project destination and skip/collision guards. The repository validator and CI cover both packages. On 2026-11-06 the
+files, project destination and skip/collision guards; live tests cover the
+settings store, provider filtering and body loading. The repository validator and CI cover both packages. On 2026-11-06 the
 package was installed as a linked bundle into a DSH Desktop `0.2.2-rc.1` `desktop`
 profile: the Host row is active and the route returned `403 FORBIDDEN` without the
 intent header and `401 UNAUTHENTICATED` without signed-peer admission. The

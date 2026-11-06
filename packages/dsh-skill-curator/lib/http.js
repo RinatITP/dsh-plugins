@@ -81,6 +81,8 @@ export function createHandler({ manager, admit, log = () => {} }) {
     restore: (body) => manager.restoreTrash(body),
     importScan: (body) => manager.importScan(body),
     importApply: (body) => manager.importApply(body),
+    liveSettings: (body) => manager.liveSettings(body),
+    liveSetSource: (body) => manager.setLiveSource(body),
   };
 
   return async function handler(req, res) {

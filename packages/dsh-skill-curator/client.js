@@ -102,6 +102,21 @@ window.__ModuleLoader__.load({
       'status.projectLocked': 'project, read-only in this stage',
       'tabs.library': 'Library',
       'tabs.trash': 'Trash',
+      'tabs.sources': 'Sources',
+      'sources.hint': 'Expose read-only external skills in the DSH catalog without copying them. The model can load them directly; the source agent keeps owning the files.',
+      'sources.live': 'Live in DSH',
+      'sources.empty': 'No readable read-only sources found on this computer.',
+      'sources.modelOnly': 'Model only, not in the slash menu.',
+      'sources.external': 'External source',
+      'create.mode.manual': 'Manual',
+      'create.mode.ai': 'With AI',
+      'create.aiHint': 'Describe the skill in your own words. Copy the ready prompt into a DSH chat: the agent creates the skill with the skill_curator_create tool and it appears here after a refresh.',
+      'create.aiDescription': 'What should the skill do, and when should it be used?',
+      'create.aiPromptTitle': 'Prompt for the agent',
+      'create.copyPrompt': 'Copy prompt',
+      'create.copied': 'Copied',
+      'create.template': 'Insert template',
+      'create.useInForm': 'Use in manual form',
       'tabs.import': 'Import',
       'import.hint': 'Copy or link skills from other agents into a DSH root. Nothing is overwritten: existing targets and invalid names are skipped before import.',
       'import.target': 'Destination',
@@ -269,6 +284,21 @@ window.__ModuleLoader__.load({
       'status.projectLocked': 'проектный, на этом этапе только чтение',
       'tabs.library': 'Библиотека',
       'tabs.trash': 'Корзина',
+      'tabs.sources': 'Источники',
+      'sources.hint': 'Показывать внешние навыки только для чтения в каталоге DSH без копирования. Модель сможет загружать их напрямую; файлами по-прежнему владеет исходный агент.',
+      'sources.live': 'Показывать в DSH',
+      'sources.empty': 'Читаемых read-only источников на этом компьютере не найдено.',
+      'sources.modelOnly': 'Только модель, в меню / не попадает.',
+      'sources.external': 'Внешний источник',
+      'create.mode.manual': 'Вручную',
+      'create.mode.ai': 'С помощью ИИ',
+      'create.aiHint': 'Опишите навык своими словами. Скопируйте готовый промпт в чат DSH: агент создаст навык инструментом skill_curator_create, и он появится здесь после обновления.',
+      'create.aiDescription': 'Что должен делать навык и когда его использовать?',
+      'create.aiPromptTitle': 'Промпт для агента',
+      'create.copyPrompt': 'Скопировать промпт',
+      'create.copied': 'Скопировано',
+      'create.template': 'Вставить каркас',
+      'create.useInForm': 'Перенести в ручную форму',
       'tabs.import': 'Импорт',
       'import.hint': 'Скопируйте или свяжите навыки других агентов в корень DSH. Ничего не перезаписывается: существующие цели и недопустимые имена отсеиваются до импорта.',
       'import.target': 'Куда импортировать',
@@ -1451,16 +1481,110 @@ window.__ModuleLoader__.load({
       );
     }
 
+    function createPromptText(runtime, text) {
+      const task = String(text || '').trim();
+      if (runtime.language === 'en') {
+        return [
+          'Create a DeepSeek Harness skill from the description below.',
+          '',
+          'Requirements:',
+          '- name: lowercase kebab-case, 1-64 characters, identical to the directory name;',
+          '- description: what the skill does AND when to use it (routing triggers);',
+          '- body: concise instructions with the sections "When to Use", "Procedure", "Pitfalls", "Verification";',
+          '- keep SKILL.md short; put reference material, scripts or assets into references/, scripts/ or assets/ as separate files;',
+          '- write the result with the skill_curator_create tool; do not invent commands.',
+          '',
+          'Description: ' + (task || '…'),
+        ].join('\n');
+      }
+      return [
+        'Создай навык для DeepSeek Harness по описанию ниже.',
+        '',
+        'Требования:',
+        '- имя: kebab-case, 1–64 символа, совпадает с именем папки;',
+        '- description: что делает навык И когда его использовать (триггерные фразы);',
+        '- тело: короткие инструкции с разделами «Когда использовать», «Порядок действий», «Типичные ошибки», «Проверка»;',
+        '- SKILL.md держи коротким; справочники, скрипты и ассеты — отдельными файлами в references/, scripts/ или assets/;',
+        '- запиши результат инструментом skill_curator_create; не выдумывай команды.',
+        '',
+        'Описание: ' + (task || '…'),
+      ].join('\n');
+    }
+
+    function skillBodyTemplate(runtime) {
+      if (runtime.language === 'en') {
+        return [
+          '# When to Use',
+          '',
+          'Describe the situations and user phrases that should trigger this skill.',
+          '',
+          '## Procedure',
+          '',
+          '1. First step.',
+          '2. Second step.',
+          '',
+          '## Pitfalls',
+          '',
+          '- What to avoid.',
+          '',
+          '## Verification',
+          '',
+          '- How to check the result.',
+        ].join('\n');
+      }
+      return [
+        '# Когда использовать',
+        '',
+        'Опишите ситуации и фразы пользователя, при которых нужен этот навык.',
+        '',
+        '## Порядок действий',
+        '',
+        '1. Первый шаг.',
+        '2. Второй шаг.',
+        '',
+        '## Типичные ошибки',
+        '',
+        '- Чего избегать.',
+        '',
+        '## Проверка',
+        '',
+        '- Как проверить результат.',
+      ].join('\n');
+    }
+
     function CreateSkillModal({ runtime, snapshot, onClose, onChanged, onMessage }) {
       const projectSources = (snapshot && Array.isArray(snapshot.sources) ? snapshot.sources : [])
         .filter((source) => source.kind === 'project');
-      const [form, setForm] = useState({ name: '', description: '', body: '', scope: 'user', workspace: projectSources[0] ? projectSources[0].path : '' });
+      const [mode, setMode] = useState('manual');
+      const [form, setForm] = useState({
+        name: '',
+        description: '',
+        body: '',
+        scope: 'user',
+        workspace: projectSources[0] ? projectSources[0].path : '',
+      });
+      const [aiText, setAiText] = useState('');
+      const [copied, setCopied] = useState(false);
       const [state, setState] = useState({ busy: false, error: null });
 
       const workspacePath = (sourcePath) => {
         const marker = '/.dsh/skills';
         const index = String(sourcePath).indexOf(marker);
         return index >= 0 ? String(sourcePath).slice(0, index) : String(sourcePath);
+      };
+
+      const prompt = createPromptText(runtime, aiText);
+
+      const copyPrompt = async () => {
+        try {
+          if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(prompt);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2500);
+          }
+        } catch {
+          setCopied(false);
+        }
       };
 
       const submit = async () => {
@@ -1496,75 +1620,136 @@ window.__ModuleLoader__.load({
         },
         h(
           'div',
-          { className: 'sc-modal', style: { maxWidth: '720px' } },
-          h('div', { className: 'sc-modal-head' }, h('h2', { className: 'sc-modal-title' }, runtime.t('create.title'))),
+          { className: 'sc-modal', style: { maxWidth: '760px' } },
+          h(
+            'div',
+            { className: 'sc-modal-head' },
+            h('h2', { className: 'sc-modal-title' }, runtime.t('create.title')),
+            h(
+              'div',
+              { className: 'sc-toolbar-tabs', role: 'tablist' },
+              h('button', {
+                type: 'button',
+                role: 'tab',
+                className: 'sc-tab',
+                'aria-selected': mode === 'manual' ? 'true' : 'false',
+                onClick: () => setMode('manual'),
+              }, runtime.t('create.mode.manual')),
+              h('button', {
+                type: 'button',
+                role: 'tab',
+                className: 'sc-tab',
+                'aria-selected': mode === 'ai' ? 'true' : 'false',
+                onClick: () => setMode('ai'),
+              }, runtime.t('create.mode.ai')),
+            ),
+          ),
           h(
             'div',
             { className: 'sc-modal-body' },
-            h('p', { className: 'sc-note', style: { marginTop: 0 } }, runtime.t('create.hint')),
             state.error
               ? h('div', { className: 'sc-banner' }, h('div', { className: 'sc-banner-code' }, errorText(runtime, { code: state.error })))
               : null,
-            h(
-              'div',
-              { className: 'sc-form' },
-              h('div', { className: 'sc-form-row' },
+            mode === 'manual'
+              ? h(
+                'div',
+                { className: 'sc-form' },
+                h('p', { className: 'sc-note', style: { marginTop: 0 } }, runtime.t('create.hint')),
+                h('div', { className: 'sc-form-row' },
+                  h('label', { className: 'sc-field' },
+                    h('span', { className: 'sc-field-label' }, runtime.t('create.name')),
+                    h('input', {
+                      className: 'sc-input',
+                      value: form.name,
+                      onChange: (event) => setForm({ ...form, name: event.target.value }),
+                      placeholder: 'my-skill',
+                    })),
+                  h('label', { className: 'sc-field' },
+                    h('span', { className: 'sc-field-label' }, runtime.t('create.scope')),
+                    h('select', {
+                      className: 'sc-select',
+                      value: form.scope,
+                      onChange: (event) => setForm({ ...form, scope: event.target.value }),
+                    },
+                    h('option', { value: 'user' }, runtime.t('create.scope.user')),
+                    h('option', { value: 'agents' }, runtime.t('create.scope.agents')),
+                    projectSources.length > 0 ? h('option', { value: 'project' }, runtime.t('create.scope.project')) : null)),
+                ),
+                form.scope === 'project' && projectSources.length > 0
+                  ? h('label', { className: 'sc-field' },
+                    h('span', { className: 'sc-field-label' }, runtime.t('create.workspace')),
+                    h('select', {
+                      className: 'sc-select',
+                      value: form.workspace,
+                      onChange: (event) => setForm({ ...form, workspace: event.target.value }),
+                    },
+                    projectSources.map((source) => h('option', { key: source.key, value: source.path }, source.label || workspacePath(source.path)))))
+                  : null,
                 h('label', { className: 'sc-field' },
-                  h('span', { className: 'sc-field-label' }, runtime.t('create.name')),
-                  h('input', {
-                    className: 'sc-input',
-                    value: form.name,
-                    onChange: (event) => setForm({ ...form, name: event.target.value }),
-                    placeholder: 'my-skill',
+                  h('span', { className: 'sc-field-label' }, runtime.t('create.description')),
+                  h('textarea', {
+                    className: 'sc-textarea',
+                    style: { minHeight: '70px' },
+                    value: form.description,
+                    onChange: (event) => setForm({ ...form, description: event.target.value }),
                   })),
                 h('label', { className: 'sc-field' },
-                  h('span', { className: 'sc-field-label' }, runtime.t('create.scope')),
-                  h('select', {
-                    className: 'sc-select',
-                    value: form.scope,
-                    onChange: (event) => setForm({ ...form, scope: event.target.value }),
-                  },
-                  h('option', { value: 'user' }, runtime.t('create.scope.user')),
-                  h('option', { value: 'agents' }, runtime.t('create.scope.agents')),
-                  projectSources.length > 0 ? h('option', { value: 'project' }, runtime.t('create.scope.project')) : null)),
-              ),
-              form.scope === 'project' && projectSources.length > 0
-                ? h('label', { className: 'sc-field' },
-                  h('span', { className: 'sc-field-label' }, runtime.t('create.workspace')),
-                  h('select', {
-                    className: 'sc-select',
-                    value: form.workspace,
-                    onChange: (event) => setForm({ ...form, workspace: event.target.value }),
-                  },
-                  projectSources.map((source) => h('option', { key: source.key, value: source.path }, source.label || workspacePath(source.path)))))
-                : null,
-              h('label', { className: 'sc-field' },
-                h('span', { className: 'sc-field-label' }, runtime.t('create.description')),
-                h('textarea', {
-                  className: 'sc-textarea',
-                  style: { minHeight: '70px' },
-                  value: form.description,
-                  onChange: (event) => setForm({ ...form, description: event.target.value }),
-                })),
-              h('label', { className: 'sc-field' },
-                h('span', { className: 'sc-field-label' }, runtime.t('create.body')),
-                h('textarea', {
-                  className: 'sc-textarea',
-                  value: form.body,
-                  onChange: (event) => setForm({ ...form, body: event.target.value }),
-                })),
-              h(
+                  h('span', { className: 'sc-field-label' }, runtime.t('create.body')),
+                  h('textarea', {
+                    className: 'sc-textarea',
+                    value: form.body,
+                    onChange: (event) => setForm({ ...form, body: event.target.value }),
+                  })),
+                h(
+                  'div',
+                  { className: 'sc-editor-actions' },
+                  h('button', {
+                    type: 'button',
+                    className: 'sc-button',
+                    onClick: () => setForm({ ...form, body: form.body.trim() === '' ? skillBodyTemplate(runtime) : form.body }),
+                  }, runtime.t('create.template')),
+                  h('button', {
+                    type: 'button',
+                    className: 'sc-button sc-button-primary',
+                    disabled: state.busy,
+                    onClick: submit,
+                  }, state.busy ? runtime.t('editor.busy') : runtime.t('create.submit')),
+                  h('button', { type: 'button', className: 'sc-button', onClick: onClose }, runtime.t('create.cancel')),
+                ),
+              )
+              : h(
                 'div',
-                { className: 'sc-editor-actions' },
-                h('button', {
-                  type: 'button',
-                  className: 'sc-button sc-button-primary',
-                  disabled: state.busy,
-                  onClick: submit,
-                }, state.busy ? runtime.t('editor.busy') : runtime.t('create.submit')),
-                h('button', { type: 'button', className: 'sc-button', onClick: onClose }, runtime.t('create.cancel')),
+                { className: 'sc-form' },
+                h('p', { className: 'sc-note', style: { marginTop: 0 } }, runtime.t('create.aiHint')),
+                h('label', { className: 'sc-field' },
+                  h('span', { className: 'sc-field-label' }, runtime.t('create.aiDescription')),
+                  h('textarea', {
+                    className: 'sc-textarea',
+                    style: { minHeight: '120px' },
+                    value: aiText,
+                    onChange: (event) => setAiText(event.target.value),
+                  })),
+                h('div', { className: 'sc-field-label' }, runtime.t('create.aiPromptTitle')),
+                h('pre', { className: 'sc-pre', style: { maxHeight: '260px' } }, prompt),
+                h(
+                  'div',
+                  { className: 'sc-editor-actions' },
+                  h('button', { type: 'button', className: 'sc-button sc-button-primary', onClick: copyPrompt }, copied ? runtime.t('create.copied') : runtime.t('create.copyPrompt')),
+                  h('button', {
+                    type: 'button',
+                    className: 'sc-button',
+                    onClick: () => {
+                      setForm((current) => ({
+                        ...current,
+                        description: current.description.trim() === '' ? aiText : current.description,
+                        body: current.body.trim() === '' ? skillBodyTemplate(runtime) : current.body,
+                      }));
+                      setMode('manual');
+                    },
+                  }, runtime.t('create.useInForm')),
+                  h('button', { type: 'button', className: 'sc-button', onClick: onClose }, runtime.t('create.cancel')),
+                ),
               ),
-            ),
           ),
         ),
       );
@@ -1892,6 +2077,66 @@ window.__ModuleLoader__.load({
       );
     }
 
+    function SourcesPanel({ runtime, snapshot, onChanged, onMessage }) {
+      const [busyKey, setBusyKey] = useState(null);
+      const [error, setError] = useState(null);
+      const sources = (snapshot && Array.isArray(snapshot.sources) ? snapshot.sources : [])
+        .filter((source) => source.readOnly === true && source.exists === true);
+      const live = snapshot && snapshot.settings && snapshot.settings.liveSources
+        ? snapshot.settings.liveSources
+        : {};
+
+      const toggle = async (source, enabled) => {
+        setBusyKey(source.key);
+        setError(null);
+        try {
+          await requestApi('liveSetSource', { sourceKey: source.key, enabled, confirm: true });
+          if (typeof onChanged === 'function') await onChanged();
+          if (typeof onMessage === 'function') onMessage('toast.updated');
+        } catch (caught) {
+          setError(caught && caught.code ? caught.code : 'OPERATION_FAILED');
+        } finally {
+          setBusyKey(null);
+        }
+      };
+
+      return h(
+        'section',
+        { className: 'sc-form' },
+        h('p', { className: 'sc-note', style: { margin: 0 } }, runtime.t('sources.hint')),
+        error
+          ? h('div', { className: 'sc-banner', role: 'alert' }, h('div', { className: 'sc-banner-code' }, errorText(runtime, { code: error })))
+          : null,
+        sources.length === 0
+          ? h('div', { className: 'sc-empty' }, h('div', null, runtime.t('sources.empty')))
+          : h(
+            'div',
+            { className: 'sc-import-group' },
+            sources.map((source) => h(
+              'div',
+              { key: source.key, className: 'sc-candidate' },
+              h(
+                'div',
+                { className: 'sc-candidate-main' },
+                h('span', { className: 'sc-candidate-name' }, sourceLabel(runtime, source)),
+                h('span', { className: 'sc-candidate-path' }, source.path),
+                h('span', { className: 'sc-candidate-desc' }, runtime.t('sources.modelOnly')),
+              ),
+              h(
+                'div',
+                { className: 'sc-row-switch' },
+                h(ToggleSwitch, {
+                  checked: live[source.key] === true,
+                  disabled: busyKey === source.key,
+                  label: runtime.t('sources.live'),
+                  onChange: (next) => toggle(source, next),
+                }),
+              ),
+            )),
+          ),
+      );
+    }
+
     function SkillCuratorPage({ runtime }) {
       useRuntime(runtime);
       const [snapshot, setSnapshot] = useState(null);
@@ -2100,6 +2345,15 @@ window.__ModuleLoader__.load({
                   onClick: () => setTab('import'),
                 }, runtime.t('tabs.import'))
                 : null,
+              capabilities && capabilities.liveSources
+                ? h('button', {
+                  type: 'button',
+                  role: 'tab',
+                  className: 'sc-tab',
+                  'aria-selected': tab === 'sources' ? 'true' : 'false',
+                  onClick: () => setTab('sources'),
+                }, runtime.t('tabs.sources'))
+                : null,
               capabilities && capabilities.trash
                 ? h('button', {
                   type: 'button',
@@ -2157,7 +2411,16 @@ window.__ModuleLoader__.load({
               },
               onMessage: notify,
             })
-            : h(TrashPanel, {
+            : tab === 'sources'
+              ? h(SourcesPanel, {
+                runtime,
+                snapshot,
+                onChanged: async () => {
+                  await refresh();
+                },
+                onMessage: notify,
+              })
+              : h(TrashPanel, {
               runtime,
               items: trash.items,
               loading: trash.loading,

@@ -9,6 +9,8 @@ import { LIMITS, projectSkill, readSkillDetail, readSkillFile, scanCatalog } fro
 import { CuratorError } from './errors.js';
 import { createMutations } from './mutations.js';
 import { createImports } from './import.js';
+import { readSettings, setLiveSource } from './settings.js';
+import { skillCuratorHome } from './state.js';
 
 /** Capabilities advertised to the Client. */
 export const CAPABILITIES = Object.freeze({
@@ -20,7 +22,7 @@ export const CAPABILITIES = Object.freeze({
   import: true,
   projectScope: true,
   overlayToggle: false,
-  liveSources: false,
+  liveSources: true,
 });
 
 const SNAPSHOT_TTL_MS = 1500;
@@ -54,7 +56,7 @@ function projectSource(source) {
  * @param {() => object} deps.config plugin configuration reader
  * @param {() => Array<{path: string, label?: string}>} [deps.projectRoots]
  */
-export function createCatalog({ config = () => ({}), projectRoots = () => [], log = () => {}, env = undefined, home = undefined } = {}) {
+export function createCatalog({ config = () => ({}), projectRoots = () => [], log = () => {}, env = undefined, home = undefined, onLiveChanged = () => {} } = {}) {
   let cache = null;
   let inflight = null;
 
@@ -90,6 +92,8 @@ export function createCatalog({ config = () => ({}), projectRoots = () => [], lo
     return skill;
   }
 
+  const pathsFor = () => skillCuratorHome({ config: config() ?? {} });
+
   const mutations = createMutations({
     config,
     loadCatalog: load,
@@ -107,6 +111,7 @@ export function createCatalog({ config = () => ({}), projectRoots = () => [], lo
     /** Browser-facing snapshot. */
     async snapshot(body = {}) {
       const catalog = await load(body?.force === true);
+      const settings = await readSettings(pathsFor());
       return {
         revision: catalog.revision,
         generatedAt: catalog.generatedAt,
@@ -118,7 +123,8 @@ export function createCatalog({ config = () => ({}), projectRoots = () => [], lo
           maxFileReadBytes: LIMITS.maxFileReadBytes,
         },
         summary: catalog.summary,
-        sources: catalog.sources.map(projectSource),
+        settings: { liveSources: settings.liveSources },
+        sources: catalog.sources.map((source) => ({ ...projectSource(source), live: settings.liveSources[source.key] === true })),
         skills: catalog.skills.map(projectSkill),
         skipped: catalog.skipped,
       };
@@ -167,5 +173,27 @@ export function createCatalog({ config = () => ({}), projectRoots = () => [], lo
 
     importScan: (body) => imports.scan(body),
     importApply: (body) => imports.apply(body),
+
+    /** Raw catalog for the live provider (never exposed over HTTP). */
+    async rawCatalog(force = false) {
+      return load(force);
+    },
+
+    async liveSettings() {
+      const settings = await readSettings(pathsFor());
+      return { settings: { liveSources: settings.liveSources } };
+    },
+
+    /** Enable or disable live exposure for one read-only source. */
+    async setLiveSource(body = {}) {
+      if (body?.confirm !== true) throw new CuratorError('CONFIRM_REQUIRED', 400);
+      const catalog = await load(true);
+      const source = catalog.sources.find((candidate) => candidate.key === body.sourceKey);
+      if (!source) throw new CuratorError('SOURCE_NOT_FOUND', 404);
+      if (source.readOnly !== true) throw new CuratorError('LIVE_REQUIRES_READ_ONLY', 422);
+      const settings = await setLiveSource(config() ?? {}, source.key, body.enabled === true);
+      onLiveChanged();
+      return { settings: { liveSources: settings.liveSources }, revision: catalog.revision };
+    },
   };
 }

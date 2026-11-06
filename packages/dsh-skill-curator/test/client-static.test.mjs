@@ -70,7 +70,7 @@ test('talks to the exact host route with the intent header', () => {
   assert.match(source, /requestApi\('snapshot'/);
   assert.match(source, /requestApi\('detail'/);
   assert.match(source, /requestApi\('readFile'/);
-  for (const action of ['validate', 'save', 'writeFile', 'toggle', 'create', 'remove', 'trashList', 'restore', 'importScan', 'importApply']) {
+  for (const action of ['validate', 'save', 'writeFile', 'toggle', 'create', 'remove', 'trashList', 'restore', 'importScan', 'importApply', 'liveSetSource']) {
     assert.match(source, new RegExp("requestApi\\('" + action + "'"), `missing mutation action: ${action}`);
   }
   assert.match(source, /confirm: true/);
@@ -102,12 +102,17 @@ test('uses theme tokens and plugin-scoped styles only', () => {
   assert.doesNotMatch(source, /\beval\(/);
 });
 
-test('declares the read-only stage capability in the UI copy', () => {
+test('declares live sources and the AI creator affordances', () => {
+  assert.match(source, /tabs\.sources/);
+  assert.match(source, /sources\.live/);
+  assert.match(source, /create\.mode\.ai/);
+  assert.match(source, /aiHint/);
+  assert.match(source, /skill_curator_create/);
+});
+
+test('declares editing, trash and revision-aware UI affordances', () => {
   assert.match(source, /read-only|только чтение/i);
-  assert.match(source, /requestApi\('readFile'/);
-  for (const action of ['validate', 'save', 'writeFile', 'toggle', 'create', 'remove', 'trashList', 'restore', 'importScan', 'importApply']) {
-    assert.match(source, new RegExp("requestApi\\('" + action + "'"), `missing mutation action: ${action}`);
-  }
-  assert.match(source, /confirm: true/);
-  assert.match(source, /x-dsh-skill-curator/);
+  assert.match(source, /editor\.hint/);
+  assert.match(source, /tabs\.trash/);
+  assert.match(source, /stale|устарел/i);
 });

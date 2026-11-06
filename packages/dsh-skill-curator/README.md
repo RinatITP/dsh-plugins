@@ -5,18 +5,20 @@ skills visible and manageable in one place: DSH user and shared roots, project
 roots, bundled skills and the skill libraries of other agents (Claude Code,
 Codex, Hermes, ZCode, Cursor, Gemini/Antigravity, Kimi, OpenCode).
 
-> **Status: 0.1.0 development preview, stage 3 (catalog + editing + import).**
-> The Web settings page lists every discovered skill, renders `SKILL.md`, the
-> bounded resource tree and validation diagnostics, and can edit writable skills:
-> validate and save `SKILL.md`, edit `references/`/`scripts/`/`assets/` files,
-> toggle model and slash-menu invocation, create new skills in the user, shared
-> or project root, move skills to a restorable trash, and **import skills from
-> other agents** as an independent copy or a live symlink into a DSH root with a
-> preview and per-item report. Every write is confirmation-gated,
-> revision-guarded and backed up first; imports never overwrite. The AI Skill
-> Creator, live sources (exposing external skills without importing) and the
-> optional sidebar entry are the next stages. Tested against DSH `0.2.2-rc.1`; no
-> visual acceptance of the rendered page has been claimed yet.
+> **Status: 0.1.0 development preview, stage 4 (catalog + editing + import +
+> creator + live sources).** The Web settings page lists every discovered skill,
+> renders `SKILL.md`, the bounded resource tree and validation diagnostics, and
+> can edit writable skills: validate and save `SKILL.md`, edit
+> `references/`/`scripts/`/`assets/` files, toggle model and slash-menu
+> invocation, create new skills (manual wizard with a section template, or an AI
+> prompt that an agent executes through the `skill_curator_create` tool), move
+> skills to a restorable trash, import skills from other agents as a copy or a
+> live symlink, and **expose read-only external sources live in the DSH catalog**
+> (model-only, opt-in per source) without copying anything. Every write is
+> confirmation-gated, revision-guarded and backed up first; imports never
+> overwrite. The optional sidebar entry and overlay toggles for read-only skills
+> remain future work. Tested against DSH `0.2.2-rc.1`; no visual acceptance of the
+> rendered page has been claimed yet.
 
 ## What it does today
 
@@ -40,6 +42,17 @@ Codex, Hermes, ZCode, Cursor, Gemini/Antigravity, Kimi, OpenCode).
   discovered source directory; existing target names and invalid skill names are
   skipped, never overwritten. A per-item report lists imported, skipped and
   failed entries.
+- **Live sources are read-only and model-only.** The Sources tab can expose a
+  read-only external source in the DSH catalog without importing it. A provider
+  re-reads the external `SKILL.md` on every load (rank below the user root,
+  above project roots), so the source agent keeps owning the files; live skills
+  are visible to the model but not added to the slash menu. The switch is stored
+  in `~/.dsh/skill-curator/settings.json`, not in the profile patch.
+- **Creator respects user authority.** The manual wizard writes only after the
+  user presses Create. The optional agent tool `skill_curator_create` is gated by
+  `tools/pre-execute` with an explicit ask, so a model can only create a skill
+  after a human confirmation; the tool output contains the created path, never
+  file bodies.
 - **Read-only sources stay read-only.** External agent roots (Claude Code,
   Codex, Hermes, ZCode, Cursor, Gemini, Kimi, OpenCode) are never written.
   Writes go only to `~/.dsh/skills`, `~/.agents/skills` or a configured project
@@ -57,10 +70,10 @@ Codex, Hermes, ZCode, Cursor, Gemini/Antigravity, Kimi, OpenCode).
 
 ## Not implemented yet
 
-The AI Skill Creator, live sources (exposing external skills to DSH without
-importing) and the optional sidebar entry. Enabling/disabling **read-only
-external** skills via the overlay provider is also not implemented yet: the
-toggle in this stage only edits skills the plugin may write.
+The optional sidebar entry, overlay toggles for read-only skills (the toggle in
+this stage only edits skills the plugin may write), marketplaces/repositories,
+and direct in-plugin LLM generation (the AI path currently goes through a DSH
+agent, which keeps the plugin independent of model configuration).
 
 ## Installation
 
@@ -90,6 +103,11 @@ every known root is scanned when it exists.
 | `customSources` | `[]` | Extra read-only roots: `[{ "label": "My library", "path": "/srv/skills", "depth": 1 }]`. `~` and `$VAR` are expanded; relative paths are rejected. |
 | `projectRoots` | detected | Explicit project roots: `[{ "path": "/src/app", "label": "App" }]`. When absent, the Host also derives project roots from the DSH workspace registry and known session working directories (bounded to 12). The scanner reads `<path>/.dsh/skills`; writes there require a user confirmation unless `allowProjectWrites` is `false`. |
 | `allowProjectWrites` | `true` | Set `false` to keep project roots read-only even though they are listed. |
+| `creatorTool` | `true` | Set `false` to disable the agent-facing `skill_curator_create` tool. |
+
+Live-source switches are not part of the profile configuration: they are plugin
+settings toggled in the Sources tab and stored in
+`~/.dsh/skill-curator/settings.json` so a toggle never restarts the plugin row.
 | `bundledSkillDir` | detected | Overrides the bundled skill directory (also `DSH_BUNDLED_SKILL_DIR`). |
 | `dshHome` / `agentsHome` | `~/.dsh` / `~/.agents` | Override the DSH roots (also `DSH_HOME` / `DSH_AGENTS_HOME`). |
 
@@ -131,7 +149,8 @@ write → trash → restore, plus read-only, symlink, flat-file, project-scope,
 collision and stale-revision refusals. Import tests cover the copy and symlink
 modes, flat-file import, project destination, existing-target and invalid-name
 skips, duplicate names across sources, and the confirmation/revision/selection
-guards.
+guards. Live tests cover the settings store, candidate filtering, rank and
+model-only invocation, body loading, and the renamed-skill refusal.
 
 **Live check performed 2026-11-06** on DSH Desktop `0.2.2-rc.1`: the package was
 installed as a linked bundle into the `desktop` profile, DSH appended it to
