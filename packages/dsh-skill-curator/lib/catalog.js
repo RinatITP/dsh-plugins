@@ -8,6 +8,7 @@ import { buildSources } from './roots.js';
 import { LIMITS, projectSkill, readSkillDetail, readSkillFile, scanCatalog } from './discovery.js';
 import { CuratorError } from './errors.js';
 import { createMutations } from './mutations.js';
+import { createImports } from './import.js';
 
 /** Capabilities advertised to the Client. */
 export const CAPABILITIES = Object.freeze({
@@ -16,7 +17,7 @@ export const CAPABILITIES = Object.freeze({
   edit: true,
   create: true,
   trash: true,
-  import: false,
+  import: true,
   projectScope: true,
   overlayToggle: false,
   liveSources: false,
@@ -94,6 +95,11 @@ export function createCatalog({ config = () => ({}), projectRoots = () => [], lo
     loadCatalog: load,
     invalidate,
   });
+  const imports = createImports({
+    config,
+    loadCatalog: load,
+    invalidate,
+  });
 
   return {
     invalidate,
@@ -158,5 +164,8 @@ export function createCatalog({ config = () => ({}), projectRoots = () => [], lo
     removeSkill: (body) => mutations.removeSkill(body),
     listTrash: (body) => mutations.listTrash(body),
     restoreTrash: (body) => mutations.restoreTrash(body),
+
+    importScan: (body) => imports.scan(body),
+    importApply: (body) => imports.apply(body),
   };
 }

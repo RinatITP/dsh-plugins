@@ -56,7 +56,7 @@ or install the same directory through DSH's Plugin Manager. See
 |---|---|
 | Package | `dsh-skill-curator` |
 | Directory | [`packages/dsh-skill-curator`](../packages/dsh-skill-curator/) |
-| Version | 0.1.0 (development preview, stage 2: catalog + editing) |
+| Version | 0.1.0 (development preview, stage 3: catalog + editing + import) |
 | License | MIT |
 | DSH target | 0.2.2-rc.1 (`engines.dsh: ">=0.2.2-rc.1 <0.3.0-0"`) |
 | Node | ≥ 22.19.0 |
@@ -65,7 +65,7 @@ or install the same directory through DSH's Plugin Manager. See
 | Client injection | `settings.section` page "Skill Curator" / «Навыки» (id `skill-curator`, order 23) |
 | Docs | [package README](../packages/dsh-skill-curator/README.md) |
 
-**What it does (stage 2).** Adds a skill studio to the DSH settings UI: the union
+**What it does (stage 3).** Adds a skill studio to the DSH settings UI: the union
 of DSH user and shared roots, optional project roots, bundled `office-skills`, and
 read-only external agent roots (Claude Code, Codex including `.system`, Hermes
 nested categories, ZCode, Cursor, Gemini/Antigravity, Kimi, OpenCode, custom
@@ -73,14 +73,16 @@ folders). It lists every `SKILL.md` with a stable diagnostic set (kebab-case nam
 name/folder match, description length, invocation booleans, frontmatter problems,
 oversized body, symlink state, duplicate and shadowed names), renders the raw
 `SKILL.md`, exposes a bounded resource tree with traversal-safe text previews, and
-speaks Russian and English. For writable skills it can validate and save
-`SKILL.md`, edit `references/`/`scripts/`/`assets/` files, toggle model and slash
-menu invocation, create new skills in the user, shared or project root, and move
-skills into a restorable trash with backups.
+speaks Russian and English. For writable skills it can validate and save `SKILL.md`, edit
+`references/`/`scripts/`/`assets/` files, toggle model and slash menu invocation,
+create new skills in the user, shared or project root, and move skills into a
+restorable trash with backups. The Import tab plans a transfer from other agents
+into a writable DSH root, supports an independent `copy` or a live `symlink`,
+skips existing targets and invalid names, never overwrites, and reports every
+selected item as imported, skipped or failed.
 
-**Not implemented yet.** Import from external agents (symlink/copy,
-global/project), the AI Skill Creator, live sources, the overlay provider for
-toggling read-only external skills, and the optional sidebar entry.
+**Not implemented yet.** The AI Skill Creator, live sources, the overlay provider
+for toggling read-only external skills, and the optional sidebar entry.
 
 **Security posture.** One exact route `/api/dsh-skill-curator` with the
 `x-dsh-skill-curator: 1` intent header and signed-peer admission; JSON-only
@@ -88,9 +90,12 @@ responses, `no-store`. Every mutation requires `confirm: true` and a matching
 catalog revision, runs serially, backs up the previous file under
 `~/.dsh/skill-curator/backups/`, and refuses read-only sources, symlinked skills
 and paths outside a writable skill bundle. Deletions move the whole skill into
-`~/.dsh/skill-curator/trash/`; writes are audited without file bodies. Reads stay
-traversal-safe and bounded (2000 skills, 512 KiB per `SKILL.md`, 1 MiB per
-preview).
+`~/.dsh/skill-curator/trash/`; writes and imports are audited without file
+bodies. Import targets must be writable, sources are re-resolved from the scanned
+catalog, symlinks point only at discovered source directories, existing target
+names are skipped (never overwritten) and the target path is re-checked before
+creation. Reads stay traversal-safe and bounded (2000 skills, 512 KiB per
+`SKILL.md`, 1 MiB per preview).
 
 **Status and verification.** Development preview. Unit tests cover the frontmatter
 reader and editor, diagnostics, root resolution, discovery across synthetic
@@ -98,7 +103,8 @@ multi-root trees (bundles, flat files, nested categories, `.system`, symlinks,
 shadowing), the HTTP envelope and the static client contract, plus a full mutation
 cycle against an isolated home (create → save with backup → toggle → resource
 write → trash → restore, and read-only/symlink/flat/project/stale-revision
-refusals). The repository validator and CI cover both packages. On 2026-11-06 the
+refusals), plus import planning and execution in copy and symlink modes, flat
+files, project destination and skip/collision guards. The repository validator and CI cover both packages. On 2026-11-06 the
 package was installed as a linked bundle into a DSH Desktop `0.2.2-rc.1` `desktop`
 profile: the Host row is active and the route returned `403 FORBIDDEN` without the
 intent header and `401 UNAUTHENTICATED` without signed-peer admission. The

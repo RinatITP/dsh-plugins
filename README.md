@@ -35,7 +35,7 @@ A small monorepo for DSH plugins that follow the same rules:
 | Plugin | Version | License | Description |
 |---|---|---|---|
 | [`dsh-mcp-guard`](packages/dsh-mcp-guard/) | 0.1.0 | MIT | Security-first MCP server manager with a Z.ai/GLM-style settings UI: strict validation, execution preview, bounded audit trail, takeover of existing profile rows and read-only discovery/import of Cursor, Claude and VS Code MCP configs. |
-| [`dsh-skill-curator`](packages/dsh-skill-curator/) | 0.1.0 | MIT | RU-first skill studio: catalog of DSH, project and external agent skills (Claude Code, Codex, Hermes, ZCode, Cursor, Gemini, Kimi, OpenCode, custom) with validation diagnostics, a bounded file tree, safe editing of `SKILL.md` and modular resources, invocation toggles, skill creation, backups and a restorable trash. Import and the AI creator are staged next. |
+| [`dsh-skill-curator`](packages/dsh-skill-curator/) | 0.1.0 | MIT | RU-first skill studio: catalog of DSH, project and external agent skills (Claude Code, Codex, Hermes, ZCode, Cursor, Gemini, Kimi, OpenCode, custom) with validation diagnostics, a bounded file tree, safe editing of `SKILL.md` and modular resources, invocation toggles, skill creation, backups, a restorable trash, and copy/symlink import from other agents with a preview and per-item report. The AI creator is staged next. |
 
 More plugins may be added over time. [`docs/PLUGINS.md`](docs/PLUGINS.md) is the
 catalog and lists the acceptance criteria for new entries.

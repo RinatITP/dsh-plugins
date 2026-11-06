@@ -35,12 +35,46 @@ export async function apply(ctx) {
     }
   };
 
+  const projectRoots = () => {
+    const roots = new Map();
+    const add = (value, label) => {
+      if (typeof value !== 'string' || value.trim() === '') return;
+      const path = value.trim();
+      if (!roots.has(path)) {
+        roots.set(path, { path, ...(typeof label === 'string' && label !== '' ? { label } : {}) });
+      }
+    };
+    const config = readConfig();
+    if (Array.isArray(config.projectRoots)) {
+      for (const item of config.projectRoots) {
+        if (item !== null && typeof item === 'object') add(item.path, item.label);
+        else add(item);
+      }
+    }
+    try {
+      const registry = typeof ctx.get === 'function' ? ctx.get('workspaceRegistry') : undefined;
+      if (registry && typeof registry.list === 'function') {
+        for (const item of registry.list() ?? []) add(item?.path ?? item?.cwd, item?.name);
+      }
+    } catch {
+      // Workspace registry is optional.
+    }
+    try {
+      const sessions = typeof ctx.get === 'function' ? ctx.get('sessions') : undefined;
+      if (sessions && typeof sessions.list === 'function') {
+        for (const session of sessions.list() ?? []) {
+          add(session?.header?.cwd, session?.header?.title ?? session?.title);
+        }
+      }
+    } catch {
+      // Sessions are optional; they only widen project-root discovery.
+    }
+    return [...roots.values()].slice(0, 12);
+  };
+
   const catalog = createCatalog({
     config: readConfig,
-    projectRoots: () => {
-      const configured = readConfig().projectRoots;
-      return Array.isArray(configured) ? configured : [];
-    },
+    projectRoots,
     log,
   });
 

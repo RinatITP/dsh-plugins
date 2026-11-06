@@ -70,7 +70,7 @@ test('talks to the exact host route with the intent header', () => {
   assert.match(source, /requestApi\('snapshot'/);
   assert.match(source, /requestApi\('detail'/);
   assert.match(source, /requestApi\('readFile'/);
-  for (const action of ['validate', 'save', 'writeFile', 'toggle', 'create', 'remove', 'trashList', 'restore']) {
+  for (const action of ['validate', 'save', 'writeFile', 'toggle', 'create', 'remove', 'trashList', 'restore', 'importScan', 'importApply']) {
     assert.match(source, new RegExp("requestApi\\('" + action + "'"), `missing mutation action: ${action}`);
   }
   assert.match(source, /confirm: true/);
@@ -105,7 +105,7 @@ test('uses theme tokens and plugin-scoped styles only', () => {
 test('declares the read-only stage capability in the UI copy', () => {
   assert.match(source, /read-only|только чтение/i);
   assert.match(source, /requestApi\('readFile'/);
-  for (const action of ['validate', 'save', 'writeFile', 'toggle', 'create', 'remove', 'trashList', 'restore']) {
+  for (const action of ['validate', 'save', 'writeFile', 'toggle', 'create', 'remove', 'trashList', 'restore', 'importScan', 'importApply']) {
     assert.match(source, new RegExp("requestApi\\('" + action + "'"), `missing mutation action: ${action}`);
   }
   assert.match(source, /confirm: true/);

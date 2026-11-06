@@ -16,6 +16,7 @@ import { CuratorError } from './errors.js';
 import { splitFrontmatter, setFrontmatterFields, scalarField } from './frontmatter.js';
 import { diagnoseSkill, MAX_DESCRIPTION_LENGTH, NAME_PATTERN, MAX_NAME_LENGTH } from './validate.js';
 import { projectSkill } from './discovery.js';
+import { findTargetSource, isInside } from './targets.js';
 import {
   appendAudit,
   ensureHome,
@@ -35,12 +36,6 @@ export const WRITE_LIMITS = {
 
 const RESOURCE_PATH = /^(references|scripts|assets)(\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/;
 const TRASH_ID = /^[0-9TZ-]+-[a-f0-9]{8}$/;
-
-function isInside(root, target) {
-  const base = resolve(root);
-  const candidate = resolve(target);
-  return candidate === base || candidate.startsWith(base + sep);
-}
 
 function findSkill(catalog, id) {
   if (typeof id !== 'string' || id === '') throw new CuratorError('SKILL_ID_REQUIRED', 400);
@@ -311,18 +306,7 @@ export function createMutations({ config = () => ({}), loadCatalog, invalidate }
         throw new CuratorError('STALE_REVISION', 409);
       }
       const scope = body.scope === 'agents' ? 'agents' : body.scope === 'project' ? 'project' : 'user';
-      let source;
-      if (scope === 'project') {
-        const workspacePath = typeof body.workspacePath === 'string' ? body.workspacePath : '';
-        if (workspacePath === '' || !isAbsolute(workspacePath)) throw new CuratorError('INVALID_TARGET', 400);
-        const expected = resolve(join(workspacePath, '.dsh', 'skills'));
-        source = catalog.sources.find((candidate) => candidate.kind === 'project' && resolve(candidate.path) === expected);
-        if (!source) throw new CuratorError('PROJECT_NOT_CONFIGURED', 404);
-      } else {
-        const kind = scope === 'agents' ? 'dsh-agents' : 'dsh-user';
-        source = catalog.sources.find((candidate) => candidate.kind === kind);
-        if (!source) throw new CuratorError('TARGET_NOT_FOUND', 404);
-      }
+      const source = findTargetSource(catalog, { scope, workspacePath: body.workspacePath });
       if (source.writable !== true) throw new CuratorError('READ_ONLY_TARGET', 403);
 
       const name = typeof body.name === 'string' ? body.name.trim() : '';

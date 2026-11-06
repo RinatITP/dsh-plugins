@@ -79,6 +79,8 @@ export function createHandler({ manager, admit, log = () => {} }) {
     remove: (body) => manager.removeSkill(body),
     trashList: (body) => manager.listTrash(body),
     restore: (body) => manager.restoreTrash(body),
+    importScan: (body) => manager.importScan(body),
+    importApply: (body) => manager.importApply(body),
   };
 
   return async function handler(req, res) {

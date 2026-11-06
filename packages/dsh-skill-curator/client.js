@@ -102,6 +102,41 @@ window.__ModuleLoader__.load({
       'status.projectLocked': 'project, read-only in this stage',
       'tabs.library': 'Library',
       'tabs.trash': 'Trash',
+      'tabs.import': 'Import',
+      'import.hint': 'Copy or link skills from other agents into a DSH root. Nothing is overwritten: existing targets and invalid names are skipped before import.',
+      'import.target': 'Destination',
+      'import.target.user': 'My skills (DSH)',
+      'import.target.agents': 'Shared agents',
+      'import.target.project': 'Project',
+      'import.workspace': 'Workspace',
+      'import.mode': 'Mode',
+      'import.mode.copy': 'Copy',
+      'import.mode.copyHint': 'Independent snapshot. The imported skill no longer follows the source.',
+      'import.mode.symlink': 'Symlink',
+      'import.mode.symlinkHint': 'Live link to the source. Edits there appear here; moving the source breaks the link.',
+      'import.selectAll': 'Select all',
+      'import.clear': 'Clear',
+      'import.selected': 'selected',
+      'import.apply': 'Import selected',
+      'import.confirmApply': 'Confirm import',
+      'import.loading': 'Scanning sources…',
+      'import.empty': 'No skills to import into this destination.',
+      'import.rescan': 'Rescan',
+      'import.results': 'Import result',
+      'import.importable': 'importable',
+      'import.imported': 'imported',
+      'import.skipped': 'skipped',
+      'import.failed': 'failed',
+      'import.diagnostics': 'has validation errors',
+      'import.noTargets': 'No writable destination is configured.',
+      'import.reason.TARGET_EXISTS': 'already exists in the destination',
+      'import.reason.ALREADY_IN_TARGET': 'already in the destination root',
+      'import.reason.INVALID_NAME': 'invalid skill name',
+      'import.reason.NAME_TAKEN': 'duplicate name in this selection',
+      'import.reason.SOURCE_MISSING': 'source disappeared',
+      'import.reason.IMPORT_FAILED': 'import failed',
+      'import.reason.NOT_FOUND': 'not found',
+      'toast.imported': 'Import finished',
       'actions.create': 'Create',
       'actions.delete': 'Move to trash',
       'actions.confirmDelete': 'Confirm delete',
@@ -234,6 +269,41 @@ window.__ModuleLoader__.load({
       'status.projectLocked': 'проектный, на этом этапе только чтение',
       'tabs.library': 'Библиотека',
       'tabs.trash': 'Корзина',
+      'tabs.import': 'Импорт',
+      'import.hint': 'Скопируйте или свяжите навыки других агентов в корень DSH. Ничего не перезаписывается: существующие цели и недопустимые имена отсеиваются до импорта.',
+      'import.target': 'Куда импортировать',
+      'import.target.user': 'Мои навыки (DSH)',
+      'import.target.agents': 'Общие агентские',
+      'import.target.project': 'Проект',
+      'import.workspace': 'Рабочий каталог',
+      'import.mode': 'Режим',
+      'import.mode.copy': 'Копия',
+      'import.mode.copyHint': 'Независимый снимок. Импортированный навык больше не связан с источником.',
+      'import.mode.symlink': 'Симлинк',
+      'import.mode.symlinkHint': 'Живая ссылка на источник. Правки там видны здесь; перенос источника ломает ссылку.',
+      'import.selectAll': 'Выбрать все',
+      'import.clear': 'Снять',
+      'import.selected': 'выбрано',
+      'import.apply': 'Импортировать выбранные',
+      'import.confirmApply': 'Подтвердить импорт',
+      'import.loading': 'Сканирую источники…',
+      'import.empty': 'Нет навыков для импорта в это место.',
+      'import.rescan': 'Пересканировать',
+      'import.results': 'Результат импорта',
+      'import.importable': 'можно импортировать',
+      'import.imported': 'импортировано',
+      'import.skipped': 'пропущено',
+      'import.failed': 'ошибки',
+      'import.diagnostics': 'есть ошибки проверки',
+      'import.noTargets': 'Нет доступного места для записи.',
+      'import.reason.TARGET_EXISTS': 'уже есть в месте назначения',
+      'import.reason.ALREADY_IN_TARGET': 'уже в целевом корне',
+      'import.reason.INVALID_NAME': 'недопустимое имя навыка',
+      'import.reason.NAME_TAKEN': 'дубль имени в этой выборке',
+      'import.reason.SOURCE_MISSING': 'источник исчез',
+      'import.reason.IMPORT_FAILED': 'импорт не удался',
+      'import.reason.NOT_FOUND': 'не найден',
+      'toast.imported': 'Импорт завершён',
       'actions.create': 'Создать',
       'actions.delete': 'В корзину',
       'actions.confirmDelete': 'Подтвердить удаление',
@@ -511,6 +581,46 @@ window.__ModuleLoader__.load({
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
+      .sc-import-controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-end; }
+      .sc-import-field { display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
+      .sc-import-field-label { font-size: 11px; color: var(--dsw-alias-label-tertiary, #9ca3af); }
+      .sc-segment { display: flex; gap: 4px; }
+      .sc-segment .sc-button[aria-pressed="true"] {
+        border-color: var(--dsw-alias-brand-primary, #4f46e5);
+        color: var(--dsw-alias-brand-primary, #4f46e5);
+        background: var(--dsw-alias-bg-layer-2, #f9fafb);
+      }
+      .sc-import-group { border: 1px solid var(--dsw-alias-border-l2, #e5e7eb); border-radius: 12px; overflow: hidden; }
+      .sc-import-group-head {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+        padding: 10px 14px; background: var(--dsw-alias-bg-layer-2, #f9fafb);
+      }
+      .sc-import-group-name { font-weight: 600; }
+      .sc-import-group-path {
+        color: var(--dsw-alias-label-tertiary, #9ca3af); font-size: 11px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+      }
+      .sc-import-group-spacer { flex: 1 1 auto; }
+      .sc-candidate {
+        display: flex; align-items: flex-start; gap: 10px;
+        padding: 9px 14px; border-top: 1px solid var(--dsw-alias-border-l2, #f0f0f0);
+      }
+      .sc-candidate.is-skipped { opacity: 0.62; }
+      .sc-candidate-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+      .sc-candidate-name { font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+      .sc-candidate-desc { color: var(--dsw-alias-label-secondary, #6b7280); font-size: 12px; }
+      .sc-candidate-path {
+        color: var(--dsw-alias-label-tertiary, #9ca3af); font-size: 11px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .sc-check { margin-top: 2px; width: 15px; height: 15px; flex: none; accent-color: var(--dsw-alias-brand-primary, #4f46e5); }
+      .sc-import-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+      .sc-import-footer .sc-note { margin-left: auto; }
+      .sc-results { display: flex; flex-direction: column; gap: 6px; }
+      .sc-result-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+      .sc-result-count { color: var(--dsw-alias-label-secondary, #6b7280); }
       .sc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     `;
 
@@ -1491,6 +1601,297 @@ window.__ModuleLoader__.load({
       );
     }
 
+    function ImportPanel({ runtime, snapshot, capabilities, onChanged, onMessage }) {
+      const projectSources = (snapshot && Array.isArray(snapshot.sources) ? snapshot.sources : [])
+        .filter((source) => source.kind === 'project');
+      const workspacePath = (sourcePath) => {
+        const marker = '/.dsh/skills';
+        const index = String(sourcePath).indexOf(marker);
+        return index >= 0 ? String(sourcePath).slice(0, index) : String(sourcePath);
+      };
+
+      const [target, setTarget] = useState('user');
+      const [workspace, setWorkspace] = useState(projectSources[0] ? projectSources[0].path : '');
+      const [mode, setMode] = useState('copy');
+      const [plan, setPlan] = useState({ loading: true, error: null, data: null });
+      const [selected, setSelected] = useState(() => new Set());
+      const [applying, setApplying] = useState(false);
+      const [applyError, setApplyError] = useState(null);
+      const [results, setResults] = useState(null);
+
+      const loadPlan = useCallback(async () => {
+        setPlan({ loading: true, error: null, data: null });
+        setApplyError(null);
+        try {
+          const body = { target };
+          if (target === 'project') body.workspacePath = workspacePath(workspace);
+          const data = await requestApi('importScan', body);
+          setPlan({ loading: false, error: null, data });
+          setSelected(new Set());
+        } catch (error) {
+          setPlan({ loading: false, error: error.code || 'OPERATION_FAILED', data: null });
+        }
+      }, [target, workspace]);
+
+      useEffect(() => {
+        loadPlan();
+      }, [loadPlan]);
+
+      useEffect(() => {
+        setResults(null);
+      }, [target, workspace, mode]);
+
+      const data = plan.data;
+      const groups = data ? data.groups : [];
+      const byId = useMemo(() => {
+        const map = new Map();
+        for (const group of groups) {
+          for (const candidate of group.candidates) map.set(candidate.id, candidate);
+        }
+        return map;
+      }, [groups]);
+
+      const toggleCandidate = (id, next) => {
+        setSelected((current) => {
+          const copy = new Set(current);
+          if (next) copy.add(id);
+          else copy.delete(id);
+          return copy;
+        });
+      };
+
+      const toggleGroup = (group, next) => {
+        setSelected((current) => {
+          const copy = new Set(current);
+          for (const candidate of group.candidates) {
+            if (candidate.skipReason !== null) continue;
+            if (next) copy.add(candidate.id);
+            else copy.delete(candidate.id);
+          }
+          return copy;
+        });
+      };
+
+      const reasonLabel = (code) => {
+        if (!code) return '';
+        const key = 'import.reason.' + code;
+        const text = runtime.t(key);
+        return text === key ? code : text;
+      };
+
+      const apply = async () => {
+        setApplying(true);
+        setApplyError(null);
+        try {
+          const body = {
+            confirm: true,
+            revision: snapshot.revision,
+            target,
+            mode,
+            ids: [...selected],
+          };
+          if (target === 'project') body.workspacePath = workspacePath(workspace);
+          const value = await requestApi('importApply', body);
+          setResults(value);
+          if (typeof onChanged === 'function') onChanged(value.revision);
+          if (typeof onMessage === 'function') onMessage('toast.imported');
+          await loadPlan();
+        } catch (error) {
+          if (error.code === 'STALE_REVISION') {
+            if (typeof onMessage === 'function') onMessage('toast.stale');
+            await loadPlan();
+          } else {
+            setApplyError(error.code || 'OPERATION_FAILED');
+          }
+        } finally {
+          setApplying(false);
+        }
+      };
+
+      const targetOptions = [
+        { value: 'user', label: runtime.t('import.target.user') },
+        { value: 'agents', label: runtime.t('import.target.agents') },
+      ];
+      if (projectSources.length > 0) targetOptions.push({ value: 'project', label: runtime.t('import.target.project') });
+
+      return h(
+        'section',
+        { className: 'sc-form' },
+        h('p', { className: 'sc-note', style: { margin: 0 } }, runtime.t('import.hint')),
+        h(
+          'div',
+          { className: 'sc-import-controls' },
+          h(
+            'label',
+            { className: 'sc-import-field' },
+            h('span', { className: 'sc-import-field-label' }, runtime.t('import.target')),
+            h(
+              'select',
+              {
+                className: 'sc-select',
+                value: target,
+                onChange: (event) => setTarget(event.target.value),
+                disabled: applying,
+              },
+              targetOptions.map((option) => h('option', { key: option.value, value: option.value }, option.label)),
+            ),
+          ),
+          target === 'project' && projectSources.length > 0
+            ? h(
+              'label',
+              { className: 'sc-import-field' },
+              h('span', { className: 'sc-import-field-label' }, runtime.t('import.workspace')),
+              h(
+                'select',
+                {
+                  className: 'sc-select',
+                  value: workspace,
+                  onChange: (event) => setWorkspace(event.target.value),
+                  disabled: applying,
+                },
+                projectSources.map((source) => h('option', { key: source.key, value: source.path }, source.label || workspacePath(source.path))),
+              ),
+            )
+            : null,
+          h(
+            'div',
+            { className: 'sc-import-field' },
+            h('span', { className: 'sc-import-field-label' }, runtime.t('import.mode')),
+            h(
+              'div',
+              { className: 'sc-segment' },
+              h('button', {
+                type: 'button',
+                className: 'sc-button',
+                'aria-pressed': mode === 'copy' ? 'true' : 'false',
+                disabled: applying,
+                onClick: () => setMode('copy'),
+              }, runtime.t('import.mode.copy')),
+              h('button', {
+                type: 'button',
+                className: 'sc-button',
+                'aria-pressed': mode === 'symlink' ? 'true' : 'false',
+                disabled: applying,
+                onClick: () => setMode('symlink'),
+              }, runtime.t('import.mode.symlink')),
+            ),
+          ),
+          h(
+            'button',
+            { type: 'button', className: 'sc-button', onClick: loadPlan, disabled: plan.loading || applying },
+            runtime.t('import.rescan'),
+          ),
+        ),
+        h('p', { className: 'sc-note', style: { margin: 0 } }, runtime.t(mode === 'copy' ? 'import.mode.copyHint' : 'import.mode.symlinkHint')),
+        applyError
+          ? h('div', { className: 'sc-banner' }, h('div', { className: 'sc-banner-code' }, errorText(runtime, { code: applyError })))
+          : null,
+        plan.loading ? h('div', { className: 'sc-loading' }, runtime.t('import.loading')) : null,
+        plan.error
+          ? h('div', { className: 'sc-banner' }, h('div', { className: 'sc-banner-code' }, errorText(runtime, { code: plan.error })))
+          : null,
+        data && data.counts.importable === 0 && groups.length === 0
+          ? h('div', { className: 'sc-empty' }, h('div', null, runtime.t('import.empty')))
+          : null,
+        groups.map((group) => {
+          const importable = group.candidates.filter((candidate) => candidate.skipReason === null);
+          const allSelected = importable.length > 0 && importable.every((candidate) => selected.has(candidate.id));
+          return h(
+            'div',
+            { key: group.key, className: 'sc-import-group' },
+            h(
+              'div',
+              { className: 'sc-import-group-head' },
+              h('span', { className: 'sc-import-group-name' }, sourceLabel(runtime, group)),
+              h('span', { className: 'sc-import-group-path' }, group.path),
+              h('span', { className: 'sc-import-group-spacer' }),
+              h(Chip, { text: String(group.candidates.length) }),
+              h(Chip, { text: importable.length + ' ' + runtime.t('import.importable') }),
+              importable.length > 0
+                ? h('button', {
+                  type: 'button',
+                  className: 'sc-button',
+                  onClick: () => toggleGroup(group, !allSelected),
+                  disabled: applying,
+                }, allSelected ? runtime.t('import.clear') : runtime.t('import.selectAll'))
+                : null,
+            ),
+            group.candidates.map((candidate) => {
+              const disabled = candidate.skipReason !== null || applying;
+              return h(
+                'div',
+                { key: candidate.id, className: 'sc-candidate' + (candidate.skipReason !== null ? ' is-skipped' : '') },
+                h('input', {
+                  type: 'checkbox',
+                  className: 'sc-check',
+                  checked: selected.has(candidate.id),
+                  disabled,
+                  onChange: (event) => toggleCandidate(candidate.id, event.target.checked),
+                  'aria-label': candidate.name,
+                }),
+                h(
+                  'div',
+                  { className: 'sc-candidate-main' },
+                  h(
+                    'span',
+                    { className: 'sc-candidate-name' },
+                    candidate.name,
+                    candidate.isSymlinkSource ? h(Chip, { text: runtime.t('badge.symlink'), tone: 'info' }) : null,
+                    candidate.diagnostics && candidate.diagnostics.length > 0
+                      ? h(Chip, { text: runtime.t('import.diagnostics'), tone: 'warn' })
+                      : null,
+                    candidate.skipReason !== null ? h(Chip, { text: reasonLabel(candidate.skipReason), tone: 'warn' }) : null,
+                  ),
+                  candidate.description ? h('span', { className: 'sc-candidate-desc' }, candidate.description) : null,
+                  h('span', { className: 'sc-candidate-path' }, candidate.targetPath || candidate.sourcePath),
+                ),
+              );
+            }),
+          );
+        }),
+        data && groups.length > 0
+          ? h(
+            'div',
+            { className: 'sc-import-footer' },
+            h(ConfirmButton, {
+              label: runtime.t('import.apply') + ' (' + selected.size + ')',
+              confirmLabel: runtime.t('import.confirmApply') + ' (' + selected.size + ')',
+              disabled: selected.size === 0 || applying,
+              tone: 'primary',
+              onConfirm: apply,
+            }),
+            h('span', { className: 'sc-note' }, selected.size + ' ' + runtime.t('import.selected')),
+            applying ? h('span', { className: 'sc-note' }, runtime.t('editor.busy')) : null,
+          )
+          : null,
+        results
+          ? h(
+            'div',
+            { className: 'sc-form' },
+            h('div', { className: 'sc-result-count' }, runtime.t('import.results') + ': '
+              + results.counts.imported + ' ' + runtime.t('import.imported') + ' · '
+              + results.counts.skipped + ' ' + runtime.t('import.skipped') + ' · '
+              + results.counts.failed + ' ' + runtime.t('import.failed')),
+            h(
+              'div',
+              { className: 'sc-results' },
+              results.results.map((item, index) => h(
+                'div',
+                { key: item.id + ':' + index, className: 'sc-result-row' },
+                h(Chip, {
+                  text: item.status,
+                  tone: item.status === 'imported' ? 'info' : item.status === 'failed' ? 'error' : 'warn',
+                }),
+                h('span', null, item.name || item.id),
+                item.code ? h('span', { className: 'sc-result-count' }, reasonLabel(item.code)) : null,
+              )),
+            ),
+          )
+          : null,
+        null,
+      );
+    }
+
     function SkillCuratorPage({ runtime }) {
       useRuntime(runtime);
       const [snapshot, setSnapshot] = useState(null);
@@ -1671,7 +2072,7 @@ window.__ModuleLoader__.load({
             h(
               'div',
               { className: 'sc-header-actions' },
-              capabilities && capabilities.create
+              capabilities && capabilities.create && tab === 'library'
                 ? h('button', { type: 'button', className: 'sc-button sc-button-primary', onClick: () => setCreateOpen(true) }, runtime.t('actions.create'))
                 : null,
               h('button', { type: 'button', className: 'sc-button', onClick: () => loadSnapshot(true), disabled: state.loading }, runtime.t('page.refresh')),
@@ -1690,6 +2091,15 @@ window.__ModuleLoader__.load({
                 'aria-selected': tab === 'library' ? 'true' : 'false',
                 onClick: () => setTab('library'),
               }, runtime.t('tabs.library')),
+              capabilities && capabilities.import
+                ? h('button', {
+                  type: 'button',
+                  role: 'tab',
+                  className: 'sc-tab',
+                  'aria-selected': tab === 'import' ? 'true' : 'false',
+                  onClick: () => setTab('import'),
+                }, runtime.t('tabs.import'))
+                : null,
               capabilities && capabilities.trash
                 ? h('button', {
                   type: 'button',
@@ -1736,14 +2146,25 @@ window.__ModuleLoader__.load({
             onToggleSkill,
             busyId,
           }))
-          : h(TrashPanel, {
-            runtime,
-            items: trash.items,
-            loading: trash.loading,
-            error: trash.error,
-            busyId: trashBusyId,
-            onRestore,
-          }),
+          : tab === 'import'
+            ? h(ImportPanel, {
+              runtime,
+              snapshot,
+              capabilities,
+              onChanged: (revision) => {
+                if (typeof revision === 'string') setSnapshot((current) => (current !== null ? { ...current, revision } : current));
+                refresh();
+              },
+              onMessage: notify,
+            })
+            : h(TrashPanel, {
+              runtime,
+              items: trash.items,
+              loading: trash.loading,
+              error: trash.error,
+              busyId: trashBusyId,
+              onRestore,
+            }),
         selectedSkill !== null
           ? h(SkillDetail, {
             runtime,

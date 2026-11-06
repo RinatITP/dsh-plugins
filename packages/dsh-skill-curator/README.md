@@ -5,16 +5,18 @@ skills visible and manageable in one place: DSH user and shared roots, project
 roots, bundled skills and the skill libraries of other agents (Claude Code,
 Codex, Hermes, ZCode, Cursor, Gemini/Antigravity, Kimi, OpenCode).
 
-> **Status: 0.1.0 development preview, stage 2 (catalog + editing).** The Web
-> settings page lists every discovered skill, renders `SKILL.md`, the bounded
-> resource tree and validation diagnostics, and can edit writable skills:
+> **Status: 0.1.0 development preview, stage 3 (catalog + editing + import).**
+> The Web settings page lists every discovered skill, renders `SKILL.md`, the
+> bounded resource tree and validation diagnostics, and can edit writable skills:
 > validate and save `SKILL.md`, edit `references/`/`scripts/`/`assets/` files,
 > toggle model and slash-menu invocation, create new skills in the user, shared
-> or project root, and move skills to a restorable trash. Every write is
-> confirmation-gated, revision-guarded and backed up first. Import from external
-> agents (symlink/copy), the AI Skill Creator, live sources and the optional
-> sidebar entry are the next stages. Tested against DSH `0.2.2-rc.1`; no visual
-> acceptance of the rendered page has been claimed yet.
+> or project root, move skills to a restorable trash, and **import skills from
+> other agents** as an independent copy or a live symlink into a DSH root with a
+> preview and per-item report. Every write is confirmation-gated,
+> revision-guarded and backed up first; imports never overwrite. The AI Skill
+> Creator, live sources (exposing external skills without importing) and the
+> optional sidebar entry are the next stages. Tested against DSH `0.2.2-rc.1`; no
+> visual acceptance of the rendered page has been claimed yet.
 
 ## What it does today
 
@@ -32,6 +34,12 @@ Codex, Hermes, ZCode, Cursor, Gemini/Antigravity, Kimi, OpenCode).
 - **Skill card** with the raw `SKILL.md`, a bounded file tree
   (`references/`, `scripts/`, `assets/`), traversal-safe preview of text
   resources, and RU/EN copy.
+- **Import is explicit.** The Import tab scans other agents, shows the planned
+  destination path and skip reasons, and only then imports the selected skills.
+  `copy` creates an independent snapshot, `symlink` creates a live link to the
+  discovered source directory; existing target names and invalid skill names are
+  skipped, never overwritten. A per-item report lists imported, skipped and
+  failed entries.
 - **Read-only sources stay read-only.** External agent roots (Claude Code,
   Codex, Hermes, ZCode, Cursor, Gemini, Kimi, OpenCode) are never written.
   Writes go only to `~/.dsh/skills`, `~/.agents/skills` or a configured project
@@ -49,11 +57,10 @@ Codex, Hermes, ZCode, Cursor, Gemini/Antigravity, Kimi, OpenCode).
 
 ## Not implemented yet
 
-Import from external agents (symlink or copy, global/project), the AI Skill
-Creator, live sources (exposing external skills to DSH without importing) and
-the optional sidebar entry. Enabling/disabling **read-only external** skills via
-the overlay provider is also not implemented yet: the toggle in this stage only
-edits skills the plugin may write.
+The AI Skill Creator, live sources (exposing external skills to DSH without
+importing) and the optional sidebar entry. Enabling/disabling **read-only
+external** skills via the overlay provider is also not implemented yet: the
+toggle in this stage only edits skills the plugin may write.
 
 ## Installation
 
@@ -81,7 +88,7 @@ every known root is scanned when it exists.
 |---|---|---|
 | `externalSources` | `{}` | Per-agent overrides keyed by `claude`, `codex`, `hermes`, `zcode`, `cursor`, `gemini`, `kimi`, `opencode`. Set `false` to hide an agent, or `{ "path": "/home/me/.claude" }` to override its **home** directory (the scanner appends `skills`). |
 | `customSources` | `[]` | Extra read-only roots: `[{ "label": "My library", "path": "/srv/skills", "depth": 1 }]`. `~` and `$VAR` are expanded; relative paths are rejected. |
-| `projectRoots` | `[]` | Project roots to show: `[{ "path": "/src/app", "label": "App" }]` — the scanner reads `<path>/.dsh/skills`; writes there require a user confirmation unless `allowProjectWrites` is `false`. |
+| `projectRoots` | detected | Explicit project roots: `[{ "path": "/src/app", "label": "App" }]`. When absent, the Host also derives project roots from the DSH workspace registry and known session working directories (bounded to 12). The scanner reads `<path>/.dsh/skills`; writes there require a user confirmation unless `allowProjectWrites` is `false`. |
 | `allowProjectWrites` | `true` | Set `false` to keep project roots read-only even though they are listed. |
 | `bundledSkillDir` | detected | Overrides the bundled skill directory (also `DSH_BUNDLED_SKILL_DIR`). |
 | `dshHome` / `agentsHome` | `~/.dsh` / `~/.agents` | Override the DSH roots (also `DSH_HOME` / `DSH_AGENTS_HOME`). |
@@ -121,7 +128,10 @@ categories, `.system`, symlinks, shadowed duplicates), exercise the HTTP
 envelope and the static client contract, and run the full mutation cycle against
 an isolated home directory: create → save (with backup) → toggle → resource
 write → trash → restore, plus read-only, symlink, flat-file, project-scope,
-collision and stale-revision refusals.
+collision and stale-revision refusals. Import tests cover the copy and symlink
+modes, flat-file import, project destination, existing-target and invalid-name
+skips, duplicate names across sources, and the confirmation/revision/selection
+guards.
 
 **Live check performed 2026-11-06** on DSH Desktop `0.2.2-rc.1`: the package was
 installed as a linked bundle into the `desktop` profile, DSH appended it to
