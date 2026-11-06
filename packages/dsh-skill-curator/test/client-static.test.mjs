@@ -67,9 +67,14 @@ test('talks to the exact host route with the intent header', () => {
   assert.match(source, /const API_HEADER = 'x-dsh-skill-curator'/);
   assert.match(source, /headers\[API_HEADER\] = '1'/);
   assert.match(source, /credentials: 'same-origin'/);
-  assert.match(source, /requestApi\('snapshot'\)/);
+  assert.match(source, /requestApi\('snapshot'/);
   assert.match(source, /requestApi\('detail'/);
   assert.match(source, /requestApi\('readFile'/);
+  for (const action of ['validate', 'save', 'writeFile', 'toggle', 'create', 'remove', 'trashList', 'restore']) {
+    assert.match(source, new RegExp("requestApi\\('" + action + "'"), `missing mutation action: ${action}`);
+  }
+  assert.match(source, /confirm: true/);
+  assert.match(source, /x-dsh-skill-curator/);
 });
 
 test('Russian and English dictionaries have identical, non-empty keys', () => {
@@ -100,4 +105,9 @@ test('uses theme tokens and plugin-scoped styles only', () => {
 test('declares the read-only stage capability in the UI copy', () => {
   assert.match(source, /read-only|только чтение/i);
   assert.match(source, /requestApi\('readFile'/);
+  for (const action of ['validate', 'save', 'writeFile', 'toggle', 'create', 'remove', 'trashList', 'restore']) {
+    assert.match(source, new RegExp("requestApi\\('" + action + "'"), `missing mutation action: ${action}`);
+  }
+  assert.match(source, /confirm: true/);
+  assert.match(source, /x-dsh-skill-curator/);
 });

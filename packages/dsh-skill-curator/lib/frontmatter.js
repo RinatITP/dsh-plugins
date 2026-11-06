@@ -290,3 +290,76 @@ export function scalarField(data, key) {
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   return '';
 }
+
+/**
+ * Rewrite top-level frontmatter fields while preserving every other line.
+ *
+ * `updates` maps a field name to a boolean or `null`:
+ *  - `true`/`false` replaces the field or appends it before the closing `---`;
+ *  - `null` removes the field when present.
+ *
+ * Only boolean values are accepted on purpose: this helper exists for the two
+ * invocation switches, where the DSH loader expects real booleans. Unknown
+ * fields, comments, quoting and ordering of untouched lines are preserved.
+ *
+ * @param {string} input full SKILL.md text
+ * @param {Record<string, boolean | null>} updates
+ * @returns {{ok: boolean, text: string, reason: string | null}}
+ */
+export function setFrontmatterFields(input, updates) {
+  const text = stripBom(input);
+  const newline = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  if (lines.length === 0 || lines[0].trim() !== '---') {
+    return { ok: false, text: input, reason: 'frontmatter-missing' };
+  }
+  let closing = -1;
+  for (let index = 1; index < lines.length; index += 1) {
+    if (lines[index].trim() === '---') {
+      closing = index;
+      break;
+    }
+  }
+  if (closing === -1) return { ok: false, text: input, reason: 'frontmatter-unclosed' };
+
+  const wanted = [];
+  for (const [key, value] of Object.entries(updates ?? {})) {
+    if (!/^[A-Za-z0-9_.-]+$/.test(key)) continue;
+    if (value !== null && typeof value !== 'boolean') continue;
+    wanted.push([key, value]);
+  }
+
+  const closingLine = lines[closing];
+  const bodyLines = lines.slice(closing + 1);
+  const frontmatterLines = lines.slice(1, closing);
+  const topLevel = new Map();
+  for (let index = 0; index < frontmatterLines.length; index += 1) {
+    if (/^\s/.test(frontmatterLines[index])) continue;
+    const match = /^([A-Za-z0-9_.-]+)\s*:/.exec(frontmatterLines[index]);
+    if (match !== null) topLevel.set(match[1], index);
+  }
+
+  const removals = new Set();
+  const replacements = new Map();
+  const additions = [];
+  for (const [key, value] of wanted) {
+    const index = topLevel.get(key);
+    if (value === null) {
+      if (index !== undefined) removals.add(index);
+      continue;
+    }
+    const line = key + ': ' + (value ? 'true' : 'false');
+    if (index !== undefined) replacements.set(index, line);
+    else additions.push(line);
+  }
+
+  const nextFrontmatter = [];
+  for (let index = 0; index < frontmatterLines.length; index += 1) {
+    if (removals.has(index)) continue;
+    nextFrontmatter.push(replacements.has(index) ? replacements.get(index) : frontmatterLines[index]);
+  }
+  nextFrontmatter.push(...additions);
+
+  const result = [lines[0], ...nextFrontmatter, closingLine, ...bodyLines].join(newline);
+  return { ok: true, text: result, reason: null };
+}

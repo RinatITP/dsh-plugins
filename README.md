@@ -35,7 +35,7 @@ A small monorepo for DSH plugins that follow the same rules:
 | Plugin | Version | License | Description |
 |---|---|---|---|
 | [`dsh-mcp-guard`](packages/dsh-mcp-guard/) | 0.1.0 | MIT | Security-first MCP server manager with a Z.ai/GLM-style settings UI: strict validation, execution preview, bounded audit trail, takeover of existing profile rows and read-only discovery/import of Cursor, Claude and VS Code MCP configs. |
-| [`dsh-skill-curator`](packages/dsh-skill-curator/) | 0.1.0 | MIT | RU-first skill studio: read-only catalog of DSH, project and external agent skills (Claude Code, Codex, Hermes, ZCode, Cursor, Gemini, Kimi, OpenCode, custom), SKILL.md preview, bounded file tree and validation diagnostics. Editing, import, toggles and the AI creator are staged next. |
+| [`dsh-skill-curator`](packages/dsh-skill-curator/) | 0.1.0 | MIT | RU-first skill studio: catalog of DSH, project and external agent skills (Claude Code, Codex, Hermes, ZCode, Cursor, Gemini, Kimi, OpenCode, custom) with validation diagnostics, a bounded file tree, safe editing of `SKILL.md` and modular resources, invocation toggles, skill creation, backups and a restorable trash. Import and the AI creator are staged next. |
 
 More plugins may be added over time. [`docs/PLUGINS.md`](docs/PLUGINS.md) is the
 catalog and lists the acceptance criteria for new entries.
@@ -63,10 +63,11 @@ an end-to-end check mounted a fixture stdio MCP server through the official
 the test configuration was reverted. See
 [`docs/VERIFICATION.md`](docs/VERIFICATION.md) for the record.
 
-**`dsh-skill-curator` stage 1** was installed as a linked bundle into the same
-`desktop` profile on 2026-11-06 (Host row active; route `403` without the intent
-header, `401` without signed-peer admission). Its rendered page is also awaiting
-a visual run-through.
+**`dsh-skill-curator`** was installed as a linked bundle into the same `desktop`
+profile on 2026-11-06 (Host row active; route `403` without the intent header,
+`401` without signed-peer admission). Stage 2 adds confirmation-gated writes,
+backups and a restorable trash; its rendered page is still awaiting a visual
+run-through.
 
 **Remaining verification limit:** this build environment has no browser control,
 so the rendered settings pages have **not** been visually inspected — layout,
@@ -163,7 +164,7 @@ dsh-plugins/
 │   └── SECURITY-MODEL.md      # Threat model, controls, secure defaults, residuals
 ├── packages/
 │   ├── dsh-mcp-guard/         # MCP server manager (bundle + Host + Client)
-│   └── dsh-skill-curator/     # read-only skill studio (bundle + Host + Client)
+│   └── dsh-skill-curator/     # skill studio: catalog, editor, trash (bundle + Host + Client)
 ├── scripts/validate.mjs       # dependency-free repository validator
 ├── CONTRIBUTING.md
 ├── LICENSE

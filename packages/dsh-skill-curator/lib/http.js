@@ -47,10 +47,14 @@ async function readJson(req) {
 
 function errorResponse(error, log) {
   if (error instanceof CuratorError) {
-    return { status: error.status, code: error.code };
+    const payload = { status: error.status, code: error.code };
+    if (error.details !== undefined) payload.details = error.details;
+    return payload;
   }
   if (typeof error?.code === 'string') {
-    return { status: typeof error.status === 'number' ? error.status : 400, code: error.code };
+    const payload = { status: typeof error.status === 'number' ? error.status : 400, code: error.code };
+    if (error.details !== undefined) payload.details = error.details;
+    return payload;
   }
   log?.('OPERATION_FAILED');
   return { status: 500, code: 'OPERATION_FAILED' };
@@ -67,6 +71,14 @@ export function createHandler({ manager, admit, log = () => {} }) {
     snapshot: (body) => manager.snapshot(body),
     detail: (body) => manager.detail(body),
     readFile: (body) => manager.readFile(body),
+    validate: (body) => manager.validateDraft(body),
+    save: (body) => manager.saveSkill(body),
+    writeFile: (body) => manager.writeFile(body),
+    toggle: (body) => manager.toggleSkill(body),
+    create: (body) => manager.createSkill(body),
+    remove: (body) => manager.removeSkill(body),
+    trashList: (body) => manager.listTrash(body),
+    restore: (body) => manager.restoreTrash(body),
   };
 
   return async function handler(req, res) {
@@ -102,9 +114,10 @@ export function createHandler({ manager, admit, log = () => {} }) {
       const value = await actions[action](body);
       return send(res, 200, { ok: true, value });
     } catch (error) {
-      const { status, code } = errorResponse(error, log);
+      const { status, code, details } = errorResponse(error, log);
       try {
-        return send(res, status, { ok: false, error: { code } });
+        const payload = details === undefined ? { code } : { code, details };
+        return send(res, status, { ok: false, error: payload });
       } catch {
         return undefined;
       }

@@ -64,7 +64,19 @@ test('disabled external agents disappear and custom sources are appended', () =>
   assert.ok(!keys.includes('custom:bad'));
   const project = sources.find((source) => source.kind === 'project');
   assert.equal(project.path, '/srv/project/.dsh/skills');
-  assert.equal(project.writable, false);
+  assert.equal(project.writable, true);
+  assert.equal(project.readOnly, false);
+
+  const readOnlyProjects = buildSources({
+    home: HOME,
+    env: ENV,
+    execPath: '/opt/not-dsh/node',
+    config: { allowProjectWrites: false },
+    projectRoots: [{ path: '/srv/project', label: 'Demo' }],
+  });
+  const locked = readOnlyProjects.find((source) => source.kind === 'project');
+  assert.equal(locked.writable, false);
+  assert.equal(locked.readOnly, true);
 });
 
 test('expandPath expands tilde, environment variables and rejects relative input', () => {

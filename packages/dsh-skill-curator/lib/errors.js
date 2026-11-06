@@ -9,12 +9,16 @@ export class CuratorError extends Error {
   /**
    * @param {string} code stable error code (see README)
    * @param {number} [status] HTTP status
+   * @param {{details?: unknown}} [options] value-free extra payload for the Client
    */
-  constructor(code, status = 400) {
+  constructor(code, status = 400, options = undefined) {
     super(code);
     this.name = 'CuratorError';
     this.code = code;
     this.status = status;
+    if (options !== undefined && options !== null && options.details !== undefined) {
+      this.details = options.details;
+    }
   }
 }
 

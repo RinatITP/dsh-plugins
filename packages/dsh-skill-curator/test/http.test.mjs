@@ -164,3 +164,31 @@ test('rejects unknown HTTP methods', async () => {
   await handler(fakeRequest({ method: 'DELETE', headers: { [HEADER]: '1' } }), res);
   assert.equal(res.status, 405);
 });
+
+test('mutation errors keep value-free diagnostics details', async () => {
+  const validating = {
+    ...manager,
+    async saveSkill() {
+      const error = new Error('validation failed');
+      error.code = 'VALIDATION_FAILED';
+      error.status = 422;
+      error.details = { diagnostics: [{ code: 'name-invalid', severity: 'error' }] };
+      throw error;
+    },
+  };
+  const handler = createHandler({ manager: validating, admit: admitPeer });
+  const res = fakeResponse();
+  await handler(fakeRequest({
+    method: 'POST',
+    headers: { [HEADER]: '1', 'content-type': 'application/json' },
+    body: { action: 'save', confirm: true },
+  }), res);
+  assert.equal(res.status, 422);
+  assert.deepEqual(res.json(), {
+    ok: false,
+    error: {
+      code: 'VALIDATION_FAILED',
+      details: { diagnostics: [{ code: 'name-invalid', severity: 'error' }] },
+    },
+  });
+});

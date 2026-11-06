@@ -210,6 +210,7 @@ export function buildSources({
     }),
   ];
 
+  const projectWritable = config.allowProjectWrites !== false;
   for (const project of projectRoots) {
     const projectPath = expandPath(project?.path, { home, env });
     if (projectPath === null) continue;
@@ -220,8 +221,8 @@ export function buildSources({
       labelKey: 'source.project',
       label: typeof project.label === 'string' ? project.label : null,
       path: join(projectPath, '.dsh', 'skills'),
-      readOnly: true,
-      writable: false,
+      readOnly: projectWritable === false,
+      writable: projectWritable,
       flat: true,
       scope: 'project',
     }));

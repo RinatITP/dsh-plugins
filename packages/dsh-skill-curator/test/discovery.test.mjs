@@ -174,6 +174,6 @@ test('buildSources accepts projectRoots from configuration', () => {
     projectRoots: [{ path: '/srv/demo', label: 'Demo' }],
   });
   const project = sources.find((item) => item.kind === 'project');
-  assert.equal(project.writable, false);
+  assert.equal(project.writable, true);
   assert.equal(project.path, '/srv/demo/.dsh/skills');
 });

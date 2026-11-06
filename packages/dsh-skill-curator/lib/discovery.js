@@ -42,7 +42,9 @@ const DSH_PRECEDENCE = {
 };
 
 function isIgnoredName(name) {
-  return typeof name === 'string' && (IGNORED_DIRECTORIES.has(name) || name.startsWith('._'));
+  if (typeof name !== 'string') return false;
+  if (name === '.system') return false;
+  return IGNORED_DIRECTORIES.has(name) || name.startsWith('.');
 }
 
 async function safeLstat(path) {
@@ -309,6 +311,7 @@ async function readBundle(directory, source, { category, system, maxSkillFileByt
     scope: source.scope,
     readOnly: source.readOnly,
     readOnlyReason: readOnlyReason(source),
+    writable: source.writable === true,
     category,
     system,
     isFlat: false,
@@ -350,6 +353,7 @@ async function readFlat(filePath, source, { maxSkillFileBytes }) {
     scope: source.scope,
     readOnly: source.readOnly,
     readOnlyReason: readOnlyReason(source),
+    writable: source.writable === true,
     category: null,
     system: false,
     isFlat: true,
@@ -503,6 +507,7 @@ export function projectSkill(skill) {
     system: skill.system === true,
     readOnly: skill.readOnly,
     readOnlyReason: skill.readOnlyReason,
+    writable: skill.writable === true,
     path: skill.path,
     relativePath: skill.relativePath,
     isFlat: skill.isFlat,
@@ -533,7 +538,9 @@ export async function readSkillDetail(skill, options = {}) {
     return { ok: false, code: 'SKILL_UNREADABLE' };
   }
   const truncated = Buffer.byteLength(content, 'utf8') > maxFileBytes;
-  const files = await listSkillTree(skill.skillDir, { maxEntries: maxTreeEntries });
+  const files = skill.isFlat
+    ? [{ relativePath: basename(skill.path), kind: 'file', size: Buffer.byteLength(content, 'utf8') }]
+    : await listSkillTree(skill.skillDir, { maxEntries: maxTreeEntries });
   return {
     ok: true,
     skill: projectSkill(skill),
@@ -585,6 +592,21 @@ export async function listSkillTree(skillDir, { maxEntries = LIMITS.maxTreeEntri
 export async function readSkillFile(skill, relativePath, { maxBytes = LIMITS.maxFileReadBytes } = {}) {
   if (typeof relativePath !== 'string' || relativePath === '' || relativePath.includes('\0')) {
     return { ok: false, code: 'PATH_INVALID' };
+  }
+  if (skill.isFlat === true) {
+    if (relativePath !== basename(skill.path)) return { ok: false, code: 'PATH_OUTSIDE_SKILL' };
+    const flatInfo = await safeLstat(skill.path);
+    if (flatInfo === null || !flatInfo.isFile()) return { ok: false, code: 'FILE_NOT_FOUND' };
+    const flatBuffer = await readFile(skill.path).catch(() => null);
+    if (flatBuffer === null) return { ok: false, code: 'FILE_UNREADABLE' };
+    const flatText = flatBuffer.toString('utf8');
+    return {
+      ok: true,
+      binary: false,
+      size: flatBuffer.length,
+      truncated: flatBuffer.length > maxBytes,
+      content: flatBuffer.length > maxBytes ? flatText.slice(0, maxBytes) : flatText,
+    };
   }
   const base = resolve(skill.skillDir);
   const target = resolve(base, relativePath);

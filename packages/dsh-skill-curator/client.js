@@ -60,6 +60,7 @@ window.__ModuleLoader__.load({
       'badge.errors': 'errors',
       'badge.warnings': 'warnings',
       'detail.content': 'SKILL.md',
+      'detail.edit': 'Edit',
       'detail.files': 'Files',
       'detail.diagnostics': 'Diagnostics',
       'detail.close': 'Close',
@@ -99,6 +100,66 @@ window.__ModuleLoader__.load({
       'status.external': 'external, read-only',
       'status.bundled': 'bundled, read-only',
       'status.projectLocked': 'project, read-only in this stage',
+      'tabs.library': 'Library',
+      'tabs.trash': 'Trash',
+      'actions.create': 'Create',
+      'actions.delete': 'Move to trash',
+      'actions.confirmDelete': 'Confirm delete',
+      'actions.restore': 'Restore',
+      'actions.save': 'Save',
+      'actions.cancel': 'Cancel',
+      'actions.validate': 'Check',
+      'actions.editFile': 'Edit file',
+      'actions.newFile': 'New file',
+      'actions.enable': 'Enable',
+      'actions.disable': 'Disable',
+      'row.enabled': 'Visible to the model and in the slash menu',
+      'row.disabled': 'Hidden from the model and the slash menu',
+      'toggle.model': 'Model',
+      'toggle.user': 'Slash menu',
+      'editor.title': 'Edit SKILL.md',
+      'editor.hint': 'Changes are validated before writing. The previous file is backed up; the catalog refreshes after save.',
+      'editor.busy': 'Saving…',
+      'editor.errors': 'Fix these errors before saving',
+      'editor.noErrors': 'No errors',
+      'editor.unsaved': 'Unsaved changes',
+      'editor.fileTitle': 'Edit resource file',
+      'create.title': 'Create skill',
+      'create.name': 'Name (kebab-case)',
+      'create.description': 'Description (what and when to use)',
+      'create.body': 'Instructions',
+      'create.scope': 'Location',
+      'create.scope.user': 'My skills (DSH)',
+      'create.scope.agents': 'Shared agents',
+      'create.scope.project': 'Project',
+      'create.workspace': 'Workspace',
+      'create.submit': 'Create',
+      'create.cancel': 'Cancel',
+      'create.hint': 'The name becomes the directory name and must match the frontmatter. Additional material belongs in references/ and scripts/ — keep SKILL.md short.',
+      'trash.title': 'Trash',
+      'trash.empty': 'Trash is empty.',
+      'trash.item': 'Deleted skill',
+      'trash.originalPath': 'Original path',
+      'trash.deletedAt': 'Deleted',
+      'trash.confirmRestore': 'Confirm restore',
+      'toast.saved': 'Skill saved',
+      'toast.created': 'Skill created',
+      'toast.trashed': 'Skill moved to trash',
+      'toast.restored': 'Skill restored',
+      'toast.updated': 'Skill updated',
+      'toast.stale': 'The catalog changed. Reloaded — try again.',
+      'error.CONFIRM_REQUIRED': 'Confirmation is required for this action',
+      'error.STALE_REVISION': 'The catalog has changed. Reopen the skill and try again',
+      'error.VALIDATION_FAILED': 'The skill has validation errors',
+      'error.READ_ONLY_SKILL': 'This skill is read-only',
+      'error.SYMLINK_READ_ONLY': 'Symlinked skills cannot be edited here',
+      'error.TARGET_EXISTS': 'A skill with this name already exists',
+      'error.NAME_CHANGE_UNSUPPORTED': 'The skill name cannot be changed in this view',
+      'error.PATH_NOT_ALLOWED': 'Only references/, scripts/ and assets/ files may be written',
+      'error.SKILL_UNREADABLE': 'The skill file cannot be read',
+      'error.PROJECT_NOT_CONFIGURED': 'This project is not configured in the plugin',
+      'error.CONTENT_TOO_LARGE': 'The content is too large',
+      'error.OPERATION_FAILED': 'The operation failed',
     };
 
     const DICT_RU = {
@@ -131,6 +192,7 @@ window.__ModuleLoader__.load({
       'badge.errors': 'ошибок',
       'badge.warnings': 'предупреждений',
       'detail.content': 'SKILL.md',
+      'detail.edit': 'Редактировать',
       'detail.files': 'Файлы',
       'detail.diagnostics': 'Диагностика',
       'detail.close': 'Закрыть',
@@ -170,6 +232,66 @@ window.__ModuleLoader__.load({
       'status.external': 'внешний, только чтение',
       'status.bundled': 'встроенный, только чтение',
       'status.projectLocked': 'проектный, на этом этапе только чтение',
+      'tabs.library': 'Библиотека',
+      'tabs.trash': 'Корзина',
+      'actions.create': 'Создать',
+      'actions.delete': 'В корзину',
+      'actions.confirmDelete': 'Подтвердить удаление',
+      'actions.restore': 'Восстановить',
+      'actions.save': 'Сохранить',
+      'actions.cancel': 'Отмена',
+      'actions.validate': 'Проверить',
+      'actions.editFile': 'Редактировать файл',
+      'actions.newFile': 'Новый файл',
+      'actions.enable': 'Включить',
+      'actions.disable': 'Выключить',
+      'row.enabled': 'Виден модели и в меню /',
+      'row.disabled': 'Скрыт от модели и из меню /',
+      'toggle.model': 'Модель',
+      'toggle.user': 'Меню /',
+      'editor.title': 'Редактирование SKILL.md',
+      'editor.hint': 'Перед записью изменения проверяются. Предыдущий файл сохраняется в бэкап; после сохранения каталог обновляется.',
+      'editor.busy': 'Сохраняю…',
+      'editor.errors': 'Исправьте ошибки перед сохранением',
+      'editor.noErrors': 'Ошибок нет',
+      'editor.unsaved': 'Есть несохранённые изменения',
+      'editor.fileTitle': 'Редактирование файла навыка',
+      'create.title': 'Новый навык',
+      'create.name': 'Имя (kebab-case)',
+      'create.description': 'Описание (что и когда использовать)',
+      'create.body': 'Инструкции',
+      'create.scope': 'Куда сохранить',
+      'create.scope.user': 'Мои навыки (DSH)',
+      'create.scope.agents': 'Общие агентские',
+      'create.scope.project': 'Проект',
+      'create.workspace': 'Рабочий каталог',
+      'create.submit': 'Создать',
+      'create.cancel': 'Отмена',
+      'create.hint': 'Имя станет именем папки и должно совпадать с frontmatter. Дополнительные материалы — в references/ и scripts/, а SKILL.md держите коротким.',
+      'trash.title': 'Корзина',
+      'trash.empty': 'Корзина пуста.',
+      'trash.item': 'Удалённый навык',
+      'trash.originalPath': 'Исходный путь',
+      'trash.deletedAt': 'Удалён',
+      'trash.confirmRestore': 'Подтвердить восстановление',
+      'toast.saved': 'Навык сохранён',
+      'toast.created': 'Навык создан',
+      'toast.trashed': 'Навык перемещён в корзину',
+      'toast.restored': 'Навык восстановлен',
+      'toast.updated': 'Навык обновлён',
+      'toast.stale': 'Каталог изменился. Перезагрузил — повторите действие.',
+      'error.CONFIRM_REQUIRED': 'Для действия нужно подтверждение',
+      'error.STALE_REVISION': 'Каталог изменился. Откройте навык заново и повторите',
+      'error.VALIDATION_FAILED': 'В навыке есть ошибки проверки',
+      'error.READ_ONLY_SKILL': 'Этот навык доступен только для чтения',
+      'error.SYMLINK_READ_ONLY': 'Навыки-симлинки здесь не редактируются',
+      'error.TARGET_EXISTS': 'Навык с таким именем уже существует',
+      'error.NAME_CHANGE_UNSUPPORTED': 'Имя навыка нельзя изменить в этом окне',
+      'error.PATH_NOT_ALLOWED': 'Записывать можно только файлы в references/, scripts/ и assets/',
+      'error.SKILL_UNREADABLE': 'Файл навыка не читается',
+      'error.PROJECT_NOT_CONFIGURED': 'Этот проект не настроен в плагине',
+      'error.CONTENT_TOO_LARGE': 'Содержимое слишком большое',
+      'error.OPERATION_FAILED': 'Операция не выполнена',
     };
 
     /* ------------------------------------------------------------------ */
@@ -314,6 +436,81 @@ window.__ModuleLoader__.load({
       .sc-diag-params { color: var(--dsw-alias-label-tertiary, #9ca3af); font-size: 11px; margin-top: 2px; word-break: break-word; }
       .sc-muted { color: var(--dsw-alias-label-secondary, #6b7280); }
       .sc-note { color: var(--dsw-alias-label-tertiary, #9ca3af); font-size: 12px; }
+      .sc-row-wrap {
+        display: flex; align-items: stretch; gap: 8px;
+        border-top: 1px solid var(--dsw-alias-border-l2, #f0f0f0);
+      }
+      .sc-row-wrap:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.03)); }
+      .sc-row {
+        display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0;
+        padding: 10px 0 10px 14px; border: 0; background: transparent;
+        font: inherit; color: inherit; text-align: left; cursor: pointer;
+      }
+      .sc-row:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, #4f46e5); outline-offset: -2px; }
+      .sc-row-switch { display: flex; align-items: center; padding: 0 14px 0 6px; }
+      .sc-switch {
+        position: relative; width: 34px; height: 20px; padding: 0; flex: none;
+        border: 1px solid var(--dsw-alias-border-l3, #d1d5db); border-radius: 999px;
+        background: var(--dsw-alias-bg-layer-3, #e5e7eb); cursor: pointer;
+        transition: background 120ms ease;
+      }
+      .sc-switch.is-on { background: var(--dsw-alias-brand-primary, #4f46e5); border-color: var(--dsw-alias-brand-primary, #4f46e5); }
+      .sc-switch:disabled { opacity: 0.55; cursor: default; }
+      .sc-switch-knob {
+        position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+        border-radius: 50%; background: var(--dsw-alias-switch-thumb, #fff); transition: transform 120ms ease;
+      }
+      .sc-switch.is-on .sc-switch-knob { transform: translateX(14px); }
+      .sc-toolbar-tabs { display: flex; gap: 4px; }
+      .sc-toolbar-tabs .sc-tab { padding: 6px 10px; border-bottom: 2px solid transparent; }
+      .sc-toolbar-tabs .sc-tab[aria-selected="true"] { border-bottom-color: var(--dsw-alias-brand-primary, #4f46e5); }
+      .sc-button.is-danger { border-color: var(--dsw-alias-state-error-primary, #dc2626); color: var(--dsw-alias-state-error-primary, #dc2626); }
+      .sc-button-primary {
+        border: 1px solid var(--dsw-alias-button-primary-fill, #1f2937);
+        background: var(--dsw-alias-button-primary-fill, #1f2937);
+        color: var(--dsw-alias-label-primary-foreground, #fff);
+      }
+      .sc-button-primary:hover { background: var(--dsw-alias-button-primary-hover, #111827); }
+      .sc-button:disabled { opacity: 0.55; cursor: default; }
+      .sc-input, .sc-textarea, .sc-select {
+        width: 100%; padding: 7px 9px; font: inherit; color: inherit;
+        border: 1px solid var(--dsw-alias-border-l3, #d1d5db); border-radius: 8px;
+        background: var(--dsw-alias-bg-layer-1, #fff);
+      }
+      .sc-input:focus-visible, .sc-textarea:focus-visible, .sc-select:focus-visible {
+        outline: 2px solid var(--dsw-alias-brand-primary, #4f46e5); outline-offset: 1px;
+      }
+      .sc-textarea {
+        min-height: 220px; resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.55;
+      }
+      .sc-form { display: flex; flex-direction: column; gap: 10px; }
+      .sc-field { display: flex; flex-direction: column; gap: 4px; }
+      .sc-field-label { font-size: 12px; font-weight: 600; }
+      .sc-form-row { display: flex; gap: 10px; flex-wrap: wrap; }
+      .sc-form-row > .sc-field { flex: 1 1 200px; }
+      .sc-editor-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+      .sc-editor-actions .sc-note { margin-left: auto; }
+      .sc-toast {
+        position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+        z-index: 80; padding: 9px 14px; border-radius: 10px; max-width: 560px;
+        background: var(--dsw-alias-bg-layer-1, #fff); color: var(--dsw-alias-label-primary, #1c1c1e);
+        border: 1px solid var(--dsw-alias-border-l3, #d1d5db);
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22); font-size: 13px;
+      }
+      .sc-toggle-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+      .sc-trash-list { display: flex; flex-direction: column; gap: 8px; }
+      .sc-trash-item {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+        border: 1px solid var(--dsw-alias-border-l2, #e5e7eb); border-radius: 10px; padding: 10px 12px;
+      }
+      .sc-trash-main { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+      .sc-trash-name { font-weight: 600; }
+      .sc-trash-path {
+        color: var(--dsw-alias-label-tertiary, #9ca3af); font-size: 11px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
       .sc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     `;
 
@@ -351,8 +548,8 @@ window.__ModuleLoader__.load({
       return API_PATH;
     }
 
-    function clientError(code, status) {
-      return { code, status };
+    function clientError(code, status, details) {
+      return { code, status, details };
     }
 
     async function requestApi(action, payload) {
@@ -379,7 +576,7 @@ window.__ModuleLoader__.load({
       if (!response.ok || !body || body.ok !== true) {
         const error = body && body.error && typeof body.error === 'object' ? body.error : {};
         const code = typeof error.code === 'string' && error.code !== '' ? error.code : 'INVALID_RESPONSE';
-        throw clientError(code, response.status);
+        throw clientError(code, response.status, error.details);
       }
       return body.value;
     }
@@ -508,7 +705,14 @@ window.__ModuleLoader__.load({
       return h('span', { className }, text);
     }
 
-    function SkillRow({ runtime, skill, onOpen }) {
+    function errorText(runtime, error) {
+      const code = error && typeof error.code === 'string' && error.code !== '' ? error.code : 'OPERATION_FAILED';
+      const key = 'error.' + code;
+      const translated = runtime.t(key);
+      return translated === key ? code : translated;
+    }
+
+    function SkillRow({ runtime, skill, onOpen, capabilities, onToggle, busy }) {
       const errors = countSeverity(skill.diagnostics, 'error');
       const warnings = countSeverity(skill.diagnostics, 'warn');
       const chips = [];
@@ -526,25 +730,35 @@ window.__ModuleLoader__.load({
       if (errors > 0) chips.push(h(Chip, { key: 'errors', text: errors + ' ' + runtime.t('badge.errors'), tone: 'error' }));
       else if (warnings > 0) chips.push(h(Chip, { key: 'warnings', text: warnings + ' ' + runtime.t('badge.warnings'), tone: 'warn' }));
 
+      const enabled = !skill.invocation || (skill.invocation.modelInvocable !== false && skill.invocation.userInvocable !== false);
+      const canToggle = capabilities && capabilities.write === true && skill.writable === true;
+      const switchEl = canToggle
+        ? h(ToggleSwitch, {
+          checked: enabled,
+          disabled: busy === true,
+          label: enabled ? runtime.t('row.enabled') : runtime.t('row.disabled'),
+          onChange: (next) => onToggle(skill, next),
+        })
+        : null;
+
       return h(
-        'button',
-        {
-          type: 'button',
-          className: 'sc-row',
-          onClick: () => onOpen(skill),
-          'aria-label': skill.name,
-        },
-        h('span', { className: 'sc-row-top' }, h('span', { className: 'sc-row-name' }, skill.name), chips),
-        skill.description ? h('span', { className: 'sc-row-desc' }, skill.description) : null,
-        h('span', { className: 'sc-row-path' }, skill.relativePath || skill.path),
+        'div',
+        { className: 'sc-row-wrap' },
+        h(
+          'button',
+          { type: 'button', className: 'sc-row', onClick: () => onOpen(skill), 'aria-label': skill.name },
+          h('span', { className: 'sc-row-top' }, h('span', { className: 'sc-row-name' }, skill.name), chips),
+          skill.description ? h('span', { className: 'sc-row-desc' }, skill.description) : null,
+          h('span', { className: 'sc-row-path' }, skill.relativePath || skill.path),
+        ),
+        switchEl ? h('div', { className: 'sc-row-switch' }, switchEl) : null,
       );
     }
 
-    function SourceGroup({ runtime, source, skills, collapsed, onToggle, onOpen }) {
+    function SourceGroup({ runtime, source, skills, collapsed, onToggleGroup, onOpen, capabilities, onToggleSkill, busyId }) {
       const errors = skills.reduce((total, skill) => total + countSeverity(skill.diagnostics, 'error'), 0);
       const warnings = skills.reduce((total, skill) => total + countSeverity(skill.diagnostics, 'warn'), 0);
-      const summary = [];
-      summary.push(h(Chip, { key: 'count', text: String(skills.length) }));
+      const summary = [h(Chip, { key: 'count', text: String(skills.length) })];
       if (source.readOnly) summary.push(h(Chip, { key: 'readonly', text: runtime.t('group.readOnly'), tone: 'info' }));
       if (source.systemCount > 0) summary.push(h(Chip, { key: 'system', text: runtime.t('group.system') }));
       if (errors > 0) summary.push(h(Chip, { key: 'errors', text: errors + ' ' + runtime.t('badge.errors'), tone: 'error' }));
@@ -558,7 +772,7 @@ window.__ModuleLoader__.load({
           {
             type: 'button',
             className: 'sc-group-head',
-            onClick: onToggle,
+            onClick: onToggleGroup,
             'aria-expanded': collapsed ? 'false' : 'true',
           },
           h('span', { className: 'sc-group-chevron' }, collapsed ? '▸' : '▾'),
@@ -572,7 +786,15 @@ window.__ModuleLoader__.load({
           { className: 'sc-rows' },
           skills.length === 0
             ? h('div', { className: 'sc-note', style: { padding: '10px 14px' } }, runtime.t('group.empty'))
-            : skills.map((skill) => h(SkillRow, { key: skill.id, runtime, skill, onOpen })),
+            : skills.map((skill) => h(SkillRow, {
+              key: skill.id,
+              runtime,
+              skill,
+              onOpen,
+              capabilities,
+              onToggle: onToggleSkill,
+              busy: busyId === skill.id,
+            })),
         ),
       );
     }
@@ -586,31 +808,121 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function SkillDetail({ runtime, skillId, source, onClose }) {
+    function ToggleSwitch({ checked, disabled, label, onChange }) {
+      return h(
+        'button',
+        {
+          type: 'button',
+          role: 'switch',
+          'aria-checked': checked ? 'true' : 'false',
+          'aria-label': label,
+          title: label,
+          className: 'sc-switch' + (checked ? ' is-on' : ''),
+          disabled: disabled === true,
+          onClick: (event) => {
+            event.stopPropagation();
+            if (disabled !== true) onChange(!checked);
+          },
+        },
+        h('span', { className: 'sc-switch-knob' }),
+      );
+    }
+
+    function ConfirmButton({ label, confirmLabel, disabled, tone, onConfirm }) {
+      const [armed, setArmed] = useState(false);
+      useEffect(() => {
+        if (!armed) return undefined;
+        const timer = setTimeout(() => setArmed(false), 5000);
+        return () => clearTimeout(timer);
+      }, [armed]);
+      const className = 'sc-button' + (tone === 'primary' ? ' sc-button-primary' : '') + (armed ? ' is-danger' : '');
+      return h(
+        'button',
+        {
+          type: 'button',
+          className,
+          disabled: disabled === true,
+          onClick: () => {
+            if (armed) {
+              setArmed(false);
+              onConfirm();
+            } else {
+              setArmed(true);
+            }
+          },
+        },
+        armed ? confirmLabel : label,
+      );
+    }
+
+    function DiagnosticsList({ runtime, diagnostics }) {
+      if (!Array.isArray(diagnostics) || diagnostics.length === 0) {
+        return h('p', { className: 'sc-note' }, runtime.t('detail.diagnostics.none'));
+      }
+      return h(
+        'div',
+        { className: 'sc-diag' },
+        diagnostics.map((item, index) => h(
+          'div',
+          { key: item.code + ':' + index, className: 'sc-diag-item' },
+          h(
+            'div',
+            { className: 'sc-diag-code' },
+            h(
+              'span',
+              {
+                className: 'sc-chip' + (item.severity === 'error' ? ' is-error' : item.severity === 'warn' ? ' is-warn' : ' is-info'),
+                style: { marginRight: '8px' },
+              },
+              runtime.t('detail.diagnostics.severity.' + (item.severity || 'info')),
+            ),
+            item.code,
+          ),
+          item.params && Object.keys(item.params).length > 0
+            ? h('div', { className: 'sc-diag-params' }, formatParams(item.params))
+            : null,
+        )),
+      );
+    }
+
+    function SkillDetail({ runtime, skillId, source, revision, capabilities, onClose, onChanged, onMessage }) {
       const [detail, setDetail] = useState(null);
       const [state, setState] = useState({ loading: true, error: null });
       const [tab, setTab] = useState('content');
+      const [currentRevision, setCurrentRevision] = useState(revision);
+      const [editText, setEditText] = useState(null);
+      const [editState, setEditState] = useState({ busy: false, diagnostics: null, error: null });
       const [file, setFile] = useState(null);
       const [fileState, setFileState] = useState({ loading: false, error: null });
+      const [fileEdit, setFileEdit] = useState(null);
+      const [fileEditState, setFileEditState] = useState({ busy: false, error: null });
+      const [mutationBusy, setMutationBusy] = useState(false);
+      const [mutationError, setMutationError] = useState(null);
 
       useEffect(() => {
-        let cancelled = false;
-        (async () => {
-          setState({ loading: true, error: null });
-          try {
-            const value = await requestApi('detail', { id: skillId });
-            if (!cancelled) {
-              setDetail(value);
-              setState({ loading: false, error: null });
-            }
-          } catch (error) {
-            if (!cancelled) setState({ loading: false, error: error.code || 'OPERATION_FAILED' });
-          }
-        })();
-        return () => {
-          cancelled = true;
-        };
+        if (typeof revision === 'string') setCurrentRevision(revision);
+      }, [revision]);
+
+      const loadDetail = useCallback(async () => {
+        setState({ loading: true, error: null });
+        try {
+          const value = await requestApi('detail', { id: skillId });
+          setDetail(value);
+          setState({ loading: false, error: null });
+        } catch (error) {
+          setState({ loading: false, error: error.code || 'OPERATION_FAILED' });
+        }
       }, [skillId]);
+
+      useEffect(() => {
+        setDetail(null);
+        setTab('content');
+        setEditText(null);
+        setFile(null);
+        setFileEdit(null);
+        setMutationError(null);
+        loadDetail();
+      }, [skillId, loadDetail]);
 
       useEffect(() => {
         const onKey = (event) => {
@@ -623,15 +935,112 @@ window.__ModuleLoader__.load({
         return undefined;
       }, [onClose]);
 
-      const skill = detail ? detail.skill : null;
+      useEffect(() => {
+        if (tab === 'edit' && editText === null && detail !== null) setEditText(detail.content);
+      }, [tab, detail, editText]);
+
+      const writable = capabilities?.write === true && detail?.skill?.writable === true;
+      const skill = detail?.skill ?? null;
       const diagnostics = skill ? (skill.diagnostics || []) : [];
       const errors = countSeverity(diagnostics, 'error');
       const warnings = countSeverity(diagnostics, 'warn');
+
+      const applyRevision = (value) => {
+        if (value && typeof value.revision === 'string') {
+          setCurrentRevision(value.revision);
+          if (typeof onChanged === 'function') onChanged(value.revision);
+        }
+      };
+
+      const reportError = (error) => {
+        setMutationError(errorText(runtime, error));
+        if (error && error.code === 'STALE_REVISION') {
+          if (typeof onMessage === 'function') onMessage('toast.stale');
+          if (typeof onChanged === 'function') onChanged();
+        }
+      };
+
+      const saveContent = async () => {
+        if (editText === null) return;
+        setEditState({ busy: true, diagnostics: null, error: null });
+        setMutationError(null);
+        try {
+          const value = await requestApi('save', {
+            id: skillId,
+            content: editText,
+            revision: currentRevision,
+            confirm: true,
+          });
+          applyRevision(value);
+          setEditText(null);
+          setTab('content');
+          await loadDetail();
+          if (typeof onMessage === 'function') onMessage('toast.saved');
+        } catch (error) {
+          if (error.code === 'VALIDATION_FAILED' && error.details && Array.isArray(error.details.diagnostics)) {
+            setEditState({ busy: false, diagnostics: error.details.diagnostics, error: null });
+          } else {
+            setEditState({ busy: false, diagnostics: null, error: error.code || 'OPERATION_FAILED' });
+            reportError(error);
+          }
+        }
+      };
+
+      const validateContent = async () => {
+        if (editText === null) return;
+        setEditState({ busy: true, diagnostics: null, error: null });
+        try {
+          const value = await requestApi('validate', { id: skillId, content: editText });
+          setEditState({ busy: false, diagnostics: value.diagnostics, error: null });
+        } catch (error) {
+          setEditState({ busy: false, diagnostics: null, error: error.code || 'OPERATION_FAILED' });
+        }
+      };
+
+      const toggleInvocation = async (field, next) => {
+        if (!skill) return;
+        setMutationBusy(true);
+        setMutationError(null);
+        const payload = {
+          id: skillId,
+          revision: currentRevision,
+          confirm: true,
+          modelInvocable: skill.invocation.modelInvocable !== false,
+          userInvocable: skill.invocation.userInvocable !== false,
+        };
+        if (field === 'model') payload.modelInvocable = next;
+        else payload.userInvocable = next;
+        try {
+          const value = await requestApi('toggle', payload);
+          applyRevision(value);
+          setDetail((current) => (current !== null ? { ...current, skill: value.skill } : current));
+          if (typeof onMessage === 'function') onMessage('toast.updated');
+        } catch (error) {
+          reportError(error);
+        } finally {
+          setMutationBusy(false);
+        }
+      };
+
+      const removeSkill = async () => {
+        setMutationBusy(true);
+        setMutationError(null);
+        try {
+          const value = await requestApi('remove', { id: skillId, revision: currentRevision, confirm: true });
+          applyRevision(value);
+          if (typeof onMessage === 'function') onMessage('toast.trashed');
+          onClose();
+        } catch (error) {
+          reportError(error);
+          setMutationBusy(false);
+        }
+      };
 
       const openFile = useCallback(async (relativePath) => {
         setTab('files');
         setFileState({ loading: true, error: null });
         setFile(null);
+        setFileEdit(null);
         try {
           const value = await requestApi('readFile', { id: skillId, path: relativePath });
           setFile({ relativePath, ...value });
@@ -641,7 +1050,27 @@ window.__ModuleLoader__.load({
         }
       }, [skillId]);
 
-      const tabs = ['content', 'files', 'diagnostics'];
+      const saveFile = async () => {
+        if (fileEdit === null) return;
+        setFileEditState({ busy: true, error: null });
+        try {
+          const value = await requestApi('writeFile', {
+            id: skillId,
+            path: fileEdit.path,
+            content: fileEdit.text,
+            revision: currentRevision,
+            confirm: true,
+          });
+          applyRevision(value);
+          setFileEdit(null);
+          await loadDetail();
+          if (typeof onMessage === 'function') onMessage('toast.saved');
+        } catch (error) {
+          setFileEditState({ busy: false, error: error.code || 'OPERATION_FAILED' });
+        }
+      };
+
+      const tabs = writable ? ['content', 'edit', 'files', 'diagnostics'] : ['content', 'files', 'diagnostics'];
 
       return h(
         'div',
@@ -663,27 +1092,65 @@ window.__ModuleLoader__.load({
               'div',
               { className: 'sc-modal-title-row' },
               h('h2', { className: 'sc-modal-title' }, skill ? skill.name : runtime.t('detail.loading')),
-              h('button', { type: 'button', className: 'sc-button', onClick: onClose }, runtime.t('detail.close')),
+              h(
+                'div',
+                { style: { display: 'flex', gap: '8px', flex: 'none' } },
+                writable
+                  ? h(ConfirmButton, {
+                    label: runtime.t('actions.delete'),
+                    confirmLabel: runtime.t('actions.confirmDelete'),
+                    disabled: mutationBusy,
+                    onConfirm: removeSkill,
+                  })
+                  : null,
+                h('button', { type: 'button', className: 'sc-button', onClick: onClose }, runtime.t('detail.close')),
+              ),
             ),
             skill && skill.description ? h('p', { className: 'sc-modal-desc' }, skill.description) : null,
             skill
               ? h(
                 'div',
                 { className: 'sc-modal-meta' },
-                h(MetaItem, { label: runtime.t('detail.source'), value: sourceLabel(runtime, source ?? { key: skill.sourceKey, labelKey: 'source.' + (skill.agent || skill.sourceKind) }) }),
+                h(MetaItem, { label: runtime.t('detail.source'), value: sourceLabel(runtime, source ?? { key: skill.sourceKey }) }),
                 h(MetaItem, { label: runtime.t('detail.scope'), value: scopeLabel(runtime, skill.scope) }),
                 h(MetaItem, { label: runtime.t('detail.path'), value: skill.path, mono: true }),
                 h(MetaItem, { label: runtime.t('detail.size'), value: formatBytes(skill.sizeBytes) }),
                 h(MetaItem, { label: runtime.t('detail.lines'), value: String(skill.bodyLines) }),
                 h(MetaItem, { label: runtime.t('detail.status'), value: statusLabel(runtime, skill) }),
                 h(MetaItem, { label: runtime.t('detail.mtime'), value: formatDate(skill.mtimeMs, runtime.language) }),
-                errors > 0 || warnings > 0
-                  ? h(MetaItem, {
-                    label: runtime.t('detail.diagnostics'),
-                    value: errors + ' / ' + warnings,
-                  })
-                  : null,
               )
+              : null,
+            writable && skill
+              ? h(
+                'div',
+                { style: { display: 'flex', gap: '18px', flexWrap: 'wrap' } },
+                h(
+                  'div',
+                  { className: 'sc-toggle-row' },
+                  h('span', null, runtime.t('toggle.model')),
+                  h(ToggleSwitch, {
+                    checked: skill.invocation.modelInvocable !== false,
+                    disabled: mutationBusy,
+                    label: runtime.t('toggle.model'),
+                    onChange: (next) => toggleInvocation('model', next),
+                  }),
+                ),
+                h(
+                  'div',
+                  { className: 'sc-toggle-row' },
+                  h('span', null, runtime.t('toggle.user')),
+                  h(ToggleSwitch, {
+                    checked: skill.invocation.userInvocable !== false,
+                    disabled: mutationBusy,
+                    label: runtime.t('toggle.user'),
+                    onChange: (next) => toggleInvocation('user', next),
+                  }),
+                ),
+              )
+              : null,
+            mutationError
+              ? h('div', { className: 'sc-banner', role: 'alert', style: { margin: '8px 0 0' } },
+                h('div', { className: 'sc-banner-code' }, mutationError))
               : null,
             h(
               'div',
@@ -724,6 +1191,62 @@ window.__ModuleLoader__.load({
                     h('pre', { className: 'sc-pre' }, detail.content),
                   )
                   : null,
+                tab === 'edit'
+                  ? h(
+                    'div',
+                    { className: 'sc-form' },
+                    h('p', { className: 'sc-note' }, runtime.t('editor.hint')),
+                    h('textarea', {
+                      className: 'sc-textarea',
+                      value: editText === null ? detail.content : editText,
+                      onChange: (event) => setEditText(event.target.value),
+                      spellCheck: false,
+                    }),
+                    h(
+                      'div',
+                      { className: 'sc-editor-actions' },
+                      h('button', {
+                        type: 'button',
+                        className: 'sc-button',
+                        disabled: editState.busy,
+                        onClick: validateContent,
+                      }, runtime.t('actions.validate')),
+                      h('button', {
+                        type: 'button',
+                        className: 'sc-button sc-button-primary',
+                        disabled: editState.busy || editText === null,
+                        onClick: saveContent,
+                      }, editState.busy ? runtime.t('editor.busy') : runtime.t('actions.save')),
+                      h('button', {
+                        type: 'button',
+                        className: 'sc-button',
+                        disabled: editState.busy,
+                        onClick: () => {
+                          setEditText(null);
+                          setTab('content');
+                        },
+                      }, runtime.t('actions.cancel')),
+                      editText !== null ? h('span', { className: 'sc-note' }, runtime.t('editor.unsaved')) : null,
+                    ),
+                    editState.diagnostics !== null
+                      ? h(
+                        'div',
+                        null,
+                        h(
+                          'div',
+                          { className: 'sc-note', style: { marginBottom: '6px' } },
+                          countSeverity(editState.diagnostics, 'error') > 0
+                            ? runtime.t('editor.errors')
+                            : runtime.t('editor.noErrors'),
+                        ),
+                        h(DiagnosticsList, { runtime, diagnostics: editState.diagnostics }),
+                      )
+                      : null,
+                    editState.error
+                      ? h('div', { className: 'sc-banner' }, h('div', { className: 'sc-banner-code' }, errorText(runtime, { code: editState.error })))
+                      : null,
+                  )
+                  : null,
                 tab === 'files'
                   ? h(
                     'div',
@@ -732,19 +1255,65 @@ window.__ModuleLoader__.load({
                     fileState.error
                       ? h('div', { className: 'sc-banner' }, h('div', { className: 'sc-banner-code' }, fileState.error))
                       : null,
-                    file && !file.binary
+                    file
                       ? h(
                         'div',
                         null,
                         h('div', { className: 'sc-note', style: { marginBottom: '8px' } }, file.relativePath + ' · ' + formatBytes(file.size)),
-                        file.truncated ? h('p', { className: 'sc-note' }, runtime.t('detail.files.tooLarge')) : null,
-                        h('pre', { className: 'sc-pre' }, file.content),
+                        file.binary ? h('p', { className: 'sc-note' }, runtime.t('detail.files.binary')) : null,
+                        !file.binary && fileEdit === null
+                          ? h(
+                            'div',
+                            null,
+                            file.truncated ? h('p', { className: 'sc-note' }, runtime.t('detail.files.tooLarge')) : null,
+                            h('pre', { className: 'sc-pre' }, file.content),
+                            writable && file.relativePath !== 'SKILL.md'
+                              ? h(
+                                'div',
+                                { className: 'sc-editor-actions' },
+                                h('button', {
+                                  type: 'button',
+                                  className: 'sc-button',
+                                  onClick: () => setFileEdit({ path: file.relativePath, text: file.content }),
+                                }, runtime.t('actions.editFile')),
+                              )
+                              : null,
+                          )
+                          : null,
+                        fileEdit !== null
+                          ? h(
+                            'div',
+                            { className: 'sc-form' },
+                            h('p', { className: 'sc-note' }, runtime.t('editor.fileTitle') + ': ' + fileEdit.path),
+                            h('textarea', {
+                              className: 'sc-textarea',
+                              value: fileEdit.text,
+                              onChange: (event) => setFileEdit({ path: fileEdit.path, text: event.target.value }),
+                              spellCheck: false,
+                            }),
+                            h(
+                              'div',
+                              { className: 'sc-editor-actions' },
+                              h('button', {
+                                type: 'button',
+                                className: 'sc-button sc-button-primary',
+                                disabled: fileEditState.busy,
+                                onClick: saveFile,
+                              }, fileEditState.busy ? runtime.t('editor.busy') : runtime.t('actions.save')),
+                              h('button', {
+                                type: 'button',
+                                className: 'sc-button',
+                                disabled: fileEditState.busy,
+                                onClick: () => setFileEdit(null),
+                              }, runtime.t('actions.cancel')),
+                            ),
+                          )
+                          : null,
                       )
                       : null,
-                    file && file.binary ? h('p', { className: 'sc-note' }, runtime.t('detail.files.binary')) : null,
                     h(
                       'div',
-                      { className: 'sc-files' },
+                      { className: 'sc-files', style: { marginTop: file ? '12px' : 0 } },
                       (detail.files || []).length === 0
                         ? h('p', { className: 'sc-note' }, runtime.t('detail.files.empty'))
                         : detail.files.map((entry) => h(
@@ -763,32 +1332,7 @@ window.__ModuleLoader__.load({
                   )
                   : null,
                 tab === 'diagnostics'
-                  ? (diagnostics.length === 0
-                    ? h('p', { className: 'sc-note' }, runtime.t('detail.diagnostics.none'))
-                    : h(
-                      'div',
-                      { className: 'sc-diag' },
-                      diagnostics.map((item, index) => h(
-                        'div',
-                        { key: item.code + ':' + index, className: 'sc-diag-item' },
-                        h(
-                          'div',
-                          { className: 'sc-diag-code' },
-                          h(
-                            'span',
-                            {
-                              className: 'sc-chip' + (item.severity === 'error' ? ' is-error' : item.severity === 'warn' ? ' is-warn' : ' is-info'),
-                              style: { marginRight: '8px' },
-                            },
-                            runtime.t('detail.diagnostics.severity.' + (item.severity || 'info')),
-                          ),
-                          item.code,
-                        ),
-                        Object.keys(item.params || {}).length > 0
-                          ? h('div', { className: 'sc-diag-params' }, formatParams(item.params))
-                          : null,
-                      )),
-                    ))
+                  ? h(DiagnosticsList, { runtime, diagnostics })
                   : null,
               ]
               : null,
@@ -797,22 +1341,185 @@ window.__ModuleLoader__.load({
       );
     }
 
-    /* ------------------------------------------------------------------ */
-    /* Page                                                                */
-    /* ------------------------------------------------------------------ */
+    function CreateSkillModal({ runtime, snapshot, onClose, onChanged, onMessage }) {
+      const projectSources = (snapshot && Array.isArray(snapshot.sources) ? snapshot.sources : [])
+        .filter((source) => source.kind === 'project');
+      const [form, setForm] = useState({ name: '', description: '', body: '', scope: 'user', workspace: projectSources[0] ? projectSources[0].path : '' });
+      const [state, setState] = useState({ busy: false, error: null });
+
+      const workspacePath = (sourcePath) => {
+        const marker = '/.dsh/skills';
+        const index = String(sourcePath).indexOf(marker);
+        return index >= 0 ? String(sourcePath).slice(0, index) : String(sourcePath);
+      };
+
+      const submit = async () => {
+        setState({ busy: true, error: null });
+        try {
+          const payload = {
+            confirm: true,
+            revision: snapshot.revision,
+            scope: form.scope,
+            name: form.name,
+            description: form.description,
+            body: form.body,
+          };
+          if (form.scope === 'project') payload.workspacePath = workspacePath(form.workspace);
+          const value = await requestApi('create', payload);
+          if (typeof onChanged === 'function') onChanged(value.revision);
+          if (typeof onMessage === 'function') onMessage('toast.created');
+          onClose();
+        } catch (error) {
+          setState({ busy: false, error: error.code || 'OPERATION_FAILED' });
+        }
+      };
+
+      return h(
+        'div',
+        {
+          className: 'sc-overlay',
+          role: 'dialog',
+          'aria-modal': 'true',
+          onMouseDown: (event) => {
+            if (event.target === event.currentTarget) onClose();
+          },
+        },
+        h(
+          'div',
+          { className: 'sc-modal', style: { maxWidth: '720px' } },
+          h('div', { className: 'sc-modal-head' }, h('h2', { className: 'sc-modal-title' }, runtime.t('create.title'))),
+          h(
+            'div',
+            { className: 'sc-modal-body' },
+            h('p', { className: 'sc-note', style: { marginTop: 0 } }, runtime.t('create.hint')),
+            state.error
+              ? h('div', { className: 'sc-banner' }, h('div', { className: 'sc-banner-code' }, errorText(runtime, { code: state.error })))
+              : null,
+            h(
+              'div',
+              { className: 'sc-form' },
+              h('div', { className: 'sc-form-row' },
+                h('label', { className: 'sc-field' },
+                  h('span', { className: 'sc-field-label' }, runtime.t('create.name')),
+                  h('input', {
+                    className: 'sc-input',
+                    value: form.name,
+                    onChange: (event) => setForm({ ...form, name: event.target.value }),
+                    placeholder: 'my-skill',
+                  })),
+                h('label', { className: 'sc-field' },
+                  h('span', { className: 'sc-field-label' }, runtime.t('create.scope')),
+                  h('select', {
+                    className: 'sc-select',
+                    value: form.scope,
+                    onChange: (event) => setForm({ ...form, scope: event.target.value }),
+                  },
+                  h('option', { value: 'user' }, runtime.t('create.scope.user')),
+                  h('option', { value: 'agents' }, runtime.t('create.scope.agents')),
+                  projectSources.length > 0 ? h('option', { value: 'project' }, runtime.t('create.scope.project')) : null)),
+              ),
+              form.scope === 'project' && projectSources.length > 0
+                ? h('label', { className: 'sc-field' },
+                  h('span', { className: 'sc-field-label' }, runtime.t('create.workspace')),
+                  h('select', {
+                    className: 'sc-select',
+                    value: form.workspace,
+                    onChange: (event) => setForm({ ...form, workspace: event.target.value }),
+                  },
+                  projectSources.map((source) => h('option', { key: source.key, value: source.path }, source.label || workspacePath(source.path)))))
+                : null,
+              h('label', { className: 'sc-field' },
+                h('span', { className: 'sc-field-label' }, runtime.t('create.description')),
+                h('textarea', {
+                  className: 'sc-textarea',
+                  style: { minHeight: '70px' },
+                  value: form.description,
+                  onChange: (event) => setForm({ ...form, description: event.target.value }),
+                })),
+              h('label', { className: 'sc-field' },
+                h('span', { className: 'sc-field-label' }, runtime.t('create.body')),
+                h('textarea', {
+                  className: 'sc-textarea',
+                  value: form.body,
+                  onChange: (event) => setForm({ ...form, body: event.target.value }),
+                })),
+              h(
+                'div',
+                { className: 'sc-editor-actions' },
+                h('button', {
+                  type: 'button',
+                  className: 'sc-button sc-button-primary',
+                  disabled: state.busy,
+                  onClick: submit,
+                }, state.busy ? runtime.t('editor.busy') : runtime.t('create.submit')),
+                h('button', { type: 'button', className: 'sc-button', onClick: onClose }, runtime.t('create.cancel')),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    function TrashPanel({ runtime, items, loading, error, busyId, onRestore }) {
+      if (loading) return h('div', { className: 'sc-loading' }, runtime.t('page.loading'));
+      if (error) {
+        return h('div', { className: 'sc-banner' }, h('div', { className: 'sc-banner-code' }, errorText(runtime, { code: error })));
+      }
+      if (!Array.isArray(items) || items.length === 0) {
+        return h('div', { className: 'sc-empty' }, h('div', { className: 'sc-empty-title' }, runtime.t('trash.title')), h('div', null, runtime.t('trash.empty')));
+      }
+      return h(
+        'div',
+        { className: 'sc-trash-list' },
+        items.map((item) => h(
+          'div',
+          { key: item.id, className: 'sc-trash-item' },
+          h(
+            'div',
+            { className: 'sc-trash-main' },
+            h('span', { className: 'sc-trash-name' }, item.name || runtime.t('trash.item')),
+            h('span', { className: 'sc-trash-path' }, runtime.t('trash.originalPath') + ': ' + item.originalPath),
+            h('span', { className: 'sc-trash-path' }, runtime.t('trash.deletedAt') + ': ' + formatDate(Date.parse(item.at), runtime.language)),
+          ),
+          h(ConfirmButton, {
+            label: runtime.t('actions.restore'),
+            confirmLabel: runtime.t('trash.confirmRestore'),
+            disabled: busyId === item.id,
+            onConfirm: () => onRestore(item),
+          }),
+        )),
+      );
+    }
 
     function SkillCuratorPage({ runtime }) {
       useRuntime(runtime);
       const [snapshot, setSnapshot] = useState(null);
       const [state, setState] = useState({ loading: true, error: null });
+      const [tab, setTab] = useState('library');
       const [query, setQuery] = useState('');
       const [collapsed, setCollapsed] = useState({});
       const [selectedSkill, setSelectedSkill] = useState(null);
+      const [createOpen, setCreateOpen] = useState(false);
+      const [trash, setTrash] = useState({ loading: false, items: [], error: null });
+      const [toast, setToast] = useState(null);
+      const [busyId, setBusyId] = useState(null);
+      const [trashBusyId, setTrashBusyId] = useState(null);
 
-      const load = useCallback(async () => {
-        setState({ loading: true, error: null });
+      useEffect(() => {
+        if (!toast) return undefined;
+        const timer = setTimeout(() => setToast(null), 5000);
+        return () => clearTimeout(timer);
+      }, [toast]);
+
+      const notify = useCallback((key) => {
+        const message = runtime.t(key);
+        setToast({ id: Date.now(), message: message === key ? key : message });
+      }, [runtime]);
+
+      const loadSnapshot = useCallback(async (force) => {
+        setState((current) => ({ ...current, loading: true, error: null }));
         try {
-          const value = await requestApi('snapshot');
+          const value = await requestApi('snapshot', force === true ? { force: true } : undefined);
           setSnapshot(value);
           setState({ loading: false, error: null });
         } catch (error) {
@@ -821,8 +1528,73 @@ window.__ModuleLoader__.load({
       }, []);
 
       useEffect(() => {
-        load();
-      }, [load]);
+        loadSnapshot(true);
+      }, [loadSnapshot]);
+
+      const refresh = useCallback(async () => {
+        try {
+          const value = await requestApi('snapshot', { force: true });
+          setSnapshot(value);
+          return value;
+        } catch {
+          return null;
+        }
+      }, []);
+
+      const loadTrash = useCallback(async () => {
+        setTrash((current) => ({ ...current, loading: true, error: null }));
+        try {
+          const value = await requestApi('trashList');
+          setTrash({ loading: false, items: Array.isArray(value.items) ? value.items : [], error: null });
+        } catch (error) {
+          setTrash({ loading: false, items: [], error: error.code || 'OPERATION_FAILED' });
+        }
+      }, []);
+
+      useEffect(() => {
+        if (tab === 'trash') loadTrash();
+      }, [tab, loadTrash]);
+
+      const capabilities = snapshot ? snapshot.capabilities : null;
+
+      const onToggleSkill = useCallback(async (skill, enabled) => {
+        if (!snapshot) return;
+        setBusyId(skill.id);
+        try {
+          await requestApi('toggle', {
+            id: skill.id,
+            revision: snapshot.revision,
+            confirm: true,
+            modelInvocable: enabled,
+            userInvocable: enabled,
+          });
+          await refresh();
+          notify('toast.updated');
+        } catch (error) {
+          if (error.code === 'STALE_REVISION') {
+            await refresh();
+            notify('toast.stale');
+          } else {
+            setToast({ id: Date.now(), message: errorText(runtime, error) });
+          }
+        } finally {
+          setBusyId(null);
+        }
+      }, [snapshot, refresh, notify, runtime]);
+
+      const onRestore = useCallback(async (item) => {
+        setTrashBusyId(item.id);
+        try {
+          await requestApi('restore', { id: item.id, confirm: true });
+          await refresh();
+          await loadTrash();
+          notify('toast.restored');
+        } catch (error) {
+          setToast({ id: Date.now(), message: errorText(runtime, error) });
+        } finally {
+          setTrashBusyId(null);
+        }
+      }, [refresh, loadTrash, notify, runtime]);
 
       const filtered = useMemo(() => {
         const skills = snapshot && Array.isArray(snapshot.skills) ? snapshot.skills : [];
@@ -849,25 +1621,19 @@ window.__ModuleLoader__.load({
       }, [snapshot, filtered]);
 
       const summary = snapshot && snapshot.summary ? snapshot.summary : null;
-      const showEmpty = !state.loading && !state.error && groups.length === 0;
-
+      const showEmpty = !state.loading && !state.error && tab === 'library' && groups.length === 0;
       const errorBanner = state.error
         ? h(
           'div',
           { className: 'sc-banner', role: 'alert' },
           h('div', { className: 'sc-banner-title' }, runtime.t('page.error.title')),
-          h(
-            'div',
-            { className: 'sc-banner-code' },
-            runtime.t('page.error.code') + ': ' + state.error,
-          ),
+          h('div', { className: 'sc-banner-code' }, runtime.t('page.error.code') + ': ' + state.error),
           (state.error === 'UNAUTHENTICATED' || state.error === 'FORBIDDEN')
             ? h('div', { className: 'sc-note', style: { marginTop: '4px' } }, runtime.t('page.error.unauthorized'))
             : state.error === 'NETWORK'
               ? h('div', { className: 'sc-note', style: { marginTop: '4px' } }, runtime.t('page.error.network'))
               : null,
-          h('div', { style: { marginTop: '10px' } },
-            h('button', { type: 'button', className: 'sc-button', onClick: load }, runtime.t('page.refresh'))),
+          h('div', { style: { marginTop: '10px' } }, h('button', { type: 'button', className: 'sc-button', onClick: () => loadSnapshot(true) }, runtime.t('page.refresh'))),
         )
         : null;
 
@@ -905,25 +1671,50 @@ window.__ModuleLoader__.load({
             h(
               'div',
               { className: 'sc-header-actions' },
-              h('button', { type: 'button', className: 'sc-button', onClick: load, disabled: state.loading }, runtime.t('page.refresh')),
+              capabilities && capabilities.create
+                ? h('button', { type: 'button', className: 'sc-button sc-button-primary', onClick: () => setCreateOpen(true) }, runtime.t('actions.create'))
+                : null,
+              h('button', { type: 'button', className: 'sc-button', onClick: () => loadSnapshot(true), disabled: state.loading }, runtime.t('page.refresh')),
             ),
           ),
           h(
             'div',
             { className: 'sc-toolbar' },
-            h('input', {
-              className: 'sc-search',
-              type: 'search',
-              placeholder: runtime.t('page.search'),
-              value: query,
-              onChange: (event) => setQuery(event.target.value),
-              'aria-label': runtime.t('page.search'),
-            }),
-            summaryBar,
+            h(
+              'div',
+              { className: 'sc-toolbar-tabs', role: 'tablist' },
+              h('button', {
+                type: 'button',
+                role: 'tab',
+                className: 'sc-tab',
+                'aria-selected': tab === 'library' ? 'true' : 'false',
+                onClick: () => setTab('library'),
+              }, runtime.t('tabs.library')),
+              capabilities && capabilities.trash
+                ? h('button', {
+                  type: 'button',
+                  role: 'tab',
+                  className: 'sc-tab',
+                  'aria-selected': tab === 'trash' ? 'true' : 'false',
+                  onClick: () => setTab('trash'),
+                }, runtime.t('tabs.trash') + (trash.items.length > 0 ? ' (' + trash.items.length + ')' : ''))
+                : null,
+            ),
+            tab === 'library'
+              ? h('input', {
+                className: 'sc-search',
+                type: 'search',
+                placeholder: runtime.t('page.search'),
+                value: query,
+                onChange: (event) => setQuery(event.target.value),
+                'aria-label': runtime.t('page.search'),
+              })
+              : null,
+            tab === 'library' ? summaryBar : null,
           ),
         ),
         errorBanner,
-        state.loading ? h('div', { className: 'sc-loading' }, runtime.t('page.loading')) : null,
+        state.loading && tab === 'library' ? h('div', { className: 'sc-loading' }, runtime.t('page.loading')) : null,
         showEmpty
           ? h(
             'div',
@@ -932,23 +1723,55 @@ window.__ModuleLoader__.load({
             h('div', null, runtime.t('page.empty.body')),
           )
           : null,
-        groups.map((group) => h(SourceGroup, {
-          key: group.source.key,
-          runtime,
-          source: group.source,
-          skills: group.skills,
-          collapsed: collapsed[group.source.key] === true,
-          onToggle: () => setCollapsed((current) => ({ ...current, [group.source.key]: !current[group.source.key] })),
-          onOpen: (skill) => setSelectedSkill(skill),
-        })),
+        tab === 'library'
+          ? groups.map((group) => h(SourceGroup, {
+            key: group.source.key,
+            runtime,
+            source: group.source,
+            skills: group.skills,
+            collapsed: collapsed[group.source.key] === true,
+            onToggleGroup: () => setCollapsed((current) => ({ ...current, [group.source.key]: !current[group.source.key] })),
+            onOpen: (skill) => setSelectedSkill(skill),
+            capabilities,
+            onToggleSkill,
+            busyId,
+          }))
+          : h(TrashPanel, {
+            runtime,
+            items: trash.items,
+            loading: trash.loading,
+            error: trash.error,
+            busyId: trashBusyId,
+            onRestore,
+          }),
         selectedSkill !== null
           ? h(SkillDetail, {
             runtime,
             skillId: selectedSkill.id,
             source: (snapshot?.sources || []).find((item) => item.key === selectedSkill.sourceKey) ?? null,
+            revision: snapshot ? snapshot.revision : '',
+            capabilities,
             onClose: () => setSelectedSkill(null),
+            onChanged: (revision) => {
+              if (typeof revision === 'string') setSnapshot((current) => (current !== null ? { ...current, revision } : current));
+              refresh();
+            },
+            onMessage: notify,
           })
           : null,
+        createOpen && snapshot
+          ? h(CreateSkillModal, {
+            runtime,
+            snapshot,
+            onClose: () => setCreateOpen(false),
+            onChanged: (revision) => {
+              if (typeof revision === 'string') setSnapshot((current) => (current !== null ? { ...current, revision } : current));
+              refresh();
+            },
+            onMessage: notify,
+          })
+          : null,
+        toast ? h('div', { className: 'sc-toast', role: 'status' }, toast.message) : null,
       );
     }
 

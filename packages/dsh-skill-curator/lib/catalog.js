@@ -7,15 +7,19 @@
 import { buildSources } from './roots.js';
 import { LIMITS, projectSkill, readSkillDetail, readSkillFile, scanCatalog } from './discovery.js';
 import { CuratorError } from './errors.js';
+import { createMutations } from './mutations.js';
 
 /** Capabilities advertised to the Client. */
 export const CAPABILITIES = Object.freeze({
   read: true,
-  write: false,
+  write: true,
+  edit: true,
+  create: true,
+  trash: true,
   import: false,
-  edit: false,
-  projectScope: false,
+  projectScope: true,
   overlayToggle: false,
+  liveSources: false,
 });
 
 const SNAPSHOT_TTL_MS = 1500;
@@ -35,6 +39,7 @@ function projectSource(source) {
     scope: source.scope,
     readOnly: source.readOnly,
     readOnlyReason: source.readOnlyReason,
+    writable: source.writable === true,
     exists: source.exists,
     skillCount: source.skillCount,
     systemCount: source.systemCount,
@@ -48,7 +53,7 @@ function projectSource(source) {
  * @param {() => object} deps.config plugin configuration reader
  * @param {() => Array<{path: string, label?: string}>} [deps.projectRoots]
  */
-export function createCatalog({ config = () => ({}), projectRoots = () => [], log = () => {} } = {}) {
+export function createCatalog({ config = () => ({}), projectRoots = () => [], log = () => {}, env = undefined, home = undefined } = {}) {
   let cache = null;
   let inflight = null;
 
@@ -58,10 +63,10 @@ export function createCatalog({ config = () => ({}), projectRoots = () => [], lo
     if (inflight !== null) return inflight;
     inflight = (async () => {
       const normalized = normalizeConfig(config());
-      const sources = buildSources({
-        config: normalized,
-        projectRoots: projectRoots(),
-      });
+      const sourceOptions = { config: normalized, projectRoots: projectRoots() };
+      if (env !== undefined) sourceOptions.env = env;
+      if (home !== undefined) sourceOptions.home = home;
+      const sources = buildSources(sourceOptions);
       const catalog = await scanCatalog(sources, { log });
       cache = { at: Date.now(), catalog };
       return catalog;
@@ -73,6 +78,10 @@ export function createCatalog({ config = () => ({}), projectRoots = () => [], lo
     }
   }
 
+  function invalidate() {
+    cache = null;
+  }
+
   function findSkill(catalog, id) {
     if (typeof id !== 'string' || id === '') throw new CuratorError('SKILL_ID_REQUIRED', 400);
     const skill = catalog.skills.find((candidate) => candidate.id === id);
@@ -80,7 +89,15 @@ export function createCatalog({ config = () => ({}), projectRoots = () => [], lo
     return skill;
   }
 
+  const mutations = createMutations({
+    config,
+    loadCatalog: load,
+    invalidate,
+  });
+
   return {
+    invalidate,
+
     /** Browser-facing snapshot. */
     async snapshot(body = {}) {
       const catalog = await load(body?.force === true);
@@ -132,5 +149,14 @@ export function createCatalog({ config = () => ({}), projectRoots = () => [], lo
       }
       return result;
     },
+
+    validateDraft: (body) => mutations.validateDraft(body),
+    saveSkill: (body) => mutations.saveSkill(body),
+    writeFile: (body) => mutations.writeFile(body),
+    toggleSkill: (body) => mutations.toggleSkill(body),
+    createSkill: (body) => mutations.createSkill(body),
+    removeSkill: (body) => mutations.removeSkill(body),
+    listTrash: (body) => mutations.listTrash(body),
+    restoreTrash: (body) => mutations.restoreTrash(body),
   };
 }
