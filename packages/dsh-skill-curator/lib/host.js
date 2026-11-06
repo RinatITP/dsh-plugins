@@ -30,9 +30,10 @@ export async function apply(ctx) {
     return config !== null && typeof config === 'object' && !Array.isArray(config) ? config : {};
   };
 
+  const logger = typeof ctx.get === 'function' ? ctx.get('logger') : undefined;
   const log = (code) => {
     try {
-      ctx.logger?.debug?.(`[dsh-skill-curator] ${code}`);
+      logger?.debug?.(`[dsh-skill-curator] ${code}`);
     } catch {
       // Diagnostics are best-effort and value-free.
     }
@@ -89,9 +90,10 @@ export async function apply(ctx) {
   liveRef.invalidate = live.invalidate;
   ctx.effect(() => live.dispose, 'dsh-skill-curator: live skill provider');
 
-  if (readConfig().creatorTool !== false && ctx.tools && typeof ctx.tools.register === 'function') {
+  const tools = typeof ctx.get === 'function' ? ctx.get('tools') : undefined;
+  if (readConfig().creatorTool !== false && tools && typeof tools.register === 'function') {
     ctx.effect(
-      () => ctx.tools.register({
+      () => tools.register({
         name: 'skill_curator_create',
         description: 'Create a new DeepSeek Harness skill (SKILL.md plus optional references/scripts files) in a writable DSH skill root. Use only when the user explicitly asks to create or save a reusable skill.',
         parameters: {

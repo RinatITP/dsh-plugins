@@ -202,6 +202,35 @@ modal, but **not** the current stage-2–4 UI. A full restart of DSH (or a new
 renderer generation) is required to verify the current tabs, editor, import,
 sources/live toggles, trash and create/AI flows.
 
+### Cold-boot fix (2026-11-06, after the owner's restart)
+
+The first full restart of DSH exposed a Host bug that hot reload had hidden: the
+plugin fiber failed with
+`cannot get property "tools" without inject`. The Host half reached the optional
+`tools` service through direct property access while `tools` was not in the
+`inject` list, which throws on a cold boot and takes the whole plugin down (the
+settings page then showed `INVALID_RESPONSE` because the Host route was not
+registered and the DSH web server answered with its generic `401 unauthorized`
+text).
+
+Fixed by resolving optional services through `ctx.get('tools')` /
+`ctx.get('logger')` instead of property access, and a new static test
+(`test/host-static.test.mjs`) now fails if any `ctx.<service>` is used without a
+matching `inject` entry. The plugin row was reloaded through the official Plugin
+Manager toggle and reports `enabled=true`, `fiberPhase=active`; the route answers
+`403 FORBIDDEN` without the intent header and `401 UNAUTHENTICATED` without
+signed-peer admission, and the new `skill_curator_create` tool is registered by
+the Host.
+
+After the fix the current client build (stage 4) renders in the live app: the
+header «Студия навыков», the buttons «Создать»/«Обновить», the tabs
+«Библиотека / Импорт / Источники / Корзина», the summary line, source groups
+with toggles, and the Import tab with destination/workspace selectors, the
+«Копия / Симлинк / Пересканировать» controls and candidate groups. The library
+page and the Import tab were visually observed this way; the remaining tabs,
+editing, sources/live toggles, trash and the create/AI dialogs still need the
+owner's run-through.
+
 ### Not verified for dsh-skill-curator
 
 - **Rendered UI.** The working environment has no browser control and the app
