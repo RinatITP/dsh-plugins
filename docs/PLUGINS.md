@@ -50,10 +50,67 @@ dsh plugin --profile desktop add "/absolute/path/to/dsh-plugins/packages/dsh-mcp
 or install the same directory through DSH's Plugin Manager. See
 [`INSTALL.md`](INSTALL.md).
 
+### `dsh-skill-curator` 0.1.0
+
+| Field | Value |
+|---|---|
+| Package | `dsh-skill-curator` |
+| Directory | [`packages/dsh-skill-curator`](../packages/dsh-skill-curator/) |
+| Version | 0.1.0 (development preview, stage 1: read-only) |
+| License | MIT |
+| DSH target | 0.2.2-rc.1 (`engines.dsh: ">=0.2.2-rc.1 <0.3.0-0"`) |
+| Node | ≥ 22.19.0 |
+| npm | not published yet |
+| Bundle patch | `cordis.patch.yml` — one `insert` row, id `dsh-skill-curator` |
+| Client injection | `settings.section` page "Skill Curator" / «Навыки» (id `skill-curator`, order 23) |
+| Docs | [package README](../packages/dsh-skill-curator/README.md) |
+
+**What it does (stage 1).** Adds a read-only skill studio to the DSH settings UI:
+the union of DSH user and shared roots, optional project roots, bundled
+`office-skills`, and read-only external agent roots (Claude Code, Codex including
+`.system`, Hermes nested categories, ZCode, Cursor, Gemini/Antigravity, Kimi,
+OpenCode, custom folders). It lists every `SKILL.md` with a stable diagnostic set
+(kebab-case name, name/folder match, description length, invocation booleans,
+frontmatter problems, oversized body, symlink state, duplicate and shadowed
+names), renders the raw `SKILL.md`, exposes a bounded resource tree with
+traversal-safe text previews, and speaks Russian and English.
+
+**Not implemented yet.** Editing/saving `SKILL.md`, enabling/disabling, creating
+skills, import from other agents (symlink or copy), trash and backups, the AI
+Skill Creator, and the overlay provider for read-only toggles. The route has no
+mutation actions at all.
+
+**Security posture.** One exact route `/api/dsh-skill-curator` with the
+`x-dsh-skill-curator: 1` intent header and signed-peer admission; JSON-only
+responses, `no-store`, no file writes, traversal-safe reads inside the skill
+directory, bounded scans (2000 skills, 512 KiB per `SKILL.md`, 1 MiB per
+preview), and external roots are never written.
+
+**Status and verification.** Development preview. Unit tests for the frontmatter
+reader, diagnostics, root resolution, discovery across synthetic multi-root trees
+(bundles, flat files, nested categories, `.system`, symlinks, shadowing), the HTTP
+envelope and the static client contract are in place; the repository validator
+and CI cover both packages. On 2026-11-06 the package was installed as a linked
+bundle into a DSH Desktop `0.2.2-rc.1` `desktop` profile: the Host row is active
+and the route returned `403 FORBIDDEN` without the intent header and
+`401 UNAUTHENTICATED` without signed-peer admission. The rendered page has not
+been visually verified yet.
+
+**Install.** From this checkout, into the profile your GUI runs:
+
+```sh
+dsh plugin --profile desktop add "/absolute/path/to/dsh-plugins/packages/dsh-skill-curator"
+```
+
 ## Planned / not yet available
 
-Nothing is currently planned in this repository beyond `dsh-mcp-guard`. This
-section will list accepted additions with their status.
+`dsh-skill-curator` continues in staged increments: (2) editing `SKILL.md` and
+resource files with backups and validation, enable/disable via frontmatter or the
+overlay provider, trash; (3) import from external agents with symlink/copy,
+global and project destinations, conflict handling; (4) the AI Skill Creator and
+the optional sidebar entry; (5) writing to `~/.dsh/skills`/project roots with a
+documented confirmation policy. Planned entries are listed here until they are
+implemented, tested and documented in the package README.
 
 ## Adding a plugin to this catalog
 

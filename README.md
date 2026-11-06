@@ -35,6 +35,7 @@ A small monorepo for DSH plugins that follow the same rules:
 | Plugin | Version | License | Description |
 |---|---|---|---|
 | [`dsh-mcp-guard`](packages/dsh-mcp-guard/) | 0.1.0 | MIT | Security-first MCP server manager with a Z.ai/GLM-style settings UI: strict validation, execution preview, bounded audit trail, takeover of existing profile rows and read-only discovery/import of Cursor, Claude and VS Code MCP configs. |
+| [`dsh-skill-curator`](packages/dsh-skill-curator/) | 0.1.0 | MIT | RU-first skill studio: read-only catalog of DSH, project and external agent skills (Claude Code, Codex, Hermes, ZCode, Cursor, Gemini, Kimi, OpenCode, custom), SKILL.md preview, bounded file tree and validation diagnostics. Editing, import, toggles and the AI creator are staged next. |
 
 More plugins may be added over time. [`docs/PLUGINS.md`](docs/PLUGINS.md) is the
 catalog and lists the acceptance criteria for new entries.
@@ -45,8 +46,9 @@ catalog and lists the acceptance criteria for new entries.
 
 Automated verification in this repository:
 
-- unit tests under `packages/dsh-mcp-guard/test/` (Node's built-in
-  `node --test`, no third-party test framework);
+- unit tests under `packages/dsh-mcp-guard/test/` and
+  `packages/dsh-skill-curator/test/` (Node's built-in `node --test`, no
+  third-party test framework);
 - `node scripts/validate.mjs` — checks the package manifest, bundle patch,
   locales, icon, required files and JavaScript syntax;
 - the GitHub Actions workflow in `.github/workflows/ci.yml`, which runs both on
@@ -61,8 +63,13 @@ an end-to-end check mounted a fixture stdio MCP server through the official
 the test configuration was reverted. See
 [`docs/VERIFICATION.md`](docs/VERIFICATION.md) for the record.
 
+**`dsh-skill-curator` stage 1** was installed as a linked bundle into the same
+`desktop` profile on 2026-11-06 (Host row active; route `403` without the intent
+header, `401` without signed-peer admission). Its rendered page is also awaiting
+a visual run-through.
+
 **Remaining verification limit:** this build environment has no browser control,
-so the rendered settings page has **not** been visually inspected — layout,
+so the rendered settings pages have **not** been visually inspected — layout,
 themes and interactive behaviour are unconfirmed and no screenshots are
 included. Treat the visual interface as unverified until a maintainer completes
 a manual run-through and records it.
@@ -115,6 +122,7 @@ this repository are picked up by the next plugin/application reload.
 
 ```sh
 dsh plugin --profile desktop add "/absolute/path/to/dsh-plugins/packages/dsh-mcp-guard"
+dsh plugin --profile desktop add "/absolute/path/to/dsh-plugins/packages/dsh-skill-curator"
 ```
 
 - Use the profile the GUI actually runs: `desktop` for DSH Desktop, `web` for a
@@ -154,7 +162,8 @@ dsh-plugins/
 │   ├── PLUGINS.md             # Plugin catalog and acceptance criteria
 │   └── SECURITY-MODEL.md      # Threat model, controls, secure defaults, residuals
 ├── packages/
-│   └── dsh-mcp-guard/         # the plugin package (bundle + Host + Client)
+│   ├── dsh-mcp-guard/         # MCP server manager (bundle + Host + Client)
+│   └── dsh-skill-curator/     # read-only skill studio (bundle + Host + Client)
 ├── scripts/validate.mjs       # dependency-free repository validator
 ├── CONTRIBUTING.md
 ├── LICENSE
@@ -172,10 +181,13 @@ dependencies and no third-party runtime code. The plugin uses the official
 DSH host. Use Node.js 22 or newer.
 
 ```sh
-node --test packages/dsh-mcp-guard/test/*.test.mjs   # unit tests
-node scripts/validate.mjs                            # repository/host validation
-node --check packages/dsh-mcp-guard/client.js        # Client half syntax
-node --check packages/dsh-mcp-guard/index.js         # Host half syntax
+node --test packages/dsh-mcp-guard/test/*.test.mjs      # MCP guard unit tests
+node --test packages/dsh-skill-curator/test/*.test.mjs  # skill studio unit tests
+node scripts/validate.mjs                               # repository/host validation
+node --check packages/dsh-mcp-guard/client.js           # Client half syntax
+node --check packages/dsh-mcp-guard/index.js            # Host half syntax
+node --check packages/dsh-skill-curator/client.js       # skill studio client syntax
+node --check packages/dsh-skill-curator/index.js        # skill studio host syntax
 ```
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the change process and

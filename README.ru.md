@@ -35,6 +35,7 @@ CLI-команда `dsh plugin --profile <name> add <spec>` для устано�
 | Плагин | Версия | Лицензия | Описание |
 |---|---|---|---|
 | [`dsh-mcp-guard`](packages/dsh-mcp-guard/) | 0.1.0 | MIT | Менеджер MCP-серверов с приоритетом безопасности: интерфейс в настройках, строгая валидация stdio/HTTP-серверов, предпросмотр выполнения, ограниченный журнал аудита. |
+| [`dsh-skill-curator`](packages/dsh-skill-curator/) | 0.1.0 | MIT | «Студия навыков» с русским интерфейсом: каталог навыков DSH, проекта и других агентов (Claude Code, Codex, Hermes, ZCode, Cursor, Gemini, Kimi, OpenCode, свои папки), просмотр SKILL.md, дерево файлов и диагностика. Редактирование, импорт, переключатели и ИИ-создатель — следующие этапы. |
 
 Со временем плагины могут добавляться. [`docs/PLUGINS.md`](docs/PLUGINS.md) —
 каталог и критерии приёмки новых записей.
@@ -45,8 +46,9 @@ CLI-команда `dsh plugin --profile <name> add <spec>` для устано�
 
 Автоматическая проверка в этом репозитории:
 
-- юнит-тесты в `packages/dsh-mcp-guard/test/` (встроенный `node --test`, без
-  сторонних тест-фреймворков);
+- юнит-тесты в `packages/dsh-mcp-guard/test/` и
+  `packages/dsh-skill-curator/test/` (встроенный `node --test`, без сторонних
+  тест-фреймворков);
 - `node scripts/validate.mjs` — проверяет манифест пакета, патч бандла, локали,
   иконку, наличие обязательных файлов и синтаксис JavaScript;
 - workflow GitHub Actions в `.github/workflows/ci.yml`, который запускает и то и
@@ -114,6 +116,7 @@ CLI-команда `dsh plugin --profile <name> add <spec>` для устано�
 
 ```sh
 dsh plugin --profile desktop add "/абсолютный/путь/к/dsh-plugins/packages/dsh-mcp-guard"
+dsh plugin --profile desktop add "/абсолютный/путь/к/dsh-plugins/packages/dsh-skill-curator"
 ```
 
 - Используйте тот профиль, в котором действительно работает GUI: `desktop` для
@@ -151,7 +154,8 @@ dsh-plugins/
 │   ├── PLUGINS.md             # каталог плагинов и критерии приёмки
 │   └── SECURITY-MODEL.md      # модель угроз, контроли, безопасные умолчания, остаточные риски
 ├── packages/
-│   └── dsh-mcp-guard/         # пакет плагина (бандл + Host + Client)
+│   ├── dsh-mcp-guard/         # менеджер MCP-серверов (бандл + Host + Client)
+│   └── dsh-skill-curator/     # студия навыков, пока только чтение (бандл + Host + Client)
 ├── scripts/validate.mjs       # валидатор репозитория без зависимостей
 ├── CONTRIBUTING.md
 ├── LICENSE

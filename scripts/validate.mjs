@@ -6,9 +6,9 @@
  *
  *   node scripts/validate.mjs
  *
- * It checks the repository shell, the dsh-mcp-guard package manifest, the bundle
- * patch, locales, icon, required files, test-file presence and the syntax of every
- * JavaScript file in the package via `node --check`.
+ * It checks the repository shell, every plugin package manifest, bundle patches,
+ * locales, icons, required files, test-file presence and the syntax of every
+ * JavaScript file in each package via `node --check`.
  *
  * Exit code: 0 = every check passed, 1 = at least one check failed.
  * Output: one `ok`/`FAIL`/`WARN` line per check and a final summary. Nothing is
@@ -21,8 +21,53 @@ import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const PACKAGE_REL = 'packages/dsh-mcp-guard'
-const PACKAGE_DIR = join(ROOT, PACKAGE_REL)
+
+/**
+ * Every plugin package in this repository. `requiresOfficialMcpClient` is the
+ * only package-specific carve-out: dsh-mcp-guard must declare the official MCP
+ * client as a peer dependency, while newer plugins may have no dependencies at
+ * all.
+ */
+const PACKAGES = [
+  {
+    rel: 'packages/dsh-mcp-guard',
+    name: 'dsh-mcp-guard',
+    requiresOfficialMcpClient: true,
+    requiredFiles: [
+      'package.json',
+      'cordis.patch.yml',
+      'index.js',
+      'client.js',
+      'icon.svg',
+      'locale/en.json',
+      'locale/ru.json',
+      'README.md',
+      'lib/host.js',
+      'test/security.test.mjs',
+      'test/import.test.mjs',
+      'test/client-static.test.mjs',
+    ],
+  },
+  {
+    rel: 'packages/dsh-skill-curator',
+    name: 'dsh-skill-curator',
+    requiresOfficialMcpClient: false,
+    requiredFiles: [
+      'package.json',
+      'cordis.patch.yml',
+      'index.js',
+      'client.js',
+      'icon.svg',
+      'locale/en.json',
+      'locale/ru.json',
+      'README.md',
+      'lib/host.js',
+      'lib/discovery.js',
+      'test/package.test.mjs',
+      'test/client-static.test.mjs',
+    ],
+  },
+]
 
 const REQUIRED_ROOT_FILES = [
   'README.md',
@@ -40,20 +85,6 @@ const REQUIRED_ROOT_FILES = [
   'docs/PLUGINS.md',
   '.github/workflows/ci.yml',
   'scripts/validate.mjs',
-]
-
-const REQUIRED_PACKAGE_FILES = [
-  'package.json',
-  'cordis.patch.yml',
-  'index.js',
-  'client.js',
-  'icon.svg',
-  'locale/en.json',
-  'locale/ru.json',
-  'README.md',
-  'test/security.test.mjs',
-  'test/import.test.mjs',
-  'test/client-static.test.mjs',
 ]
 
 const ICON_MAX_BYTES = 256 * 1024
@@ -158,6 +189,7 @@ function isPlainObject(value) {
 }
 
 function checkNodeVersion() {
+  section('Environment')
   const minimum = [22, 19, 0]
   const current = process.versions.node.split('.').map((part) => Number.parseInt(part, 10))
   const below = current[0] < minimum[0]
@@ -189,54 +221,62 @@ function checkRepositoryFiles() {
     const required = [
       [/runs-on:\s*ubuntu-latest/, 'runs-on: ubuntu-latest'],
       [/node-version:\s*['"]?22/, 'node-version: 22'],
-      ['node --test packages/dsh-mcp-guard/test/*.test.mjs', 'unit-test step'],
       ['node scripts/validate.mjs', 'validator step'],
-      ['node --check packages/dsh-mcp-guard/client.js', 'client.js syntax step'],
-      ['node --check packages/dsh-mcp-guard/index.js', 'index.js syntax step'],
     ]
+    for (const pkg of PACKAGES) {
+      required.push([`node --test ${pkg.rel}/test/*.test.mjs`, `unit tests for ${pkg.name}`])
+      required.push([`node --check ${pkg.rel}/client.js`, `client.js syntax for ${pkg.name}`])
+      required.push([`node --check ${pkg.rel}/index.js`, `index.js syntax for ${pkg.name}`])
+    }
     const missing = required.filter(([pattern]) => (pattern instanceof RegExp
       ? !pattern.test(ci)
       : !ci.includes(pattern)))
     if (missing.length > 0) {
       fail('ci.yml', `missing: ${missing.map(([, label]) => label).join(', ')}`)
     } else {
-      ok('ci.yml', 'ubuntu-latest, Node 22, tests, validator and syntax steps')
+      ok('ci.yml', `${PACKAGES.length} package(s), tests, validator and syntax steps`)
     }
   }
 }
 
-function checkPackageFiles() {
-  section('Package files')
-  if (!existsSync(PACKAGE_DIR)) {
-    fail(PACKAGE_REL, 'package directory is missing')
+function packageDir(pkg) {
+  return join(ROOT, pkg.rel)
+}
+
+function checkPackageFiles(pkg) {
+  section(`Package files — ${pkg.name}`)
+  if (!existsSync(packageDir(pkg))) {
+    fail(pkg.rel, 'package directory is missing')
     return
   }
-  for (const relPath of REQUIRED_PACKAGE_FILES) checkFile(`${PACKAGE_REL}/${relPath}`)
+  for (const relPath of pkg.requiredFiles) checkFile(`${pkg.rel}/${relPath}`)
 
-  const libDir = join(PACKAGE_DIR, 'lib')
+  const libDir = join(packageDir(pkg), 'lib')
   if (!existsSync(libDir)) {
-    fail(`${PACKAGE_REL}/lib`, 'directory is missing')
+    fail(`${pkg.rel}/lib`, 'directory is missing')
   } else {
     const libFiles = listFiles(libDir, '.js')
-    if (libFiles.length === 0) fail(`${PACKAGE_REL}/lib`, 'contains no .js files')
-    else ok(`${PACKAGE_REL}/lib`, `${libFiles.length} .js file(s)`)
+    if (libFiles.length === 0) fail(`${pkg.rel}/lib`, 'contains no .js files')
+    else ok(`${pkg.rel}/lib`, `${libFiles.length} .js file(s)`)
   }
 
-  const testDir = join(PACKAGE_DIR, 'test')
+  const testDir = join(packageDir(pkg), 'test')
   if (existsSync(testDir)) {
     const tests = listFiles(testDir, '.test.mjs')
-    if (tests.length === 0) fail(`${PACKAGE_REL}/test`, 'contains no *.test.mjs files')
-    else ok(`${PACKAGE_REL}/test`, `${tests.length} test file(s)`)
+    if (tests.length === 0) fail(`${pkg.rel}/test`, 'contains no *.test.mjs files')
+    else ok(`${pkg.rel}/test`, `${tests.length} test file(s)`)
+  } else {
+    fail(`${pkg.rel}/test`, 'test directory is missing')
   }
 }
 
-function checkPackageManifest() {
-  section('package.json')
-  const manifest = readJsonFile(`${PACKAGE_REL}/package.json`)
+function checkPackageManifest(pkg) {
+  section(`package.json — ${pkg.name}`)
+  const manifest = readJsonFile(`${pkg.rel}/package.json`)
   if (manifest === null) return
 
-  if (manifest.name === 'dsh-mcp-guard') ok('name', manifest.name)
-  else fail('name', `expected "dsh-mcp-guard", got ${JSON.stringify(manifest.name)}`)
+  if (manifest.name === pkg.name) ok('name', manifest.name)
+  else fail('name', `expected "${pkg.name}", got ${JSON.stringify(manifest.name)}`)
 
   if (typeof manifest.version === 'string' && SEMVER.test(manifest.version)) {
     ok('version', manifest.version)
@@ -272,7 +312,7 @@ function checkPackageManifest() {
 
   if (isPlainObject(manifest.dsh) && isPlainObject(manifest.dsh.bundle)
     && typeof manifest.dsh.bundle.patch === 'string' && manifest.dsh.bundle.patch.length > 0) {
-    const patchRel = `${PACKAGE_REL}/${manifest.dsh.bundle.patch.replace(/^\.\//, '')}`
+    const patchRel = `${pkg.rel}/${manifest.dsh.bundle.patch.replace(/^\.\//, '')}`
     if (existsSync(join(ROOT, patchRel))) ok('dsh.bundle.patch', manifest.dsh.bundle.patch)
     else fail('dsh.bundle.patch', `referenced patch file not found: ${manifest.dsh.bundle.patch}`)
   } else {
@@ -313,31 +353,41 @@ function checkPackageManifest() {
     fail('engines', 'missing engines.node / engines.dsh')
   }
 
-  const officialClient = isPlainObject(manifest.dependencies)
-    ? manifest.dependencies['@deepseek-ai/dsh-mcp-client']
-    : undefined
-  const officialClientPeer = isPlainObject(manifest.peerDependencies)
-    ? manifest.peerDependencies['@deepseek-ai/dsh-mcp-client']
-    : undefined
-  if (typeof officialClient === 'string') {
-    ok('dependency', `@deepseek-ai/dsh-mcp-client@${officialClient}`)
-  } else if (typeof officialClientPeer === 'string') {
-    ok('dependency', `@deepseek-ai/dsh-mcp-client@${officialClientPeer} (peer, resolved from host)`)
+  if (pkg.requiresOfficialMcpClient) {
+    const officialClient = isPlainObject(manifest.dependencies)
+      ? manifest.dependencies['@deepseek-ai/dsh-mcp-client']
+      : undefined
+    const officialClientPeer = isPlainObject(manifest.peerDependencies)
+      ? manifest.peerDependencies['@deepseek-ai/dsh-mcp-client']
+      : undefined
+    if (typeof officialClient === 'string') {
+      ok('dependency', `@deepseek-ai/dsh-mcp-client@${officialClient}`)
+    } else if (typeof officialClientPeer === 'string') {
+      ok('dependency', `@deepseek-ai/dsh-mcp-client@${officialClientPeer} (peer, resolved from host)`)
+    } else {
+      fail('dependency', 'official @deepseek-ai/dsh-mcp-client is not declared as dependency or peerDependency')
+    }
   } else {
-    fail('dependency', 'official @deepseek-ai/dsh-mcp-client is not declared as dependency or peerDependency')
+    const dependencies = isPlainObject(manifest.dependencies) ? Object.keys(manifest.dependencies) : []
+    if (dependencies.length > 0) {
+      fail('dependencies', `unexpected runtime dependencies: ${dependencies.join(', ')}`)
+    } else {
+      ok('dependencies', 'none (Node built-ins only)')
+    }
   }
 }
 
-function checkBundlePatch() {
-  section('bundle patch')
-  const patchRel = `${PACKAGE_REL}/cordis.patch.yml`
+function checkBundlePatch(pkg) {
+  section(`bundle patch — ${pkg.name}`)
+  const patchRel = `${pkg.rel}/cordis.patch.yml`
   const patch = readTextFile(patchRel)
   if (patch === null) return
 
+  const escaped = pkg.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const checks = [
     [/^-\s+insert:\s*$/m, 'contains a "- insert:" list'],
-    [/\bid:\s*['"]?dsh-mcp-guard['"]?\s*$/m, 'insert row with id: dsh-mcp-guard'],
-    [/\bname:\s*['"]?dsh-mcp-guard['"]?\s*$/m, 'insert row with name: dsh-mcp-guard'],
+    [new RegExp(`\\bid:\\s*['"]?${escaped}['"]?\\s*$`, 'm'), `insert row with id: ${pkg.name}`],
+    [new RegExp(`\\bname:\\s*['"]?${escaped}['"]?\\s*$`, 'm'), `insert row with name: ${pkg.name}`],
   ]
   for (const [pattern, label] of checks) {
     if (pattern.test(patch)) ok(label)
@@ -345,16 +395,16 @@ function checkBundlePatch() {
   }
 }
 
-function checkLocales() {
-  section('locales')
-  const localeDir = join(PACKAGE_DIR, 'locale')
+function checkLocales(pkg) {
+  section(`locales — ${pkg.name}`)
+  const localeDir = join(packageDir(pkg), 'locale')
   if (!existsSync(localeDir)) {
-    fail(`${PACKAGE_REL}/locale`, 'directory is missing')
+    fail(`${pkg.rel}/locale`, 'directory is missing')
     return
   }
   const localeFiles = listFiles(localeDir, '.json')
   if (localeFiles.length === 0) {
-    fail(`${PACKAGE_REL}/locale`, 'contains no .json files')
+    fail(`${pkg.rel}/locale`, 'contains no .json files')
     return
   }
   for (const abs of localeFiles.sort()) {
@@ -377,9 +427,9 @@ function checkLocales() {
   }
 }
 
-function checkIcon() {
-  section('icon')
-  const iconRel = `${PACKAGE_REL}/icon.svg`
+function checkIcon(pkg) {
+  section(`icon — ${pkg.name}`)
+  const iconRel = `${pkg.rel}/icon.svg`
   const iconAbs = join(ROOT, iconRel)
   if (!existsSync(iconAbs)) {
     fail(iconRel, 'missing')
@@ -406,15 +456,15 @@ function checkIcon() {
   else fail('icon content', 'does not start with <svg (after an optional XML declaration)')
 }
 
-function checkJavaScriptSyntax() {
-  section('JavaScript syntax (node --check)')
-  if (!existsSync(PACKAGE_DIR)) {
-    fail(PACKAGE_REL, 'package directory is missing')
+function checkJavaScriptSyntax(pkg) {
+  section(`JavaScript syntax — ${pkg.name} (node --check)`)
+  if (!existsSync(packageDir(pkg))) {
+    fail(pkg.rel, 'package directory is missing')
     return
   }
-  const files = listFiles(PACKAGE_DIR, '.js').sort()
+  const files = listFiles(packageDir(pkg), '.js').sort()
   if (files.length === 0) {
-    fail(PACKAGE_REL, 'no .js files found to syntax-check')
+    fail(pkg.rel, 'no .js files found to syntax-check')
     return
   }
   for (const abs of files) {
@@ -437,16 +487,17 @@ function main() {
   console.log('dsh-plugins validation')
   console.log(`root: ${ROOT}`)
 
-  section('Environment')
   checkNodeVersion()
-
   checkRepositoryFiles()
-  checkPackageFiles()
-  checkPackageManifest()
-  checkBundlePatch()
-  checkLocales()
-  checkIcon()
-  checkJavaScriptSyntax()
+
+  for (const pkg of PACKAGES) {
+    checkPackageFiles(pkg)
+    checkPackageManifest(pkg)
+    checkBundlePatch(pkg)
+    checkLocales(pkg)
+    checkIcon(pkg)
+    checkJavaScriptSyntax(pkg)
+  }
 
   if (warnings.length > 0) {
     section('Warnings')

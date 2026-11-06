@@ -1,0 +1,6 @@
+# Bundle patch for dsh-skill-curator.
+# One Host row. The page itself is served by the Client half through
+# `settings.section`; the Host half owns the read-only catalog route.
+- insert:
+    - id: dsh-skill-curator
+      name: dsh-skill-curator

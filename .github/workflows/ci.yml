@@ -27,14 +27,23 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Unit tests
+      - name: Unit tests — dsh-mcp-guard
         run: node --test packages/dsh-mcp-guard/test/*.test.mjs
+
+      - name: Unit tests — dsh-skill-curator
+        run: node --test packages/dsh-skill-curator/test/*.test.mjs
 
       - name: Repository validation
         run: node scripts/validate.mjs
 
-      - name: Syntax check client.js
+      - name: Syntax check dsh-mcp-guard client.js
         run: node --check packages/dsh-mcp-guard/client.js
 
-      - name: Syntax check index.js
+      - name: Syntax check dsh-mcp-guard index.js
         run: node --check packages/dsh-mcp-guard/index.js
+
+      - name: Syntax check dsh-skill-curator client.js
+        run: node --check packages/dsh-skill-curator/client.js
+
+      - name: Syntax check dsh-skill-curator index.js
+        run: node --check packages/dsh-skill-curator/index.js

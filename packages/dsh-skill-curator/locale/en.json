@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Skill Curator — agent skills",
+    "description": "Read-only skill studio for DeepSeek Harness: browse DSH, project and external agent skills, inspect SKILL.md and reference files, and see validation diagnostics before editing anything."
+  }
+}

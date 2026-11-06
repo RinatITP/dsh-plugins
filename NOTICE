@@ -16,16 +16,27 @@ used as the name or branding of this project.
 | `@fegnze/dsh-mcp-manager` | fegnze — <https://github.com/fegnze/dsh-mcp-manager> | MIT | Design inspiration: MCP management through the official client and profile configuration, fail-closed import, write-only secrets. |
 | `dsh-mcp-registry` | drscrewdriver — <https://github.com/drscrewdriver/dsh-mcp-registry> | MIT | Design inspiration: governed MCP registry, risk/authorization stance, plaintext-HTTP loopback default. |
 | `@moon16u/dsh-mcp-console` | moon16u — <https://github.com/moon16u/dsh-pouch> (`packages/dsh-mcp-console`) | MIT | Design inspiration: management console over the official MCP client, zero MCP protocol code in the plugin. |
+| `@michengai/dsh-skills-manager` | MichengAI — <https://github.com/MichengAI/dsh-skills-manager> | Apache-2.0 | Design inspiration for `dsh-skill-curator`: multi-root skill catalog, source grouping, overlay-based enable/disable, diagnostics and the read-only external-agent scanner. No source code was copied. |
+| `dsh-skill-cockpit` | community package | MIT | Design inspiration: diagnostics for "why a skill is not visible", bounded project-root handling, agent-facing skill panel concepts. No source code was copied. |
+| `dsh-skill-hub` | community package | MIT | Design inspiration: content audit ideas (secrets, control characters), repository/install boundaries. No source code was copied. |
+| Anthropic `skills` repository (`skill-creator`) | Anthropic — <https://github.com/anthropics/skills> | documentation/example content | Design inspiration for the planned Skill Creator: intent capture, draft, test prompts, validation and packaging methodology. |
+| Claude Skills UI | Anthropic | — | Design inspiration: skill page structure (overview/content tabs, references and scripts tree) observed in the product UI. |
+| ZCode (Z.ai) skills import | Z.ai | — | Design inspiration: "import external agent skills" flow (sources, selection, symlink/copy, global/project). No code was extracted. |
+| Hermes Agent skill layout | Nous Research — <https://github.com/NousResearch/hermes-agent> | documentation | Design inspiration: category-directory layout and bundled-skill handling. |
 
 ## Official DeepSeek Harness packages
 
-`dsh-mcp-guard` is built on official DeepSeek Harness extension points and uses
-the official MCP client from the running host as an optional peer dependency:
+`dsh-mcp-guard` and `dsh-skill-curator` are built on official DeepSeek Harness
+extension points. `dsh-mcp-guard` uses the official MCP client from the running
+host as an optional peer dependency:
 
 - `@deepseek-ai/dsh-mcp-client` — official MCP client bridge, license MIT,
   <https://github.com/deepseek-ai/deepseek-harness> (`packages/mcp/mcp-client`).
   Connections, process spawning, reconnection, tool discovery and
   `mcp__<server>__<tool>` naming are owned by this package.
+- `dsh-skill-curator` relies on the official skill registry, filesystem
+  provider and web servers at runtime; none of them are vendored, copied or
+  redistributed here.
 - Other `@deepseek-ai/dsh-*` packages are used at runtime by the host and are not
   vendored, copied or redistributed in this repository.
 
