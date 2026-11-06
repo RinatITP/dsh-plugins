@@ -136,3 +136,67 @@ The end-to-end test configuration was reverted: the shipped
 `cordis.patch.yml` contains only the `dsh-mcp-guard` row with no server
 configuration, the fixture process is not running, and the repository tests
 pass against that shipped state.
+
+## dsh-skill-curator (stages 1–4, 2026-11-06)
+
+The second package in this repository, **dsh-skill-curator** (`0.1.0`, bundle id
+`dsh-skill-curator`, settings section id `skill-curator`, order 23), was installed
+as a **linked bundle** into the DSH Desktop `0.2.2-rc.1` `desktop` profile with
+`dsh plugin --profile desktop add "link:…/packages/dsh-skill-curator"`. DSH
+appended it to `dsh.profile.bundles`; Plugin Manager reports the entry
+`enabled=true`, `fiberPhase=active`.
+
+Host route checks against the running GUI host (`http://127.0.0.1:56042`):
+
+- `GET /api/dsh-skill-curator` without the intent header → `403 FORBIDDEN`;
+- with `x-dsh-skill-curator: 1` but no admitted peer → `401 UNAUTHENTICATED`.
+
+Automated evidence in the package:
+
+- `node --test packages/dsh-skill-curator/test/*.test.mjs` — **73 tests**, all
+  passing. Coverage: dependency-free frontmatter reader/editor, diagnostics,
+  root resolution, discovery over synthetic multi-root trees (bundles, flat
+  markdown, nested categories, Codex `.system`, symlinks, shadowed duplicates),
+  the HTTP envelope and trust gates, the static client contract, the full
+  mutation cycle in an isolated home (create → save with backup → toggle →
+  resource write → trash → restore, plus read-only/symlink/flat/project/stale
+  refusals), import planning/execution in copy and symlink modes (flat files,
+  project destination, existing-target and invalid-name skips, duplicate names,
+  confirmation/revision/selection guards), and the live provider/settings store.
+- `node scripts/validate.mjs` — **108 ok, 0 failed** (both packages).
+- CI workflow runs both test suites, the validator and syntax checks for both
+  packages on Ubuntu with Node 22.
+
+Implemented stages (see [`docs/PLUGINS.md`](PLUGINS.md)): read-only catalog and
+diagnostics; safe editing of `SKILL.md` and `references/`/`scripts/`/`assets/`;
+invocation toggles; skill creation; trash and backups; import from Claude Code,
+Codex, Hermes, ZCode, Cursor, Gemini, Kimi, OpenCode, bundled and custom roots;
+AI-assisted creator (manual/agent-prompt modes plus the confirmation-gated
+`skill_curator_create` tool); live model-only exposure of read-only sources.
+Writes are restricted to `~/.dsh/skills`, `~/.agents/skills` and configured
+project `.dsh/skills` roots (opt-out with `allowProjectWrites: false`); external
+agent roots are never written; imports never overwrite; every mutation is
+confirmation- and revision-gated, backed up and audited without file bodies.
+
+### Not verified for dsh-skill-curator
+
+- **Rendered UI.** The working environment has no browser control and the app
+  webview is not scriptable: the settings page, all tabs (Library, Import,
+  Sources, Trash), the editor, dialogs and the create/AI flows have **not** been
+  visually inspected. A window screenshot was captured for the app shell only;
+  this record claims no visual acceptance.
+- **Live provider against a real model catalog.** The provider, candidate shape
+  and body loading are unit-tested; whether a live-enabled external skill
+  appears in a model catalog and loads correctly through `dsh-tool-skill` was not
+  observed end to end.
+- **`skill_curator_create` in a real agent chat.** Tool registration, schema and
+  the `tools/pre-execute` ask were implemented but not exercised by a live model.
+- **Project-root auto-detection on this Desktop host.** The collector is
+  implemented defensively over the workspace registry and sessions; the actual
+  set of project roots returned by this host was not observed.
+- **Windows/macOS differences**, npm publication, installation from a GitHub
+  subdirectory, and concurrent operation with another skill manager
+  (e.g. `@michengai/dsh-skills-manager`) were not tested.
+
+The package README states the same limits. Visual acceptance by the owner is the
+remaining gate for this package's `0.1.0` preview.

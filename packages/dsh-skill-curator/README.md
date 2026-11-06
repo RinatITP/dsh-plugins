@@ -152,6 +152,11 @@ skips, duplicate names across sources, and the confirmation/revision/selection
 guards. Live tests cover the settings store, candidate filtering, rank and
 model-only invocation, body loading, and the renamed-skill refusal.
 
+The full evidence record (installed bundle, route trust gates, automated test
+counts and the list of unverified behaviours) is in
+[`docs/VERIFICATION.md`](../../docs/VERIFICATION.md), section *dsh-skill-curator
+(stages 1–4)*.
+
 **Live check performed 2026-11-06** on DSH Desktop `0.2.2-rc.1`: the package was
 installed as a linked bundle into the `desktop` profile, DSH appended it to
 `dsh.profile.bundles`, the Host row reports `enabled=true` / `fiberPhase=active`,

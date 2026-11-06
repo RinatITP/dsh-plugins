@@ -114,7 +114,8 @@ cycle against an isolated home (create → save with backup → toggle → resou
 write → trash → restore, and read-only/symlink/flat/project/stale-revision
 refusals), plus import planning and execution in copy and symlink modes, flat
 files, project destination and skip/collision guards; live tests cover the
-settings store, provider filtering and body loading. The repository validator and CI cover both packages. On 2026-11-06 the
+settings store, provider filtering and body loading. The full record, including
+the still-unverified rendered UI, is in [`VERIFICATION.md`](VERIFICATION.md). The repository validator and CI cover both packages. On 2026-11-06 the
 package was installed as a linked bundle into a DSH Desktop `0.2.2-rc.1` `desktop`
 profile: the Host row is active and the route returned `403 FORBIDDEN` without the
 intent header and `401 UNAUTHENTICATED` without signed-peer admission. The
