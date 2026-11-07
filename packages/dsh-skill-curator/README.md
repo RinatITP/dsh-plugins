@@ -5,20 +5,25 @@ skills visible and manageable in one place: DSH user and shared roots, project
 roots, bundled skills and the skill libraries of other agents (Claude Code,
 Codex, Hermes, ZCode, Cursor, Gemini/Antigravity, Kimi, OpenCode).
 
-> **Status: 0.1.0 development preview, stage 4 (catalog + editing + import +
-> creator + live sources).** The Web settings page lists every discovered skill,
-> renders `SKILL.md`, the bounded resource tree and validation diagnostics, and
-> can edit writable skills: validate and save `SKILL.md`, edit
-> `references/`/`scripts/`/`assets/` files, toggle model and slash-menu
-> invocation, create new skills (manual wizard with a section template, or an AI
-> prompt that an agent executes through the `skill_curator_create` tool), move
-> skills to a restorable trash, import skills from other agents as a copy or a
-> live symlink, and **expose read-only external sources live in the DSH catalog**
-> (model-only, opt-in per source) without copying anything. Every write is
-> confirmation-gated, revision-guarded and backed up first; imports never
-> overwrite. The optional sidebar entry and overlay toggles for read-only skills
-> remain future work. Tested against DSH `0.2.2-rc.1`; no visual acceptance of the
-> rendered page has been claimed yet.
+> **Status: 0.1.0 development preview, redesigned UX.** The Web settings page is
+> library-first: the skill list is the only main surface, while import, create,
+> live sources and trash are focused in-page views with a sticky Back bar. The
+> studio can be expanded into a fullscreen layer (DSH Settings itself is an
+> app-owned, fixed-width modal and cannot be resized by a plugin). The detail
+> page shows a key-value facts card, “how the model sees it”, pill tabs, inline
+> `SKILL.md`/file editing and a help popover on every non-obvious control.
+> Import is a wizard with a **sticky footer** action, search, select-all and skip
+> reasons. Creation offers guided manual fields (rules, counters, template,
+> inline validation) and an **AI handoff**: one click starts a real DSH chat with
+> the plugin's embedded `skill-curator-creator` skill and the description in the
+> composer; the agent saves the skill through `skill_curator_create`. Read-only
+> sources and symlinks are clearly labelled instead of showing a misleading
+> toggle; rows show the number of files for modular skills, and diagnostics now
+> include a short “what to fix” explanation. Every write is confirmation-gated,
+> revision-guarded and backed up first; imports never overwrite. The optional
+> sidebar entry and overlay toggles for read-only skills remain future work.
+> Tested against DSH `0.2.2-rc.1`; the latest visual pass after the second round
+> of feedback is still pending.
 
 ## What it does today
 
@@ -33,9 +38,11 @@ Codex, Hermes, ZCode, Cursor, Gemini/Antigravity, Kimi, OpenCode).
   mismatch, required description (length limits and recommendations), invocation
   booleans, frontmatter problems, empty or oversized body, symlink state,
   duplicate and shadowed names inside the DSH catalog.
-- **Skill card** with the raw `SKILL.md`, a bounded file tree
-  (`references/`, `scripts/`, `assets/`), traversal-safe preview of text
-  resources, and RU/EN copy.
+- **Skill page** (not a nested modal) with a key-value facts card, the model
+  visibility card, pill tabs for Overview/`SKILL.md`/Files/Diagnostics, inline
+  editing with backup and a sticky save bar (plus Save/Check/Cancel above the
+  editor), a bounded file tree (`references/`, `scripts/`, `assets/`),
+  traversal-safe preview of text resources, and RU/EN copy.
 - **Import is explicit.** The Import tab scans other agents, shows the planned
   destination path and skip reasons, and only then imports the selected skills.
   `copy` creates an independent snapshot, `symlink` creates a live link to the
