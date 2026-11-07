@@ -35,7 +35,7 @@ A small monorepo for DSH plugins that follow the same rules:
 | Plugin | Version | License | Description |
 |---|---|---|---|
 | [`dsh-mcp-guard`](packages/dsh-mcp-guard/) | 0.1.0 | MIT | Security-first MCP server manager with a Z.ai/GLM-style settings UI: strict validation, execution preview, bounded audit trail, takeover of existing profile rows and read-only discovery/import of Cursor, Claude and VS Code MCP configs. |
-| [`dsh-skill-curator`](packages/dsh-skill-curator/) | 0.1.0 | MIT | RU-first skill studio: catalog of DSH, project and external agent skills (Claude Code, Codex, Hermes, ZCode, Cursor, Gemini, Kimi, OpenCode, custom) with validation diagnostics, a bounded file tree, safe editing of `SKILL.md` and modular resources, invocation toggles, skill creation, backups, a restorable trash, copy/symlink import from other agents with a preview and per-item report, an AI-assisted creator (agent tool + prompt), and opt-in live exposure of read-only external sources in the DSH catalog. |
+| [`dsh-skill-curator`](packages/dsh-skill-curator/) | 0.1.0 | MIT | RU-first skill studio: catalog of DSH, project and external agent skills (Claude Code, Codex, Hermes, ZCode, Cursor, Gemini, Kimi, OpenCode, custom) with validation diagnostics, a bounded file tree, safe editing of `SKILL.md` and modular resources, invocation toggles, skill creation, backups, a restorable trash, copy/symlink import from other agents with a preview and per-item report, a library-first Studio UI, an AI chat handoff with a bundled skill creator, and opt-in live exposure of read-only external sources in the DSH catalog. |
 
 More plugins may be added over time. [`docs/PLUGINS.md`](docs/PLUGINS.md) is the
 catalog and lists the acceptance criteria for new entries.
@@ -144,9 +144,15 @@ monorepo, and the plugin package is in a subdirectory:
 
 - **Not yet tested:** installing directly from GitHub, in particular from a
   package subdirectory of a monorepo. Do not assume it works.
-- **Not yet available:** the plugin is not published to npm. Once it is, the
-  intended route will be
-  `dsh plugin --profile <name> add dsh-mcp-guard`.
+- **Not yet available:** the plugin is not published to npm.
+- **GitHub Releases:** downloadable preview tarballs are attached to releases.
+  For `dsh-skill-curator` v0.1.0 see
+  <https://github.com/RinatITP/dsh-plugins/releases/tag/dsh-skill-curator-v0.1.0>:
+  download `dsh-skill-curator-0.1.0.tgz`, unpack it (`tar -xzf ...`) and add the
+  unpacked `package/` directory with
+  `dsh plugin --profile desktop add "$PWD/package"`. This download route is
+  documented but has not been exercised by CI; the linked-checkout route above
+  is the tested one.
 
 See [`docs/INSTALL.md`](docs/INSTALL.md) for prerequisites, verification steps,
 uninstall, update and troubleshooting.
