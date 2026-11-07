@@ -51,6 +51,7 @@ window.__ModuleLoader__.load({
       'page.error.title': 'Could not load skills',
       'page.error.code': 'Error code',
       'page.error.retry': 'Try again',
+      'page.legend': 'Toggles are available on writable skills; read-only sources and symlinks are labelled and explained by the ? hint.',
       'page.error.unauthorized': 'Reopen the page from an authenticated DSH window.',
       'page.error.network': 'The DSH host is not reachable.',
       'group.readOnly': 'read-only',
@@ -69,6 +70,7 @@ window.__ModuleLoader__.load({
       'actions.refresh': 'Refresh',
       'actions.create': 'Create',
       'actions.import': 'Import',
+      'actions.importPrimary': 'Import selected',
       'actions.back': 'Back',
       'actions.cancel': 'Cancel',
       'actions.close': 'Close',
@@ -114,6 +116,8 @@ window.__ModuleLoader__.load({
       'detail.status.readOnly': 'read-only',
       'detail.files.empty': 'No resource files.',
       'detail.diagnostics.empty': 'No issues — the skill looks valid.',
+      'detail.diagnostics.hint': 'Each code below has a short explanation of what to fix.',
+      'detail.diagnostics.readOnly': 'This skill belongs to another agent and is read-only here. Fix it at the source or import a copy.',
       'detail.deleteHint': 'The skill is moved to the studio trash and can be restored.',
       'detail.editHint': 'Validation runs before writing; the previous file is backed up. Keep SKILL.md compact and move details to references/.',
       'detail.unsaved': 'Unsaved changes',
@@ -248,6 +252,31 @@ window.__ModuleLoader__.load({
       'create.scope.agents': 'Shared agents',
       'create.scope.project': 'Project',
       'create.aiHint': 'Describe the skill once — a new chat with the built-in creator opens and the skill appears here after it is saved.',
+      'scope.user': 'user',
+      'scope.project': 'project',
+      'actions.expand': 'Expand',
+      'actions.collapse': 'Collapse',
+      'detail.facts.files': 'Files',
+      'help.symlinkToggle': 'This skill is a symlink to the source. Enable or disable it at the source, or import a copy first.',
+      'help.readonlyToggle': 'This source belongs to another agent and is read-only here. Import a copy or turn on live exposure in Sources to use it in DSH.',
+      'help.files': 'A skill can contain extra files under references/, scripts/ or assets/. They load only when needed, so SKILL.md stays short.',
+      'diag.generic': 'Fix the skill file and save; open the editor to change it.',
+      'diag.name-missing': 'Add a kebab-case name to the frontmatter — the folder name is used as a hint.',
+      'diag.name-invalid': 'Use lowercase latin letters, digits and single hyphens in the name.',
+      'diag.name-folder-mismatch': 'Rename the skill folder or change the frontmatter name so they match.',
+      'diag.name-too-long': 'Shorten the name to 64 characters or fewer.',
+      'diag.description-missing': 'Add a description: what the skill does and when to use it.',
+      'diag.description-too-long': 'Shorten the description to 1024 characters or fewer.',
+      'diag.description-long': 'Consider shortening the description to about 200 characters and moving details into the body.',
+      'diag.description-short': 'Add trigger phrases so the model knows when to pick this skill.',
+      'diag.body-empty': 'Add instructions to the body of SKILL.md.',
+      'diag.body-too-large': 'Move long material into references/ or scripts/ and keep SKILL.md compact.',
+      'diag.invocation-invalid': 'Use true/false (or yes/no) for invocation fields.',
+      'diag.file-too-large': 'The file exceeds the preview limit; check the file on disk if it is unexpectedly large.',
+      'diag.symlink': 'This skill is linked to the source; edit the source agent or import a copy.',
+      'diag.symlink-broken': 'The symlink target is missing. Re-import the skill or remove the broken link.',
+      'diag.frontmatter-missing': 'Add YAML frontmatter delimited by --- at the top of SKILL.md.',
+      'diag.frontmatter-invalid': 'Fix the YAML frontmatter syntax (key: value lines).',
       'error.OPERATION_FAILED': 'The operation failed',
     };
 
@@ -271,6 +300,7 @@ window.__ModuleLoader__.load({
       'page.error.title': 'Не удалось загрузить навыки',
       'page.error.code': 'Код ошибки',
       'page.error.retry': 'Повторить',
+      'page.legend': 'Переключатели есть у своих (записываемых) навыков; read-only источники и симлинки подписаны, пояснение — по значку ?.',
       'page.error.unauthorized': 'Откройте страницу заново из авторизованного окна DSH.',
       'page.error.network': 'Хост DSH недоступен.',
       'group.readOnly': 'только чтение',
@@ -289,6 +319,7 @@ window.__ModuleLoader__.load({
       'actions.refresh': 'Обновить',
       'actions.create': 'Создать',
       'actions.import': 'Импорт',
+      'actions.importPrimary': 'Импортировать',
       'actions.back': 'Назад',
       'actions.cancel': 'Отмена',
       'actions.close': 'Закрыть',
@@ -334,6 +365,8 @@ window.__ModuleLoader__.load({
       'detail.status.readOnly': 'только чтение',
       'detail.files.empty': 'Вложенных файлов нет.',
       'detail.diagnostics.empty': 'Ошибок нет — навык выглядит корректным.',
+      'detail.diagnostics.hint': 'Под каждым кодом — короткое объяснение, что исправить.',
+      'detail.diagnostics.readOnly': 'Навык принадлежит другому агенту и здесь только для чтения. Исправляйте в источнике или импортируйте копию.',
       'detail.deleteHint': 'Навык переместится в корзину студии, его можно восстановить.',
       'detail.editHint': 'Перед записью выполняется проверка, предыдущий файл сохраняется в бэкап. Держите SKILL.md компактным, детали — в references/.',
       'detail.unsaved': 'Есть несохранённые изменения',
@@ -468,6 +501,31 @@ window.__ModuleLoader__.load({
       'create.scope.agents': 'Общие агентские',
       'create.scope.project': 'Проект',
       'create.aiHint': 'Опишите навык один раз — откроется чат со встроенным создателем, а навык появится здесь после сохранения.',
+      'scope.user': 'пользователь',
+      'scope.project': 'проект',
+      'actions.expand': 'На весь экран',
+      'actions.collapse': 'Свернуть',
+      'detail.facts.files': 'Файлы',
+      'help.symlinkToggle': 'Навык — симлинк на источник. Включайте/выключайте его в исходном агенте или сначала импортируйте копию.',
+      'help.readonlyToggle': 'Источник принадлежит другому агенту и здесь только для чтения. Импортируйте копию или включите live-показ в «Источниках», чтобы использовать навык в DSH.',
+      'help.files': 'Навык может содержать дополнительные файлы в references/, scripts/ или assets/. Они подгружаются только по необходимости, поэтому SKILL.md остаётся коротким.',
+      'diag.generic': 'Исправьте файл навыка и сохраните; откройте редактор, чтобы изменить его.',
+      'diag.name-missing': 'Добавьте имя в kebab-case во frontmatter — имя папки используется как подсказка.',
+      'diag.name-invalid': 'В имени допустимы строчная латиница, цифры и одиночные дефисы.',
+      'diag.name-folder-mismatch': 'Переименуйте папку навыка или измените имя во frontmatter, чтобы они совпадали.',
+      'diag.name-too-long': 'Сократите имя до 64 символов.',
+      'diag.description-missing': 'Добавьте описание: что делает навык и когда его использовать.',
+      'diag.description-too-long': 'Сократите описание до 1024 символов.',
+      'diag.description-long': 'Сократите описание примерно до 200 символов, детали перенесите в тело.',
+      'diag.description-short': 'Добавьте фразы-триггеры, чтобы модель понимала, когда выбирать навык.',
+      'diag.body-empty': 'Добавьте инструкции в тело SKILL.md.',
+      'diag.body-too-large': 'Перенесите длинные материалы в references/ или scripts/ и сократите SKILL.md.',
+      'diag.invocation-invalid': 'Для полей invocation используйте true/false (или yes/no).',
+      'diag.file-too-large': 'Файл больше лимита предпросмотра; проверьте его на диске, если размер неожиданный.',
+      'diag.symlink': 'Навык связан с источником: редактируйте в исходном агенте или импортируйте копию.',
+      'diag.symlink-broken': 'Цель симлинка не найдена. Импортируйте навык заново или удалите битую ссылку.',
+      'diag.frontmatter-missing': 'Добавьте YAML-frontmatter между строками --- в начале SKILL.md.',
+      'diag.frontmatter-invalid': 'Исправьте синтаксис YAML-frontmatter (строки key: value).',
       'error.OPERATION_FAILED': 'Операция не выполнена',
     };
 
@@ -478,21 +536,47 @@ window.__ModuleLoader__.load({
     const STYLES = `
       [data-plugin="dsh-skill-curator"] * { box-sizing: border-box; }
       [data-plugin="dsh-skill-curator"] { font-size: 14px; line-height: 22px; }
+      .sc-topbar {
+        position: sticky; top: 0; z-index: 30;
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        padding: 6px 0 8px; margin: -2px 0 0;
+        background: var(--dsw-alias-bg-layer-1);
+        border-bottom: .5px solid var(--dsw-alias-border-l2);
+      }
+      .sc-topbar .sc-breadcrumb { flex: 1 1 auto; min-width: 0; }
+      .sc-topbar-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+      .sc-fullscreen {
+        position: fixed; inset: 0; z-index: 105; overflow: auto;
+        background: var(--dsw-alias-bg-layer-1);
+        padding: 22px 24px 40px;
+      }
+      .sc-fullscreen-inner { width: 100%; max-width: 1060px; margin: 0 auto; }
+      .sc-fullscreen-bar {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        max-width: 1060px; margin: 0 auto 12px;
+      }
+      .sc-row-status { display: inline-flex; align-items: center; gap: 4px; color: var(--dsw-alias-label-tertiary); font-size: 11px; line-height: 16px; }
+      .sc-diag-help { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
+      .sc-editor-top {
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        padding: 8px 10px; border-radius: 10px;
+        background: var(--dsw-alias-bg-module-platform);
+      }
       .sc-page {
-        display: flex; flex-direction: column; gap: 16px;
+        display: flex; flex-direction: column; gap: 14px;
         width: 100%; max-width: 960px; margin: 0 auto; padding: 2px 2px 24px;
         color: var(--dsw-alias-label-primary);
-        font-size: 14px; line-height: 22px;
+        font-size: 13px; line-height: 20px;
       }
       .sc-head { display: flex; flex-direction: column; gap: 6px; }
       .sc-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
       .sc-head-titles { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 280px; }
-      .sc-title { margin: 0; font-size: 28px; font-weight: 600; line-height: 36px; letter-spacing: -0.01em; }
-      .sc-subtitle { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 14px; line-height: 22px; }
+      .sc-title { margin: 0; font-size: 22px; font-weight: 600; line-height: 29px; letter-spacing: -0.01em; }
+      .sc-subtitle { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 12.5px; line-height: 19px; }
       .sc-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       .sc-btn {
         display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-        height: 36px; padding: 0 14px; border: 0; border-radius: 8px;
+        height: 34px; padding: 0 14px; border: 0; border-radius: 8px;
         background: transparent; color: var(--dsw-alias-label-primary);
         font: inherit; font-size: 13px; line-height: 20px; white-space: nowrap;
         cursor: pointer; text-decoration: none;
@@ -551,14 +635,14 @@ window.__ModuleLoader__.load({
       .sc-filter:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
       .sc-group { display: flex; flex-direction: column; gap: 8px; }
       .sc-group-head {
-        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
         width: 100%; padding: 0 2px; border: 0; background: transparent;
         color: var(--dsw-alias-label-primary); font: inherit; text-align: left; cursor: pointer;
         min-height: 26px;
       }
       .sc-group-head:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; border-radius: 6px; }
       .sc-group-chevron { flex: none; color: var(--dsw-alias-label-tertiary); display: inline-flex; }
-      .sc-group-title { font-size: 15px; font-weight: 600; line-height: 22px; }
+      .sc-group-title { font-size: 13.5px; font-weight: 600; line-height: 19px; }
       .sc-group-count { color: var(--dsw-alias-label-tertiary); font-size: 13px; font-weight: 500; }
       .sc-group-spacer { flex: 1 1 auto; }
       .sc-group-path {
@@ -573,8 +657,8 @@ window.__ModuleLoader__.load({
         overflow: hidden;
       }
       .sc-row {
-        display: flex; align-items: flex-start; gap: 12px;
-        padding: 12px 14px; min-height: 72px;
+        display: flex; align-items: flex-start; gap: 10px;
+        padding: 10px 12px; min-height: 64px;
       }
       .sc-row + .sc-row { border-top: .5px solid var(--dsw-alias-border-l2); }
       .sc-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
@@ -586,15 +670,15 @@ window.__ModuleLoader__.load({
       .sc-row-main:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 4px; }
       .sc-row-icon {
         flex: none; display: inline-flex; align-items: center; justify-content: center;
-        width: 36px; height: 36px; margin-top: 2px; border-radius: 50%;
+        width: 32px; height: 32px; margin-top: 2px; border-radius: 50%;
         border: .5px solid var(--dsw-alias-border-l3);
         background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary);
       }
       .sc-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
       .sc-row-name { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
-      .sc-row-name-text { font-size: 15px; font-weight: 600; line-height: 20px; overflow-wrap: anywhere; }
+      .sc-row-name-text { font-size: 13.5px; font-weight: 600; line-height: 19px; overflow-wrap: anywhere; }
       .sc-row-desc {
-        color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 20px;
+        color: var(--dsw-alias-label-secondary); font-size: 12.5px; line-height: 18px;
         overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
       }
       .sc-row-meta {
@@ -637,7 +721,7 @@ window.__ModuleLoader__.load({
       .sc-help:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
       .sc-help:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
       .sc-help-pop {
-        position: fixed; z-index: 90; width: 290px; max-width: calc(100vw - 24px);
+        position: fixed; z-index: 125; width: 290px; max-width: calc(100vw - 24px);
         padding: 10px 12px; border-radius: 10px;
         background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary);
         border: .5px solid var(--dsw-alias-border-l3);
@@ -646,13 +730,12 @@ window.__ModuleLoader__.load({
       }
       .sc-menu-wrap { position: relative; display: inline-flex; }
       .sc-menu {
-        position: absolute; z-index: 50; top: calc(100% + 6px); right: 0; min-width: 200px;
+        position: fixed; z-index: 120; min-width: 210px; max-height: min(70vh, 380px); overflow: auto;
         display: flex; flex-direction: column; gap: 2px; padding: 6px;
         border: .5px solid var(--dsw-alias-border-l3); border-radius: 10px;
         background: var(--dsw-alias-bg-layer-2);
         box-shadow: 0 10px 30px color-mix(in srgb, var(--dsw-alias-label-primary) 16%, transparent);
       }
-      .sc-menu[data-align="left"] { left: 0; right: auto; }
       .sc-menu-item {
         display: flex; align-items: center; gap: 8px; width: 100%;
         padding: 8px 10px; border: 0; border-radius: 7px; background: transparent;
@@ -690,15 +773,15 @@ window.__ModuleLoader__.load({
       .sc-tab[aria-selected="true"] { background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font-weight: 500; box-shadow: 0 1px 2px color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent); }
       .sc-tab:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
       .sc-facts { display: flex; flex-direction: column; gap: 0; border: .5px solid var(--dsw-alias-settings-card-stroke, var(--dsw-alias-border-l4)); border-radius: 12px; background: var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-1)); }
-      .sc-fact { display: flex; align-items: baseline; gap: 12px; padding: 8px 14px; font-size: 13px; line-height: 20px; }
+      .sc-fact { display: flex; align-items: baseline; gap: 12px; padding: 7px 12px; font-size: 12.5px; line-height: 19px; }
       .sc-fact + .sc-fact { border-top: .5px solid var(--dsw-alias-border-l2); }
-      .sc-fact-label { flex: 0 0 122px; color: var(--dsw-alias-label-tertiary); font-size: 12px; }
+      .sc-fact-label { flex: 0 0 108px; color: var(--dsw-alias-label-tertiary); font-size: 11.5px; }
       .sc-fact-value { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; }
       .sc-fact-value[data-mono="true"] { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
       .sc-model { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: .5px solid var(--dsw-alias-settings-card-stroke, var(--dsw-alias-border-l4)); border-radius: 12px; background: var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-1)); }
-      .sc-model-title { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; line-height: 20px; }
+      .sc-model-title { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; line-height: 19px; }
       .sc-model-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
-      .sc-model-desc { color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 20px; }
+      .sc-model-desc { color: var(--dsw-alias-label-secondary); font-size: 12.5px; line-height: 19px; }
       .sc-toggles { display: flex; gap: 18px; flex-wrap: wrap; }
       .sc-toggle-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
       .sc-pre {
@@ -782,7 +865,7 @@ window.__ModuleLoader__.load({
       .sc-breadcrumb-current { color: var(--dsw-alias-label-primary); overflow-wrap: anywhere; }
       .sc-list { display: flex; flex-direction: column; }
       .sc-toast {
-        position: fixed; z-index: 95; left: 50%; bottom: 28px; transform: translateX(-50%);
+        position: fixed; z-index: 130; left: 50%; bottom: 28px; transform: translateX(-50%);
         max-width: min(560px, calc(100vw - 32px)); padding: 9px 14px; border-radius: 10px;
         background: var(--dsw-alias-toast-bg, var(--dsw-alias-bg-layer-2));
         color: var(--dsw-alias-toast-label, var(--dsw-alias-label-primary));
@@ -815,6 +898,7 @@ window.__ModuleLoader__.load({
         chars: ['символ', 'символа', 'символов'],
         lines: ['строка', 'строки', 'строк'],
         selected: ['навык', 'навыка', 'навыков'],
+        files: ['файл', 'файла', 'файлов'],
       },
       en: {
         skills: ['skill', 'skills', 'skills'],
@@ -824,6 +908,7 @@ window.__ModuleLoader__.load({
         chars: ['character', 'characters', 'characters'],
         lines: ['line', 'lines', 'lines'],
         selected: ['skill', 'skills', 'skills'],
+        files: ['file', 'files', 'files'],
       },
     };
 
@@ -975,7 +1060,7 @@ window.__ModuleLoader__.load({
     }
 
     function scopeLabel(runtime, scope) {
-      return runtime.t(scope === 'project' ? 'create.scope.project' : 'create.scope.user');
+      return runtime.t(scope === 'project' ? 'scope.project' : 'scope.user');
     }
 
     function statusLabel(runtime, skill) {
@@ -1094,6 +1179,9 @@ window.__ModuleLoader__.load({
       terminal: ['M4 5h16v14H4V5Z', 'm7 9 3 3-3 3', 'M13 15h4'],
       link: ['M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1', 'M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1'],
       source: ['M12 3v18', 'M5 8h14', 'M5 16h14'],
+      expand: ['M9 4H4v5', 'M15 4h5v5', 'M9 20H4v-5', 'M15 20h5v-5'],
+      collapse: ['M4 9h5V4', 'M20 9h-5V4', 'M4 15h5v5', 'M20 15h-5v5'],
+      lock: ['M6 11h12v9H6v-9Z', 'M8.5 11V7a3.5 3.5 0 0 1 7 0v4'],
     };
 
     function Icon({ name, size = 16 }) {
@@ -1110,6 +1198,18 @@ window.__ModuleLoader__.load({
           strokeLinejoin: 'round',
         })),
       );
+    }
+
+    function ExpandButton({ runtime, expanded, onExpand }) {
+      if (typeof onExpand !== 'function') return null;
+      const label = runtime.t(expanded ? 'actions.collapse' : 'actions.expand');
+      return h('button', {
+        type: 'button',
+        className: 'sc-btn sc-btn-sm sc-btn-ghost',
+        title: label,
+        'aria-label': label,
+        onClick: onExpand,
+      }, h(Icon, { name: expanded ? 'collapse' : 'expand', size: 14 }), label);
     }
 
     function Tag({ tone, children }) {
@@ -1373,7 +1473,7 @@ window.__ModuleLoader__.load({
       }, [onCancel]);
       return h(
         'div',
-        { className: 'sc-overlay', role: 'dialog', 'aria-modal': 'true', style: { position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', background: 'var(--dsw-alias-bg-mask-1, rgba(15,23,42,.45))' } },
+        { className: 'sc-overlay', role: 'dialog', 'aria-modal': 'true', style: { position: 'fixed', inset: 0, zIndex: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', background: 'var(--dsw-alias-bg-mask-1, rgba(15,23,42,.45))' } },
         h(
           'div',
           { className: 'sc-card', style: { width: 'min(440px, 100%)', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' } },
@@ -1420,6 +1520,7 @@ window.__ModuleLoader__.load({
       if (errors > 0) tags.push(h(Tag, { key: 'errors', tone: 'error' }, errors + ' ' + runtime.t('badge.errors')));
       else if (warnings > 0) tags.push(h(Tag, { key: 'warnings', tone: 'warn' }, warnings + ' ' + runtime.t('badge.warnings')));
       if (skill.truncated) tags.push(h(Tag, { key: 'trunc', tone: 'warn' }, runtime.t('badge.truncated')));
+      if (Number(skill.fileCount) > 1) tags.push(h(Tag, { key: 'files' }, skill.fileCount + ' ' + plural(runtime, skill.fileCount, 'files')));
 
       const menuItems = [
         { key: 'open', label: runtime.t('actions.open'), icon: 'file', onSelect: () => onOpen(skill) },
@@ -1454,7 +1555,7 @@ window.__ModuleLoader__.load({
             { className: 'sc-row-text' },
             h('span', { className: 'sc-row-name' }, h('span', { className: 'sc-row-name-text' }, skill.name), tags),
             skill.description ? h('span', { className: 'sc-row-desc' }, skill.description) : null,
-            h('span', { className: 'sc-row-meta' }, [sourceLabel(runtime, source), scopeLabel(runtime, skill.scope), skill.relativePath || skill.path].filter(Boolean).join(' · ')),
+            h('span', { className: 'sc-row-meta' }, [scopeLabel(runtime, skill.scope), skill.relativePath || skill.path].filter(Boolean).join(' · ')),
           ),
         ),
         h(
@@ -1463,14 +1564,18 @@ window.__ModuleLoader__.load({
           h(
             'span',
             { className: 'sc-row-end-row' },
-            skill.writable
+            skill.writable && !skill.isSymlink
               ? h(Switch, {
                 checked: enabled,
                 disabled: busy === true,
                 label: enabled ? runtime.t('detail.status.enabled') : runtime.t('detail.status.disabled'),
                 onChange: (next) => onToggle(skill, next),
               })
-              : null,
+              : h('span', { className: 'sc-row-status' },
+                skill.readOnly ? h(Icon, { name: 'lock', size: 13 }) : null,
+                runtime.t(skill.readOnly ? 'badge.readOnly' : 'badge.symlink'),
+                h(HelpTip, { label: runtime.t(skill.readOnly ? 'help.readonlyToggle' : 'help.symlinkToggle') },
+                  runtime.t(skill.readOnly ? 'help.readonlyToggle' : 'help.symlinkToggle'))),
             h(MenuButton, {
               label: runtime.t('actions.more'),
               triggerLabel: runtime.t('actions.more') + ': ' + skill.name,
@@ -1481,7 +1586,7 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function LibraryView({ runtime, snapshot, onRefresh, onCreate, onImport, onOpenSkill, onToggle, onDelete, onOpenSources, onOpenTrash, notify }) {
+    function LibraryView({ runtime, snapshot, onRefresh, onCreate, onImport, onOpenSkill, onToggle, onDelete, onOpenSources, onOpenTrash, notify, expanded, onExpand }) {
       const [query, setQuery] = useState('');
       const [filter, setFilter] = useState('all');
       const [collapsed, setCollapsed] = useState({});
@@ -1551,7 +1656,7 @@ window.__ModuleLoader__.load({
 
       const groupCollapsed = (source) => {
         if (Object.prototype.hasOwnProperty.call(collapsed, source.key)) return collapsed[source.key];
-        if (source.kind === 'external' || source.kind === 'custom' || source.kind === 'bundled') return true;
+        if (source.readOnly === true || source.kind === 'bundled') return true;
         return false;
       };
 
@@ -1575,6 +1680,7 @@ window.__ModuleLoader__.load({
             h(
               'div',
               { className: 'sc-head-actions' },
+              h(ExpandButton, { runtime, expanded, onExpand }),
               h('button', {
                 type: 'button',
                 className: 'sc-icon-btn',
@@ -1621,7 +1727,8 @@ window.__ModuleLoader__.load({
             h('span', null, h('b', null, String(summary.sources)), ' ', plural(runtime, summary.sources, 'sources')),
             summary.errors > 0 ? h('span', null, h('b', null, String(summary.errors)), ' ', plural(runtime, summary.errors, 'errors')) : null,
             summary.warnings > 0 ? h('span', null, h('b', null, String(summary.warnings)), ' ', plural(runtime, summary.warnings, 'warnings')) : null,
-            snapshot && snapshot.complete === false ? h('span', null, runtime.t('page.error.title')) : null),
+            snapshot && snapshot.complete === false ? h('span', null, runtime.t('page.error.title')) : null,
+            h('span', { className: 'sc-note-muted' }, runtime.t('page.legend'))),
         ),
         skills.length === 0
           ? h(EmptyState, {
@@ -1682,6 +1789,12 @@ window.__ModuleLoader__.load({
       );
     }
 
+    function diagnosticHelp(runtime, code) {
+      const key = 'diag.' + code;
+      const text = runtime.t(key);
+      return text === key ? runtime.t('diag.generic') : text;
+    }
+
     function DiagnosticsList({ runtime, diagnostics, onHelp }) {
       if (!Array.isArray(diagnostics) || diagnostics.length === 0) {
         return h(EmptyState, { title: runtime.t('detail.diagnostics.empty') });
@@ -1702,11 +1815,12 @@ window.__ModuleLoader__.load({
           item.params && Object.keys(item.params).length > 0
             ? h('div', { className: 'sc-diag-params' }, formatParams(item.params))
             : null,
+          h('div', { className: 'sc-diag-help' }, diagnosticHelp(runtime, item.code)),
         )),
       );
     }
 
-    function SkillDetailView({ runtime, skillId, initialEdit, revision, onBack, onChanged, notify }) {
+    function SkillDetailView({ runtime, skillId, initialEdit, revision, onBack, onChanged, notify, expanded, onExpand }) {
       const [detail, setDetail] = useState(null);
       const [state, setState] = useState({ loading: true, error: null });
       const [tab, setTab] = useState('overview');
@@ -1906,10 +2020,18 @@ window.__ModuleLoader__.load({
         notify(ok ? (successKey ?? 'toast.copied') : 'toast.copyFailed');
       };
 
+      if (!skill) {
+        return h('div', { className: 'sc-page' },
+          h('div', { className: 'sc-breadcrumb' }, h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back'))),
+          state.error
+            ? h(Banner, { actions: [h('button', { key: 'retry', type: 'button', className: 'sc-btn sc-btn-sm sc-btn-outline', onClick: load }, runtime.t('actions.retry'))] }, errorText(runtime, { code: state.error }))
+            : h('div', { className: 'sc-note' }, runtime.t('editor.busy')));
+      }
+
       const tabs = [
         { value: 'overview', label: runtime.t('detail.tabs.overview') },
         { value: 'raw', label: runtime.t('detail.tabs.raw') },
-        { value: 'files', label: runtime.t('detail.tabs.files') },
+        { value: 'files', label: runtime.t('detail.tabs.files') + (Number(skill.fileCount) > 1 ? ' (' + skill.fileCount + ')' : '') },
         { value: 'diagnostics', label: runtime.t('detail.tabs.diagnostics') + (errors > 0 ? ' (' + errors + ')' : '') },
       ];
 
@@ -1934,10 +2056,12 @@ window.__ModuleLoader__.load({
       return h(
         'div',
         { className: 'sc-page' },
-        h('div', { className: 'sc-breadcrumb' },
-          h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back')),
-          h('span', { className: 'sc-breadcrumb-sep' }, '/'),
-          h('span', { className: 'sc-breadcrumb-current' }, skill ? skill.name : '')),
+        h('div', { className: 'sc-topbar' },
+          h('div', { className: 'sc-breadcrumb' },
+            h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back')),
+            h('span', { className: 'sc-breadcrumb-sep' }, '/'),
+            h('span', { className: 'sc-breadcrumb-current' }, skill ? skill.name : '')),
+          h('div', { className: 'sc-topbar-actions' }, h(ExpandButton, { runtime, expanded, onExpand }))),
         h(
           'header',
           { className: 'sc-head' },
@@ -1948,7 +2072,7 @@ window.__ModuleLoader__.load({
               'div',
               { className: 'sc-head-titles' },
               h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
-                h('h1', { className: 'sc-title', style: { fontSize: '24px', lineHeight: '32px' } }, skill.name),
+                h('h1', { className: 'sc-title', style: { fontSize: '20px', lineHeight: '28px' } }, skill.name),
                 skill.readOnly ? h(Tag, null, runtime.t('badge.readOnly')) : null,
                 skill.isSymlink ? h(Tag, null, runtime.t('badge.symlink')) : null,
                 errors > 0 ? h(Tag, { tone: 'error' }, errors + ' ' + runtime.t('badge.errors')) : null,
@@ -1974,6 +2098,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'sc-fact' }, h('span', { className: 'sc-fact-label' }, runtime.t('detail.facts.size')), h('span', { className: 'sc-fact-value' }, formatBytes(skill.sizeBytes))),
           h('div', { className: 'sc-fact' }, h('span', { className: 'sc-fact-label' }, runtime.t('detail.facts.lines')), h('span', { className: 'sc-fact-value' }, String(skill.bodyLines))),
           h('div', { className: 'sc-fact' }, h('span', { className: 'sc-fact-label' }, runtime.t('detail.facts.modified')), h('span', { className: 'sc-fact-value' }, formatDate(skill.mtimeMs, runtime.language))),
+          h('div', { className: 'sc-fact' }, h('span', { className: 'sc-fact-label' }, runtime.t('detail.facts.files')), h('span', { className: 'sc-fact-value' }, String(skill.fileCount ?? 0) + ' ' + plural(runtime, skill.fileCount ?? 0, 'files'))),
           h('div', { className: 'sc-fact' }, h('span', { className: 'sc-fact-label' }, runtime.t('detail.facts.path')), h('span', { className: 'sc-fact-value', 'data-mono': 'true' }, skill.path)),
         ),
         h(
@@ -2021,6 +2146,13 @@ window.__ModuleLoader__.load({
             { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
             h('p', { className: 'sc-note', style: { margin: 0 } }, runtime.t('editor.hint')),
             editing
+              ? h('div', { className: 'sc-editor-top' },
+                h('button', { type: 'button', className: 'sc-btn sc-btn-primary', disabled: saving, onClick: saveEdit }, saving ? runtime.t('editor.busy') : runtime.t('actions.save')),
+                h('button', { type: 'button', className: 'sc-btn sc-btn-outline', disabled: saving, onClick: validateEdit }, runtime.t('actions.validate')),
+                h('button', { type: 'button', className: 'sc-btn', disabled: saving, onClick: cancelEdit }, runtime.t('actions.cancel')),
+                h('span', { className: 'sc-note' }, runtime.t('detail.unsaved')))
+              : null,
+            editing
               ? h('textarea', {
                 className: 'sc-textarea',
                 style: { minHeight: '360px' },
@@ -2053,6 +2185,9 @@ window.__ModuleLoader__.load({
           ? h(
             'div',
             { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
+            h('div', { className: 'sc-note', style: { display: 'flex', alignItems: 'center', gap: '6px', margin: 0 } },
+              runtime.t('help.files'),
+              h(HelpTip, { label: runtime.t('help.files') }, runtime.t('help.files'))),
             fileState.loading ? h('div', { className: 'sc-note' }, runtime.t('editor.busy')) : null,
             fileState.error ? h(Banner, null, errorText(runtime, { code: fileState.error })) : null,
             file && !file.binary
@@ -2099,7 +2234,11 @@ window.__ModuleLoader__.load({
           )
           : null,
         tab === 'diagnostics'
-          ? h(DiagnosticsList, { runtime, diagnostics })
+          ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
+            h('div', { className: 'sc-toolbar' },
+              writable ? h('button', { type: 'button', className: 'sc-btn sc-btn-outline', onClick: beginEdit }, h(Icon, { name: 'edit', size: 15 }), runtime.t('actions.edit')) : null,
+              h('span', { className: 'sc-note' }, runtime.t(skill.readOnly ? 'detail.diagnostics.readOnly' : 'detail.diagnostics.hint'))),
+            h(DiagnosticsList, { runtime, diagnostics }))
           : null,
         confirmDelete
           ? h(ConfirmOverlay, {
@@ -2164,7 +2303,7 @@ window.__ModuleLoader__.load({
 
     const NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-    function CreateSkillView({ runtime, snapshot, onBack, onDone, notify, closeSettings }) {
+    function CreateSkillView({ runtime, snapshot, onBack, onDone, notify, closeSettings, expanded, onExpand }) {
       const projectSources = (snapshot && Array.isArray(snapshot.sources) ? snapshot.sources : [])
         .filter((source) => source.kind === 'project');
       const workspacePath = (sourcePath) => {
@@ -2250,10 +2389,12 @@ window.__ModuleLoader__.load({
       return h(
         'div',
         { className: 'sc-page' },
-        h('div', { className: 'sc-breadcrumb' },
-          h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back')),
-          h('span', { className: 'sc-breadcrumb-sep' }, '/'),
-          h('span', { className: 'sc-breadcrumb-current' }, runtime.t('create.title'))),
+        h('div', { className: 'sc-topbar' },
+          h('div', { className: 'sc-breadcrumb' },
+            h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back')),
+            h('span', { className: 'sc-breadcrumb-sep' }, '/'),
+            h('span', { className: 'sc-breadcrumb-current' }, runtime.t('create.title'))),
+          h('div', { className: 'sc-topbar-actions' }, h(ExpandButton, { runtime, expanded, onExpand }))),
         h('header', { className: 'sc-head' },
           h('div', { className: 'sc-head-titles' },
             h('h1', { className: 'sc-title' }, runtime.t('create.title')),
@@ -2407,7 +2548,7 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function ImportView({ runtime, snapshot, onBack, onDone, notify }) {
+    function ImportView({ runtime, snapshot, onBack, onDone, notify, expanded, onExpand }) {
       const projectSources = (snapshot && Array.isArray(snapshot.sources) ? snapshot.sources : [])
         .filter((source) => source.kind === 'project');
       const workspacePath = (sourcePath) => {
@@ -2540,10 +2681,12 @@ window.__ModuleLoader__.load({
       return h(
         'div',
         { className: 'sc-page' },
-        h('div', { className: 'sc-breadcrumb' },
-          h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back')),
-          h('span', { className: 'sc-breadcrumb-sep' }, '/'),
-          h('span', { className: 'sc-breadcrumb-current' }, runtime.t('import.title'))),
+        h('div', { className: 'sc-topbar' },
+          h('div', { className: 'sc-breadcrumb' },
+            h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back')),
+            h('span', { className: 'sc-breadcrumb-sep' }, '/'),
+            h('span', { className: 'sc-breadcrumb-current' }, runtime.t('import.title'))),
+          h('div', { className: 'sc-topbar-actions' }, h(ExpandButton, { runtime, expanded, onExpand }))),
         h('header', { className: 'sc-head' },
           h('div', { className: 'sc-head-titles' },
             h('h1', { className: 'sc-title' }, runtime.t('import.title')),
@@ -2692,7 +2835,7 @@ window.__ModuleLoader__.load({
                 className: 'sc-btn sc-btn-primary',
                 disabled: selected.size === 0 || applying,
                 onClick: () => setConfirmOpen(true),
-              }, applying ? runtime.t('editor.busy') : runtime.t('actions.import') + ' (' + selected.size + ')'),
+              }, applying ? runtime.t('editor.busy') : runtime.t('actions.importPrimary') + ' (' + selected.size + ')'),
               h('button', { type: 'button', className: 'sc-btn', onClick: onBack }, runtime.t('actions.cancel')),
               h('span', { className: 'sc-note' }, selected.size + ' ' + runtime.t('import.footerSelected'))),
           ),
@@ -2701,7 +2844,7 @@ window.__ModuleLoader__.load({
             runtime,
             title: runtime.t('import.confirm'),
             body: runtime.t('import.footerSelected') + ': ' + selected.size,
-            confirmLabel: runtime.t('import.confirm') + ' (' + selected.size + ')',
+            confirmLabel: runtime.t('actions.importPrimary') + ' (' + selected.size + ')',
             busy: applying,
             onConfirm: apply,
             onCancel: () => setConfirmOpen(false),
@@ -2710,7 +2853,7 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function SourcesView({ runtime, snapshot, onBack, onChanged, notify }) {
+    function SourcesView({ runtime, snapshot, onBack, onChanged, notify, expanded, onExpand }) {
       const [busyKey, setBusyKey] = useState(null);
       const [error, setError] = useState(null);
       const sources = (snapshot && Array.isArray(snapshot.sources) ? snapshot.sources : [])
@@ -2784,10 +2927,12 @@ window.__ModuleLoader__.load({
       return h(
         'div',
         { className: 'sc-page' },
-        h('div', { className: 'sc-breadcrumb' },
-          h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back')),
-          h('span', { className: 'sc-breadcrumb-sep' }, '/'),
-          h('span', { className: 'sc-breadcrumb-current' }, runtime.t('sources.title'))),
+        h('div', { className: 'sc-topbar' },
+          h('div', { className: 'sc-breadcrumb' },
+            h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back')),
+            h('span', { className: 'sc-breadcrumb-sep' }, '/'),
+            h('span', { className: 'sc-breadcrumb-current' }, runtime.t('sources.title'))),
+          h('div', { className: 'sc-topbar-actions' }, h(ExpandButton, { runtime, expanded, onExpand }))),
         h('header', { className: 'sc-head' },
           h('div', { className: 'sc-head-row' },
             h('div', { className: 'sc-head-titles' },
@@ -2810,7 +2955,7 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function TrashView({ runtime, snapshot, onBack, onChanged, notify }) {
+    function TrashView({ runtime, snapshot, onBack, onChanged, notify, expanded, onExpand }) {
       const [list, setList] = useState({ loading: true, error: null, items: [] });
       const [pending, setPending] = useState(null);
       const [busy, setBusy] = useState(false);
@@ -2873,10 +3018,12 @@ window.__ModuleLoader__.load({
       return h(
         'div',
         { className: 'sc-page' },
-        h('div', { className: 'sc-breadcrumb' },
-          h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back')),
-          h('span', { className: 'sc-breadcrumb-sep' }, '/'),
-          h('span', { className: 'sc-breadcrumb-current' }, runtime.t('trash.title'))),
+        h('div', { className: 'sc-topbar' },
+          h('div', { className: 'sc-breadcrumb' },
+            h('button', { type: 'button', onClick: onBack }, h(Icon, { name: 'back', size: 14 }), ' ', runtime.t('actions.back')),
+            h('span', { className: 'sc-breadcrumb-sep' }, '/'),
+            h('span', { className: 'sc-breadcrumb-current' }, runtime.t('trash.title'))),
+          h('div', { className: 'sc-topbar-actions' }, h(ExpandButton, { runtime, expanded, onExpand }))),
         h('header', { className: 'sc-head' },
           h('div', { className: 'sc-head-titles' },
             h('h1', { className: 'sc-title' }, runtime.t('trash.title')),
@@ -2908,6 +3055,8 @@ window.__ModuleLoader__.load({
       const [toast, setToast] = useState(null);
       const [pendingDelete, setPendingDelete] = useState(null);
       const [deleteBusy, setDeleteBusy] = useState(false);
+      const [expanded, setExpanded] = useState(false);
+      const onExpand = useCallback(() => setExpanded((value) => !value), []);
 
       const notify = useCallback((value) => {
         const text = typeof value === 'string' && Object.prototype.hasOwnProperty.call(runtime.language === 'en' ? DICT_EN : DICT_RU, value)
@@ -3011,6 +3160,8 @@ window.__ModuleLoader__.load({
               await refresh();
             },
             notify,
+            expanded,
+            onExpand,
           });
         }
         if (route.view === 'create') {
@@ -3024,6 +3175,8 @@ window.__ModuleLoader__.load({
             },
             notify,
             closeSettings: close,
+            expanded,
+            onExpand,
           });
         }
         if (route.view === 'import') {
@@ -3035,6 +3188,8 @@ window.__ModuleLoader__.load({
               await refresh();
             },
             notify,
+            expanded,
+            onExpand,
           });
         }
         if (route.view === 'sources') {
@@ -3046,6 +3201,8 @@ window.__ModuleLoader__.load({
               await refresh();
             },
             notify,
+            expanded,
+            onExpand,
           });
         }
         if (route.view === 'trash') {
@@ -3057,15 +3214,14 @@ window.__ModuleLoader__.load({
               await refresh();
             },
             notify,
+            expanded,
+            onExpand,
           });
         }
         return null;
       };
 
-      return h(
-        React.Fragment,
-        null,
-        state.loading
+      const pageContent = state.loading
           ? h('div', { className: 'sc-page' },
             h('h1', { className: 'sc-title' }, runtime.t('page.title')),
             h('div', { className: 'sc-note' }, runtime.t('editor.busy')))
@@ -3090,8 +3246,29 @@ window.__ModuleLoader__.load({
                 onOpenSources: () => setRoute({ view: 'sources' }),
                 onOpenTrash: () => setRoute({ view: 'trash' }),
                 notify,
+                expanded,
+                onExpand,
               })
-              : renderView(),
+              : renderView();
+      const viewNode = expanded
+        ? h(
+          'div',
+          { className: 'sc-fullscreen' },
+          h(
+            'div',
+            { className: 'sc-fullscreen-bar' },
+            h('span', { style: { fontSize: '18px', lineHeight: '26px', fontWeight: 600 } }, runtime.t('page.title')),
+            h('button', { type: 'button', className: 'sc-btn sc-btn-outline', onClick: () => setExpanded(false) },
+              h(Icon, { name: 'collapse', size: 15 }), runtime.t('actions.collapse')),
+          ),
+          h('div', { className: 'sc-fullscreen-inner' }, pageContent),
+        )
+        : pageContent;
+
+      return h(
+        React.Fragment,
+        null,
+        viewNode,
         toast ? h(Toast, { text: toast.text }) : null,
         pendingDelete
           ? h(ConfirmOverlay, {

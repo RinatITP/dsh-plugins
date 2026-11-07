@@ -265,6 +265,51 @@ the composer accept the prompt), and the sticky footer, help popovers and the
 narrow settings width (~575 px) were not inspected after the redesign. A DSH
 restart (and a short visual run-through) is required for this pass.
 
+### Owner feedback after first visual run (2026-11-07)
+
+The owner opened the redesigned page in DSH Settings and reported concrete
+issues; the following fixes were made and verified with a jsdom render harness
+(React 18 + jsdom in a throwaway `/tmp` project, not a repo dependency) that
+mounts the real `SkillCuratorPage` against synthetic snapshot/detail/import
+responses and clicks through Library → Create → Import → Detail → editor →
+diagnostics → fullscreen (36 checks, all passed):
+
+- **Fixed `⋯` menus.** They used absolute positioning inside `overflow:hidden`
+  cards and could land off-screen. Menus are now `position: fixed` with
+  viewport-clamped coordinates; harness checks `getComputedStyle(...).position
+  === 'fixed'` and that the header menu contains Sources/Trash.
+- **Back and save are always reachable.** Detail/Create/Import/Sources/Trash
+  have a sticky top bar with Back; the detail editor gained Save/Check/Cancel
+  above the textarea in addition to the sticky footer.
+- **Fullscreen studio.** DSH Settings is an app-owned fixed-width modal; the
+  plugin cannot resize it. The studio now has a labelled “На весь экран /
+  Развернуть” control that renders the same page in a fixed, scrollable
+  fullscreen layer with a “Свернуть” action, so wide content and sticky bars
+  work without changing DSH chrome.
+- **Toggle clarity.** Only writable, non-symlink skills get a switch. Read-only
+  sources show a lock + “только чтение” with a `?` hint; symlinks show “ссылка”
+  with a hint explaining that source edits are required or a copy must be
+  imported. A legend under the library summary explains this, addressing the
+  owner's “непонятно, включены или нет” comment.
+- **Smaller typography and denser rows** (page title 22 px, body 13/20, row name
+  13.5 px; reduced paddings) to stop overflow in the ~575 px settings pane.
+- **Diagnostics are actionable.** Each code now gets a short “what to fix”
+  explanation (dictionary keys `diag.*`), plus an Edit action; read-only skills
+  get an explicit “fix at the source or import a copy” note. The Files tab shows
+  file counts and a help hint; library rows show “N файлов” so modular skills
+  are discoverable.
+- **Duplicate source/scope label fixed.** Scope labels now read “пользователь /
+  проект” instead of repeating the source name.
+- **Import primary button** now reads “Импортировать (N)” (was “Импорт (N)”).
+  AI handoff was covered by the harness: with no `uiWorkspace` the page shows
+  the copy fallback; with a stub service it calls `startSession` with a prompt
+  containing `/skill-curator-creator`, `skill_curator_create` and
+  `whenDraftExists: 'replace'`.
+
+**Still not verified visually after these fixes:** the owner has not re-run the
+restarted page. A DSH restart (client bundle changed) and a short visual pass are
+required before claiming visual acceptance.
+
 ### Not verified for dsh-skill-curator
 
 - **Rendered UI.** The working environment has no browser control and the app
