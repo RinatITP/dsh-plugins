@@ -28,7 +28,8 @@ test('manifest declares the bundle patch, the client half and the DSH range', ()
   assert.ok(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-tool'));
   assert.match(manifest.engines.dsh, /0\.2\.2-rc\.1/);
   for (const file of ['index.js', 'client.js', 'cordis.patch.yml', 'icon.svg', 'README.md', 'lib/host.js', 'lib/store.js', 'lib/ask.js', 'lib/http.js', 'lib/spec.js', 'lib/guidelines.js',
-    'lib/templates.js', 'locale/en.json', 'locale/ru.json']) {
+    'lib/templates.js',
+    'lib/project.js', 'locale/en.json', 'locale/ru.json']) {
     assert.ok(existsSync(join(PACKAGE_DIR, file)), `missing ${file}`);
   }
 });
@@ -76,6 +77,16 @@ test('host ships the starter-template tool beside the publish tools', () => {
   const templates = read('lib/templates.js');
   assert.match(templates, /export const TEMPLATES/);
   assert.match(templates, /export function templateFor/);
+});
+
+test('publish supports an optional project copy beside the plugin store', () => {
+  const host = read('lib/host.js');
+  assert.match(host, /saveToProject/);
+  assert.match(host, /from '\.\/project\.js'/);
+  assert.match(host, /writeProjectCopy\(/);
+  const project = read('lib/project.js');
+  assert.match(project, /export async function writeProjectCopy/);
+  assert.match(project, /export function projectTarget/);
 });
 
 test('published visuals always render in a sandboxed iframe', () => {

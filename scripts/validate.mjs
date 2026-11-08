@@ -68,10 +68,12 @@ const PACKAGES = [
       'lib/http.js',
       'lib/guidelines.js',
       'lib/templates.js',
+      'lib/project.js',
       'test/package.test.mjs',
       'test/client-static.test.mjs',
       'test/http.test.mjs',
       'test/templates.test.mjs',
+      'test/project.test.mjs',
     ],
   },
   {

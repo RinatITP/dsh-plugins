@@ -55,6 +55,13 @@ catalog.json                  derived index: artifacts and their versions
 artifacts/<id>/v<rev>.html    one immutable file per published version
 ```
 
+Optionally the same version is also written into the session project as
+`artifacts/visuals/<artifact-id>/v<rev>.html` with a small `meta.json`, so a
+visual can be reviewed and committed next to the task it explains. Call
+`visual_publish` with `saveToProject: true` (or set `projectByDefault: true`
+in the bundle config); without an available project directory the plugin store
+remains the only destination.
+
 The catalog is written atomically (temporary file + rename) and serialized
 behind one queue. Up to 200 artifacts and 50 versions per artifact are kept; the
 oldest entries are pruned together with their files. User project directories
@@ -111,7 +118,7 @@ The bundle row accepts an optional config object:
 
 Development preview `0.1.0`, targeting DSH Desktop/Web `0.2.2-rc.1`.
 
-Automated checks: 47 Node unit tests cover spec normalization, answer validation,
+Automated checks: 51 Node unit tests cover spec normalization, answer validation,
 storage versions and pruning, the pending-widget lifecycle, and the three HTTP
 routes including the capability-key gate; `node scripts/validate.mjs` and CI
 cover the package shell, locales, icon, manifest and JavaScript syntax.

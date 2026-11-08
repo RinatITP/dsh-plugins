@@ -18,6 +18,7 @@ import { normalizeAskSpec, normalizePublish, SpecError } from './spec.js';
 import { createRoutes } from './http.js';
 import { guidelineFor, MODULES } from './guidelines.js';
 import { templateFor, TEMPLATE_MODULES } from './templates.js';
+import { writeProjectCopy } from './project.js';
 
 export const name = 'dsh-visual-studio';
 
@@ -28,6 +29,7 @@ const SYSTEM_SECTION = `Визуалы (плагин «Визуальная ст
 - Если пользователю нужно выбрать или подтвердить варианты (план, блоки программы, приоритеты, компоновка), вызывай visual_ask: это инлайн-виджет в чате. Ответ пользователя придёт результатом инструмента — продолжай с ним в том же ходе и не задавай тот же вопрос текстом.
 - Если нужно объяснить тему или показать решение — схему процесса, граф связей, мокап экрана, график — вызывай visual_publish с самодостаточным HTML. Страница откроется в правой панели «Визуализации» и сохранится с версиями.
 - Перед любым визуалом вызови visual_guidelines с модулем (overview | diagram | mockup | interactive | chart) и следуй бюджету сложности из ответа.
+- Если визуал нужен в проекте (для git и ревью), передай visual_publish параметр saveToProject: true — копия версии попадёт в artifacts/visuals/ рабочей папки сессии.
 - Для схемы, мокапа или слайда можно взять готовый каркас: вызови visual_template(module), подставь данные вместо плейсхолдеров в квадратных скобках и опубликуй результат через visual_publish.
 - Один визуал — одна мысль. Не рисуй ради простого текстового ответа. Собери данные до публикации.
 - В опубликованной странице нет сети: только инлайн CSS/JS; внешние шрифты, картинки по URL и fetch запрещены.
@@ -48,6 +50,30 @@ function loggerOf(ctx) {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Resolve the session working directory. `workingDirectory.ensure(agent)` is the
+ * same seam the core file tools use; the session header is a read-only fallback.
+ */
+async function resolveSessionCwd(ctx, exec) {
+  let workingDirectory;
+  try {
+    workingDirectory = typeof ctx.get === 'function' ? ctx.get('workingDirectory') : undefined;
+  } catch {
+    workingDirectory = undefined;
+  }
+  if (workingDirectory !== undefined && workingDirectory !== null && typeof workingDirectory.ensure === 'function' && exec?.agent !== undefined) {
+    try {
+      const cwd = await workingDirectory.ensure(exec.agent, exec.signal);
+      if (typeof cwd === 'string' && cwd !== '') return cwd;
+    } catch {
+      // Fall through to the header snapshot.
+    }
+  }
+  const session = exec?.agent?.session;
+  const cwd = session?.header?.cwd ?? session?.requestHeader?.()?.cwd;
+  return typeof cwd === 'string' && cwd !== '' ? cwd : undefined;
 }
 
 function specFailure(error) {
@@ -299,6 +325,10 @@ export function apply(ctx) {
         title: { type: 'string', description: 'Human title shown in the panel and in the chat card.' },
         module: { type: 'string', enum: ['diagram', 'mockup', 'interactive', 'chart'] },
         summary: { type: 'string', description: 'One paragraph for the chat card: what the visual shows.' },
+        saveToProject: {
+          type: 'boolean',
+          description: 'Also write this version into the session project as artifacts/visuals/<id>/v<rev>.html when a project directory is available.',
+        },
         html: { type: 'string', description: 'Complete self-contained HTML document.' },
       },
     },
@@ -313,15 +343,19 @@ export function apply(ctx) {
           module: { type: 'string' },
           url: { type: 'string' },
           bytes: { type: 'integer' },
+          projectPath: { type: 'string' },
         },
         required: ['artifactId', 'rev', 'title', 'module', 'url', 'bytes'],
       },
       render: (_args, value) => [{
         type: 'text',
-        text: `Опубликовано «${value.title}» (${value.module}, версия ${value.rev}). Панель «Визуализации» открыта на этом визуале — можно смотреть, менять ширину устройства и скачать HTML.`,
+        text: [
+          `Опубликовано «${value.title}» (${value.module}, версия ${value.rev}). Панель «Визуализации» открыта на этом визуале — можно смотреть, менять ширину устройства и скачать HTML.`,
+          value.projectPath === undefined ? null : `Копия сохранена в проекте: ${value.projectPath}`,
+        ].filter(Boolean).join('\n'),
       }],
     },
-    async execute(args) {
+    async execute(args, exec) {
       let normalized;
       try {
         normalized = normalizePublish(args);
@@ -330,6 +364,31 @@ export function apply(ctx) {
       }
       const artifact = await store.publish(normalized);
       debug(`published ${artifact.id} v${artifact.rev}`);
+      const saveToProject = typeof args.saveToProject === 'boolean'
+        ? args.saveToProject
+        : config.projectByDefault === true;
+      let projectPath;
+      if (saveToProject) {
+        const cwd = await resolveSessionCwd(ctx, exec);
+        if (cwd === undefined) {
+          debug('project-cwd-unavailable');
+        } else {
+          try {
+            const written = await writeProjectCopy({
+              cwd,
+              artifactId: artifact.id,
+              rev: artifact.rev,
+              title: artifact.title,
+              module: artifact.module,
+              html: normalized.html,
+            });
+            projectPath = written.relativeFile;
+            debug(`project copy ${written.relativeFile}`);
+          } catch (error) {
+            debug(`project-copy-failed ${error?.code ?? 'UNKNOWN'}`);
+          }
+        }
+      }
       return {
         artifactId: artifact.id,
         rev: artifact.rev,
@@ -337,6 +396,7 @@ export function apply(ctx) {
         module: artifact.module,
         url: `/plugins/dsh-visual-studio/artifact?id=${artifact.id}&rev=${artifact.rev}`,
         bytes: normalized.bytes,
+        ...(projectPath === undefined ? {} : { projectPath }),
       };
     },
     presentCall(args) {
