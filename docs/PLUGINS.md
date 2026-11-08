@@ -178,3 +178,40 @@ manifest (`version`, `license`, `engines`).
 9. **Honest status.** Version, compatibility target, tested platforms and
    verification limits are stated in the README; no screenshots or "verified"
    claims for behaviour that was not observed.
+
+
+### `dsh-visual-studio` 0.1.0
+
+| Field | Value |
+|---|---|
+| Package | `dsh-visual-studio` |
+| Directory | [`packages/dsh-visual-studio`](../packages/dsh-visual-studio/) |
+| Version | 0.1.0 (development preview) |
+| License | MIT |
+| DSH target | 0.2.2-rc.1 (`engines.dsh: ">=0.2.2-rc.1 <0.3.0-0"`) |
+| Node | ≥ 22.19.0 |
+| npm | not published yet |
+| Bundle patch | `cordis.patch.yml` — one `insert` row, id `dsh-visual-studio` |
+| Client injection | `tool.call.toolview` views for `visual_ask` and `visual_publish`; right-sidebar tab type `dsh-visual-studio` with a guide entry |
+| Docs | [plugin README](../packages/dsh-visual-studio/README.md) |
+
+**What it does.** Adds two visual modes to a session and the guideline tool that
+governs them: an inline structured choice widget that returns the user's answer
+to the agent as a tool result, and a published interactive HTML visual with
+immutable versions in the right-sidebar panel (list, versions, device widths,
+download, full screen). Published visuals are stored under
+`<dshHome>/visual-studio/`, never in the user's project.
+
+**Security posture.** Agent HTML runs in a sandbox: the panel uses
+`<iframe sandbox="allow-scripts">`, the artifact route sets
+`Content-Security-Policy: sandbox allow-scripts` with `default-src 'none'`, and
+`visual_publish` rejects external scripts, styles, images, fonts and `fetch`
+calls. The manifest route requires the intent header and peer admission; widget
+answers are validated against the pending spec; file paths derive from a
+validated artifact id and a numeric revision.
+
+**Status and verification.** Development preview. Unit tests cover spec
+normalization, answer validation, storage versions and the pending-widget
+lifecycle; the repository validator and CI cover the package shell and JavaScript
+syntax. Live verification in a DSH Desktop window is recorded in the repository
+research notes and the package README.

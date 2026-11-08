@@ -33,6 +33,9 @@ jobs:
       - name: Unit tests — dsh-skill-curator
         run: node --test packages/dsh-skill-curator/test/*.test.mjs
 
+      - name: Unit tests — dsh-visual-studio
+        run: node --test packages/dsh-visual-studio/test/*.test.mjs
+
       - name: Repository validation
         run: node scripts/validate.mjs
 
@@ -47,3 +50,9 @@ jobs:
 
       - name: Syntax check dsh-skill-curator index.js
         run: node --check packages/dsh-skill-curator/index.js
+
+      - name: Syntax check dsh-visual-studio client.js
+        run: node --check packages/dsh-visual-studio/client.js
+
+      - name: Syntax check dsh-visual-studio index.js
+        run: node --check packages/dsh-visual-studio/index.js

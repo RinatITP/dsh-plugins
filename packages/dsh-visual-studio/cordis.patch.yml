@@ -1,0 +1,6 @@
+# Bundle patch for dsh-visual-studio. One Host row; the Client half is declared
+# by `dsh.client` in package.json and served by the same package.
+- insert:
+    - id: dsh-visual-studio
+      name: dsh-visual-studio
+      config: {}

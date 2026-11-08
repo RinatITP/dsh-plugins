@@ -1,0 +1,67 @@
+{
+  "name": "dsh-visual-studio",
+  "version": "0.1.0",
+  "description": "Visual studio for DeepSeek Harness: inline choice widgets in the chat, published interactive visuals with versions in the right sidebar, and a design guideline tool for the agent.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Rinat Fathutdinov",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RinatITP/dsh-plugins.git",
+    "directory": "packages/dsh-visual-studio"
+  },
+  "bugs": {
+    "url": "https://github.com/RinatITP/dsh-plugins/issues"
+  },
+  "homepage": "https://github.com/RinatITP/dsh-plugins/tree/main/packages/dsh-visual-studio#readme",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "lib",
+    "locale/*.json",
+    "cordis.patch.yml",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar-right",
+        "@deepseek-ai/dsh-client-ui-tool",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "engines": {
+    "node": ">=22.19.0",
+    "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+  },
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "visual",
+    "mockup",
+    "diagram",
+    "artifact",
+    "widget"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  }
+}
