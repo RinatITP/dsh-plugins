@@ -100,6 +100,9 @@ The bundle row accepts an optional config object:
   same-origin iframe carries the visual with `script-src 'none'` (no
   `sandbox`, so the parent may call `contentWindow.print()`); the browser print
   dialog then saves a PDF. The artifact itself never runs scripts in this mode.
+- The print route runs the visual with `script-src 'none'`, so a page whose
+  content is built by JavaScript prints only its static markup. Keep the data in
+  the HTML when a PDF is expected (the whole system prompt says so as well).
 - **PNG** is not supported in v1/v2: a sandboxed iframe has an opaque origin, so
   the client cannot rasterise its DOM. A later version can convert SVG-based
   diagrams through canvas, or render on the Host with a headless browser.
