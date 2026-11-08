@@ -67,9 +67,11 @@ const PACKAGES = [
       'lib/ask.js',
       'lib/http.js',
       'lib/guidelines.js',
+      'lib/templates.js',
       'test/package.test.mjs',
       'test/client-static.test.mjs',
       'test/http.test.mjs',
+      'test/templates.test.mjs',
     ],
   },
   {

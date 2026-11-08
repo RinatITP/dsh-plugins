@@ -17,6 +17,7 @@ import { createAskRegistry } from './ask.js';
 import { normalizeAskSpec, normalizePublish, SpecError } from './spec.js';
 import { createRoutes } from './http.js';
 import { guidelineFor, MODULES } from './guidelines.js';
+import { templateFor, TEMPLATE_MODULES } from './templates.js';
 
 export const name = 'dsh-visual-studio';
 
@@ -27,6 +28,7 @@ const SYSTEM_SECTION = `Визуалы (плагин «Визуальная ст
 - Если пользователю нужно выбрать или подтвердить варианты (план, блоки программы, приоритеты, компоновка), вызывай visual_ask: это инлайн-виджет в чате. Ответ пользователя придёт результатом инструмента — продолжай с ним в том же ходе и не задавай тот же вопрос текстом.
 - Если нужно объяснить тему или показать решение — схему процесса, граф связей, мокап экрана, график — вызывай visual_publish с самодостаточным HTML. Страница откроется в правой панели «Визуализации» и сохранится с версиями.
 - Перед любым визуалом вызови visual_guidelines с модулем (overview | diagram | mockup | interactive | chart) и следуй бюджету сложности из ответа.
+- Для схемы, мокапа или слайда можно взять готовый каркас: вызови visual_template(module), подставь данные вместо плейсхолдеров в квадратных скобках и опубликуй результат через visual_publish.
 - Один визуал — одна мысль. Не рисуй ради простого текстового ответа. Собери данные до публикации.
 - В опубликованной странице нет сети: только инлайн CSS/JS; внешние шрифты, картинки по URL и fetch запрещены.
 - Виджет не должен содержать длинных абзацев: короткие строки, 2–4 действия на строку, один вопрос на вызов.`;
@@ -127,6 +129,49 @@ export function apply(ctx) {
       return { card: 'generic', title: 'Visual guidelines', kind: 'read', rawInput: args?.module };
     },
   }), 'dsh-visual-studio: visual_guidelines tool');
+
+  ctx.effect(() => tools.register({
+    name: 'visual_template',
+    description: 'Return a ready-to-adapt, self-contained HTML starter for a visual. Call it when the user wants a process diagram, a screen mockup or a slide and you would otherwise draw from scratch. Replace the bracketed Russian placeholders with the real data, keep the inline CSS, and publish the result with visual_publish. The template has no scripts and no external resources.',
+    parameters: {
+      type: 'object',
+      properties: {
+        module: {
+          type: 'string',
+          enum: TEMPLATE_MODULES,
+          description: 'Starter kind: process diagram, screen mockup or 16:9 slide.',
+        },
+      },
+      required: ['module'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          module: { type: 'string' },
+          template: { type: 'string' },
+        },
+        required: ['module', 'template'],
+      },
+      render: (_args, value) => [{
+        type: 'text',
+        text: [
+          `Каркас «${value.module}» (${Math.round(value.template.length / 1024)} КБ). Подставь реальные данные вместо плейсхолдеров в квадратных скобках, сохрани инлайн-CSS и опубликуй через visual_publish с тем же module.`,
+          '',
+          value.template,
+        ].join('\n'),
+      }],
+    },
+    execute(args) {
+      const module = TEMPLATE_MODULES.includes(args.module) ? args.module : 'diagram';
+      return { module, template: templateFor(module) };
+    },
+    presentCall(args) {
+      return { card: 'generic', title: 'Visual template', kind: 'read', rawInput: args?.module };
+    },
+  }), 'dsh-visual-studio: visual_template tool');
 
   ctx.effect(() => tools.register({
     name: 'visual_ask',

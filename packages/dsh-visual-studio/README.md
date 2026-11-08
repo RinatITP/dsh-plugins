@@ -28,6 +28,7 @@ on the page).
 | `visual_guidelines` | Design rules for `overview`, `diagram`, `mockup`, `interactive` or `chart` | Guidelines text for that module |
 | `visual_ask` | Inline widget: title, optional metric, 3–7 rows, 2–4 actions per row, submit | One selected action per row, changed count, optional note |
 | `visual_publish` | Publish a complete self-contained HTML visual for the current title | Artifact id, version, module, URL |
+| `visual_template` | Ready-to-adapt HTML starter for a `diagram`, `mockup` or `slide` | Complete self-contained HTML document with bracketed placeholders |
 
 `visual_ask` blocks the tool call until the user answers or the configured
 timeout expires; a timeout, an abort and a plugin unload all return a structured
@@ -96,7 +97,7 @@ The bundle row accepts an optional config object:
 
 Development preview `0.1.0`, targeting DSH Desktop/Web `0.2.2-rc.1`.
 
-Automated checks: 39 Node unit tests cover spec normalization, answer validation,
+Automated checks: 45 Node unit tests cover spec normalization, answer validation,
 storage versions and pruning, the pending-widget lifecycle, and the three HTTP
 routes including the capability-key gate; `node scripts/validate.mjs` and CI
 cover the package shell, locales, icon, manifest and JavaScript syntax.
