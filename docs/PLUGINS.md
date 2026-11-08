@@ -11,7 +11,7 @@ Every entry is an installable DSH bundle package under `packages/`.
 |---|---|
 | Package | `dsh-mcp-guard` |
 | Directory | [`packages/dsh-mcp-guard`](../packages/dsh-mcp-guard/) |
-| Version | 0.1.0 (development preview) |
+| Version | 0.2.0 (development preview) |
 | License | MIT |
 | DSH target | 0.2.2-rc.1 (`engines.dsh: ">=0.2.2-rc.1 <0.3.0-0"`; official MCP client as optional peer) |
 | Node | ≥ 22.19.0 |
@@ -180,13 +180,13 @@ manifest (`version`, `license`, `engines`).
    claims for behaviour that was not observed.
 
 
-### `dsh-visual-studio` 0.1.0
+### `dsh-visual-studio` 0.2.0
 
 | Field | Value |
 |---|---|
 | Package | `dsh-visual-studio` |
 | Directory | [`packages/dsh-visual-studio`](../packages/dsh-visual-studio/) |
-| Version | 0.1.0 (development preview) |
+| Version | 0.2.0 (development preview) |
 | License | MIT |
 | DSH target | 0.2.2-rc.1 (`engines.dsh: ">=0.2.2-rc.1 <0.3.0-0"`) |
 | Node | ≥ 22.19.0 |
