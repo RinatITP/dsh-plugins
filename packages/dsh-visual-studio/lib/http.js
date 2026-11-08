@@ -22,6 +22,33 @@ export const MAX_BODY_BYTES = 256 * 1024;
 export const ROUTE_MANIFEST = '/plugins/dsh-visual-studio/manifest';
 export const ROUTE_ARTIFACT = '/plugins/dsh-visual-studio/artifact';
 export const ROUTE_ASK = '/plugins/dsh-visual-studio/ask';
+export const ROUTE_PRINT = '/plugins/dsh-visual-studio/print';
+
+// Same-origin, script-free rendering used only by the print wrapper: the parent
+// page must be able to call contentWindow.print() on a document that cannot run
+// any JavaScript of its own.
+const PRINT_ARTIFACT_CSP = [
+  "default-src 'none'",
+  "script-src 'none'",
+  "style-src 'unsafe-inline'",
+  'img-src data: blob:',
+  'font-src data:',
+  "connect-src 'none'",
+  "frame-src 'none'",
+  "form-action 'none'",
+  "base-uri 'none'",
+].join('; ');
+
+const PRINT_WRAPPER_CSP = [
+  "default-src 'none'",
+  "script-src 'unsafe-inline'",
+  "style-src 'unsafe-inline'",
+  "frame-src 'self'",
+  "img-src 'none'",
+  "connect-src 'none'",
+  "form-action 'none'",
+  "base-uri 'none'",
+].join('; ');
 
 const ARTIFACT_CSP = [
   "sandbox allow-scripts",
@@ -135,11 +162,12 @@ function artifactHandler(store, previewKey, admit) {
     if (revision === null) return sendText(res, 400, 'invalid-revision');
     const version = await store.readVersion(id, revision ?? undefined);
     if (version === undefined) return sendText(res, 404, 'not-found');
+    const plain = url.searchParams.get('plain') === '1';
     const headers = {
       'content-type': 'text/html; charset=utf-8',
       'content-length': Buffer.byteLength(version.html, 'utf8'),
       'cache-control': 'no-store',
-      'content-security-policy': ARTIFACT_CSP,
+      'content-security-policy': plain ? PRINT_ARTIFACT_CSP : ARTIFACT_CSP,
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'no-referrer',
     };
@@ -187,6 +215,46 @@ function askHandler(asks, admit) {
   };
 }
 
+function printHandler(store, previewKey, admit) {
+  return async function handler(req, res) {
+    if (req.method !== 'GET') return sendText(res, 405, 'method-not-allowed');
+    const url = new URL(req.url ?? '/', 'http://dsh.local');
+    const authorized = isAdmitted(admit, req) || (typeof previewKey === 'string' && previewKey !== '' && url.searchParams.get('k') === previewKey);
+    if (!authorized) return sendText(res, 403, 'forbidden');
+    const id = url.searchParams.get('id') ?? '';
+    const revision = parseRevision(url.searchParams.get('rev'));
+    if (revision === null) return sendText(res, 400, 'invalid-revision');
+    const version = await store.readVersion(id, revision ?? undefined);
+    if (version === undefined) return sendText(res, 404, 'not-found');
+    const artifactQuery = new URLSearchParams({ id, plain: '1' });
+    if (revision !== undefined) artifactQuery.set('rev', String(revision));
+    if (typeof previewKey === 'string' && previewKey !== '') artifactQuery.set('k', previewKey);
+    const frameTitle = String(version.title ?? 'visual').replace(/[<>&"]/g, '');
+    const wrapper = [
+      '<!doctype html>',
+      '<html lang="ru"><head><meta charset="utf-8"><title>Печать: ' + frameTitle + '</title>',
+      '<style>html,body{margin:0;height:100%;background:#fff}iframe{display:block;width:100%;height:100%;border:0}</style>',
+      '</head><body>',
+      '<iframe id="dvs-print-frame" title="Печать визуала" src="/plugins/dsh-visual-studio/artifact?' + artifactQuery.toString() + '"></iframe>',
+      '<script>',
+      'var frame=document.getElementById("dvs-print-frame");',
+      'frame.addEventListener("load",function(){try{frame.contentWindow.focus();frame.contentWindow.print();}catch(error){document.body.setAttribute("data-print-error","1");}});',
+      '</script>',
+      '</body></html>',
+    ].join('');
+    const headers = {
+      'content-type': 'text/html; charset=utf-8',
+      'content-length': Buffer.byteLength(wrapper, 'utf8'),
+      'cache-control': 'no-store',
+      'content-security-policy': PRINT_WRAPPER_CSP,
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'no-referrer',
+    };
+    res.writeHead(200, headers);
+    res.end(wrapper);
+  };
+}
+
 /**
  * @param {object} deps
  * @param {ReturnType<import('./store.js').createStore>} deps.store
@@ -198,5 +266,6 @@ export function createRoutes({ store, asks, admit, previewKey }) {
     [ROUTE_MANIFEST]: manifestHandler(store, admit, previewKey),
     [ROUTE_ARTIFACT]: artifactHandler(store, previewKey, admit),
     [ROUTE_ASK]: askHandler(asks, admit),
+    [ROUTE_PRINT]: printHandler(store, previewKey, admit),
   };
 }

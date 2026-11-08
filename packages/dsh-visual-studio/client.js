@@ -40,6 +40,7 @@ window.__ModuleLoader__.load({
         'panel.width': 'Width',
         'panel.refresh': 'Refresh',
         'panel.download': 'Download HTML',
+        'panel.print': 'Print / PDF',
         'panel.open': 'Open',
         'panel.fullscreen': 'Full screen',
         'panel.exitFullscreen': 'Exit full screen',
@@ -73,6 +74,7 @@ window.__ModuleLoader__.load({
         'panel.width': 'Ширина',
         'panel.refresh': 'Обновить',
         'panel.download': 'Скачать HTML',
+        'panel.print': 'Печать / PDF',
         'panel.open': 'Открыть',
         'panel.fullscreen': 'На весь экран',
         'panel.exitFullscreen': 'Выйти из полного экрана',
@@ -220,6 +222,10 @@ window.__ModuleLoader__.load({
         throw new Error(code);
       }
       return payload.value;
+    }
+
+    function printUrl(id, rev, key) {
+      return `/plugins/dsh-visual-studio/print?id=${encodeURIComponent(id)}&rev=${encodeURIComponent(rev)}${typeof key === 'string' && key !== '' ? `&k=${encodeURIComponent(key)}` : ''}`;
     }
 
     function artifactUrl(id, rev, key) {
@@ -588,6 +594,14 @@ window.__ModuleLoader__.load({
             href: `${artifactUrl(selected.id, revision, previewKey)}&download=1`,
             download: '',
           }, t('panel.download'))
+          : null,
+        selected !== undefined
+          ? h('a', {
+            className: 'dvs-toolbar-btn',
+            href: printUrl(selected.id, revision, previewKey),
+            target: '_blank',
+            rel: 'noopener noreferrer',
+          }, t('panel.print'))
           : null,
         selected !== undefined
           ? h('a', {

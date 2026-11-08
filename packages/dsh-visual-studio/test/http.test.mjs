@@ -145,3 +145,40 @@ test('ask route requires the intent header and a JSON body', async () => {
     assert.equal(wrongType.state.status, 415);
   });
 });
+
+test('print wrapper embeds the same-origin script-free artifact', async () => {
+  await withRoutes(async ({ store, routes }) => {
+    const artifact = await store.publish({ title: 'Схема', module: 'diagram', html: DOC });
+    const route = routes['/plugins/dsh-visual-studio/print'];
+    const query = `?id=${artifact.id}&rev=1&k=secret-key`;
+
+    const ok = fakeRes();
+    await route(getRequest(`/plugins/dsh-visual-studio/print${query}`), ok);
+    assert.equal(ok.state.status, 200);
+    assert.match(ok.state.headers['content-security-policy'], /frame-src 'self'/);
+    assert.match(ok.state.body, /dvs-print-frame/);
+    assert.match(ok.state.body, /plain=1/);
+    assert.match(ok.state.body, /k=secret-key/);
+    assert.match(ok.state.body, /contentWindow\.print\(\)/);
+
+    const denied = fakeRes();
+    await route(getRequest(`/plugins/dsh-visual-studio/print?id=${artifact.id}&rev=1`), denied);
+    assert.equal(denied.state.status, 403);
+  }, () => ({}));
+});
+
+test('the plain artifact mode disables scripts instead of sandboxing', async () => {
+  await withRoutes(async ({ store, routes }) => {
+    const artifact = await store.publish({ title: 'Схема', module: 'diagram', html: DOC });
+    const route = routes['/plugins/dsh-visual-studio/artifact'];
+    const plain = fakeRes();
+    await route(getRequest(`/plugins/dsh-visual-studio/artifact?id=${artifact.id}&rev=1&plain=1&k=secret-key`), plain);
+    assert.equal(plain.state.status, 200);
+    assert.match(plain.state.headers['content-security-policy'], /script-src 'none'/);
+    assert.doesNotMatch(plain.state.headers['content-security-policy'], /sandbox/);
+
+    const sandboxed = fakeRes();
+    await route(getRequest(`/plugins/dsh-visual-studio/artifact?id=${artifact.id}&rev=1&k=secret-key`), sandboxed);
+    assert.match(sandboxed.state.headers['content-security-policy'], /sandbox allow-scripts/);
+  }, () => ({}));
+});

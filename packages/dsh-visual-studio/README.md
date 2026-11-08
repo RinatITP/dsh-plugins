@@ -41,7 +41,7 @@ timeout expires; a timeout, an abort and a plugin unload all return a structured
   panel automatically once the visual is stored.
 - **Right sidebar** — tab type `dsh-visual-studio` with a discoverable guide
   entry. Artifact list, version selector, width presets (fit/390/768/1440),
-  refresh, HTML download, open-in-tab and full-screen mode.
+  refresh, HTML download, print/PDF, open-in-tab and full-screen mode.
 - **System prompt** — one section that tells the model when to use a widget, when
   to publish a page, and that published pages have no network access.
 
@@ -93,11 +93,22 @@ The bundle row accepts an optional config object:
 | `dshHome` | `$DSH_HOME` or `~/.dsh` | Root that holds the `visual-studio` directory |
 | `askTimeoutMs` | `1200000` (20 min) | How long one widget may wait for an answer |
 
+## Export
+
+- **HTML** — the panel downloads the exact stored version.
+- **PDF** — the *Print / PDF* button opens a plugin-owned wrapper page whose
+  same-origin iframe carries the visual with `script-src 'none'` (no
+  `sandbox`, so the parent may call `contentWindow.print()`); the browser print
+  dialog then saves a PDF. The artifact itself never runs scripts in this mode.
+- **PNG** is not supported in v1/v2: a sandboxed iframe has an opaque origin, so
+  the client cannot rasterise its DOM. A later version can convert SVG-based
+  diagrams through canvas, or render on the Host with a headless browser.
+
 ## Status and verification
 
 Development preview `0.1.0`, targeting DSH Desktop/Web `0.2.2-rc.1`.
 
-Automated checks: 45 Node unit tests cover spec normalization, answer validation,
+Automated checks: 47 Node unit tests cover spec normalization, answer validation,
 storage versions and pruning, the pending-widget lifecycle, and the three HTTP
 routes including the capability-key gate; `node scripts/validate.mjs` and CI
 cover the package shell, locales, icon, manifest and JavaScript syntax.
