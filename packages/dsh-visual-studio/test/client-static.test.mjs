@@ -51,3 +51,18 @@ test('download responses use an ASCII-safe disposition header', () => {
   assert.match(http, /filename\*=UTF-8''/);
   assert.doesNotMatch(http, /content-disposition.*[А-Яа-я]/);
 });
+
+test('answered widget stays reviewable: expandable summary and replay parser', () => {
+  assert.match(client, /deriveAskAnswer/);
+  assert.match(client, /dvs-done-head/);
+  assert.match(client, /showAnswers/);
+  assert.match(client, /\^•\(\\\*\)\?/);
+  assert.match(client, /resultText\(props\)/);
+});
+
+test('host records structured widget metadata for replay', () => {
+  const host = readFileSync(join(PACKAGE_DIR, 'lib', 'host.js'), 'utf8');
+  assert.match(host, /presentationMeta/);
+  assert.match(host, /dsh-visual-studio\/ask/);
+  assert.match(host, /•\$\{selection\.changed/);
+});

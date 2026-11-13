@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.1 — 2026-11-13
+
+- An answered `visual_ask` card no longer disappears: it stays in the chat as a
+  collapsed summary («Принято · изменено: N») that expands into the chosen action
+  for every row, with changed rows highlighted.
+- The answer is reconstructed after a page reload or session replay from the
+  recorded result: the Host attaches `presentationMeta` to the tool result and
+  the rendered text uses stable `• title → label` lines as a fallback.
+- Keyboard accessible toggle (`role="button"`, Enter/Space) and a closed state
+  for widgets that timed out or were aborted.
+- 54 unit tests and the repository validator pass.
+
 ## 0.2.0 — 2026-11-09
 
 - `visual_template(module)` with three offline starters: process diagram, screen

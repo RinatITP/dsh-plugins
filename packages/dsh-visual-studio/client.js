@@ -53,6 +53,11 @@ window.__ModuleLoader__.load({
         'widget.reset': 'Reset',
         'widget.changed': 'Changed: {n}',
         'widget.done': 'Accepted',
+        'widget.doneCount': '{n} changed',
+        'widget.showAnswers': 'Show answers',
+        'widget.hideAnswers': 'Hide answers',
+        'widget.closedTitle': 'Widget closed',
+        'widget.closedBody': 'No answer was sent.',
         'widget.doneHint': 'The agent continues with your choice.',
         'widget.waiting': 'Sending…',
         'widget.failed': 'Could not send the choice',
@@ -87,6 +92,11 @@ window.__ModuleLoader__.load({
         'widget.reset': 'Сбросить',
         'widget.changed': 'Изменено: {n}',
         'widget.done': 'Принято',
+        'widget.doneCount': 'изменено: {n}',
+        'widget.showAnswers': 'Показать ответы',
+        'widget.hideAnswers': 'Свернуть ответы',
+        'widget.closedTitle': 'Виджет закрыт',
+        'widget.closedBody': 'Ответ не отправлен.',
         'widget.doneHint': 'Агент продолжает с вашим выбором.',
         'widget.waiting': 'Отправляю…',
         'widget.failed': 'Не удалось отправить выбор',
@@ -138,13 +148,24 @@ window.__ModuleLoader__.load({
 .dvs-grow { flex: 1; }
 .dvs-changed-label { font-size: 11.5px; color: var(--dsw-alias-label-secondary, #6f6b64); }
 .dvs-error { font-size: 11.5px; color: var(--dsw-alias-label-error, #c0453a); }
-.dvs-done { display: flex; align-items: center; gap: 12px; padding: 14px; }
+.dvs-done-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; user-select: none; }
+.dvs-done-head:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, #4d6bfe); outline-offset: -2px; border-radius: 12px; }
 .dvs-done-icon { width: 30px; height: 30px; border-radius: 50%; flex: 0 0 30px; display: grid; place-items: center;
   background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #4caf7d) 16%, transparent);
   color: var(--dsw-alias-state-success-primary, #4caf7d); font-size: 15px; font-weight: 700; }
+.dvs-done-icon.closed { background: var(--dsw-alias-bg-layer-3, #f1f0ed); color: var(--dsw-alias-label-secondary, #78756e); }
 .dvs-done-body { flex: 1; min-width: 0; }
 .dvs-done-title { font-size: 13px; font-weight: 600; }
 .dvs-done-sub { font-size: 11.5px; color: var(--dsw-alias-label-secondary, #8c887f); margin-top: 1px; }
+.dvs-done-chev { flex: 0 0 auto; color: var(--dsw-alias-label-tertiary, #a8a49c); transition: transform .15s ease; font-size: 11px; }
+.dvs-done-head[aria-expanded="true"] .dvs-done-chev { transform: rotate(180deg); }
+.dvs-answers { border-top: 1px solid var(--dsw-alias-border-l1, #f1efec); padding: 4px 12px 8px; }
+.dvs-answer { display: flex; align-items: center; gap: 10px; padding: 7px 6px; border-bottom: 1px solid var(--dsw-alias-border-l1, #f4f2ef); font-size: 12.5px; }
+.dvs-answer:last-child { border-bottom: 0; }
+.dvs-answer.changed { background: color-mix(in srgb, var(--dsw-alias-state-warn-primary, #e3a23c) 12%, transparent); border-radius: 8px; }
+.dvs-answer-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dvs-answer-label { flex: 0 0 auto; font-weight: 600; color: var(--dsw-alias-brand-primary, #3346c8); white-space: nowrap; }
+.dvs-answer.changed .dvs-answer-label { color: var(--dsw-alias-state-warn-primary, #8a5f14); }
 .dvs-badge { display: inline-flex; align-items: center; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--dsw-alias-label-secondary, #78756e); background: var(--dsw-alias-bg-layer-3, #f1f0ed);
   border-radius: 5px; padding: 1px 6px; }
@@ -310,12 +331,61 @@ window.__ModuleLoader__.load({
     /* Inline widget (visual_ask)                                        */
     /* ---------------------------------------------------------------- */
 
+    /**
+     * Text blocks of a settled Tool result, flattened for the replay parser.
+     */
+    function resultText(props) {
+      const content = props?.block?.content;
+      if (!Array.isArray(content)) return '';
+      return content
+        .filter((block) => block !== null && typeof block === 'object' && block.type === 'text' && typeof block.text === 'string')
+        .map((block) => block.text)
+        .join('\n');
+    }
+
+    /**
+     * Read the recorded answer after a reload. The Host attaches it as
+     * presentation metadata; older records fall back to the stable bullet lines
+     * of the rendered result text.
+     */
+    function deriveAskAnswer(props, spec, localValues) {
+      const meta = props?.block?.meta;
+      const metaAnswer = meta !== null && typeof meta === 'object' && (meta.kind === 'dsh-visual-studio/ask' || meta.visualAsk !== undefined)
+        ? (meta.kind === 'dsh-visual-studio/ask' ? meta : meta.visualAsk)
+        : undefined;
+      if (metaAnswer !== undefined && Array.isArray(metaAnswer.selections) && metaAnswer.selections.length > 0) {
+        const rows = metaAnswer.selections.map((selection) => ({
+          title: String(selection?.title ?? ''),
+          label: String(selection?.label ?? ''),
+          changed: selection?.changed === true,
+        }));
+        return { answered: metaAnswer.submitted !== false, changed: rows.filter((row) => row.changed).length, rows };
+      }
+      const text = resultText(props);
+      const rows = [];
+      for (const line of text.split('\n')) {
+        const match = /^•(\*)?\s+(.+?)\s+→\s+(.+)$/.exec(line.trim());
+        if (match !== null) rows.push({ changed: match[1] === '*', title: match[2].trim(), label: match[3].trim() });
+      }
+      if (rows.length > 0) return { answered: true, changed: rows.filter((row) => row.changed).length, rows };
+      if (spec !== undefined && localValues !== null) {
+        const local = spec.rows.map((row) => {
+          const actionId = localValues[row.id] ?? row.defaultAction;
+          const action = row.actions.find((candidate) => candidate.id === actionId);
+          return { title: row.title, label: action?.label ?? actionId, changed: actionId !== row.defaultAction };
+        });
+        return { answered: true, changed: local.filter((row) => row.changed).length, rows: local };
+      }
+      return { answered: false, changed: 0, rows: [] };
+    }
+
     function VisualAskCard(props) {
       const { phase, args, callId } = readToolCall(props);
       const [values, setValues] = useState(null);
       const [busy, setBusy] = useState(false);
       const [sent, setSent] = useState(false);
       const [error, setError] = useState('');
+      const [expanded, setExpanded] = useState(false);
       const spec = readWidgetSpec(args);
       const specKey = spec === undefined ? '' : JSON.stringify(spec);
 
@@ -330,15 +400,51 @@ window.__ModuleLoader__.load({
       }, [specKey]);
 
       if (phase === 'result') {
-        const count = spec !== undefined && values !== null
-          ? spec.rows.filter((row) => values[row.id] !== undefined && values[row.id] !== row.defaultAction).length
-          : 0;
+        const answer = deriveAskAnswer(props, spec, values);
+        const toggle = () => setExpanded((current) => !current);
+        if (!answer.answered) {
+          return h('div', { className: 'dvs-card dvs-done' },
+            h('div', { className: 'dvs-done-head' },
+              h('div', { className: 'dvs-done-icon closed' }, '—'),
+              h('div', { className: 'dvs-done-body' },
+                h('div', { className: 'dvs-done-title' }, t('widget.closedTitle')),
+                h('div', { className: 'dvs-done-sub' }, t('widget.closedBody')),
+              ),
+            ),
+          );
+        }
         return h('div', { className: 'dvs-card dvs-done' },
+          h('div', {
+            className: 'dvs-done-head',
+            role: 'button',
+            tabIndex: 0,
+            'aria-expanded': expanded,
+            onClick: toggle,
+            onKeyDown: (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                toggle();
+              }
+            },
+          },
           h('div', { className: 'dvs-done-icon' }, '✓'),
           h('div', { className: 'dvs-done-body' },
-            h('div', { className: 'dvs-done-title' }, t('widget.done')),
-            h('div', { className: 'dvs-done-sub' }, count > 0 ? `${t('widget.changed').replace('{n}', String(count))}. ${t('widget.doneHint')}` : t('widget.doneHint')),
+            h('div', { className: 'dvs-done-title' }, answer.changed > 0
+              ? `${t('widget.done')} · ${t('widget.doneCount').replace('{n}', String(answer.changed))}`
+              : t('widget.done')),
+            h('div', { className: 'dvs-done-sub' }, expanded ? t('widget.hideAnswers') : t('widget.showAnswers')),
           ),
+          h('div', { className: 'dvs-done-chev', 'aria-hidden': 'true' }, expanded ? '▲' : '▼'),
+          ),
+          expanded
+            ? h('div', { className: 'dvs-answers' }, answer.rows.map((row, index) => h('div', {
+              key: `${row.title}:${index}`,
+              className: `dvs-answer${row.changed ? ' changed' : ''}`,
+            },
+            h('span', { className: 'dvs-answer-title' }, row.title),
+            h('span', { className: 'dvs-answer-label' }, row.label),
+            )))
+            : null,
         );
       }
 

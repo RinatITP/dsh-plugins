@@ -85,7 +85,9 @@ function renderAnswerLines(value) {
   if (value.submitted !== true) return [{ type: 'text', text: value.note ?? EMPTY_ANSWER_NOTE }];
   const lines = [`Пользователь отправил выбор (изменено относительно предложения: ${value.changed}).`];
   for (const selection of value.selections) {
-    lines.push(`- ${selection.title}: ${selection.label}`);
+    // The bullet format is stable on purpose: the chat card parses it back after
+    // a reload, when only the recorded result text is available.
+    lines.push(`•${selection.changed === true ? '*' : ''} ${selection.title} → ${selection.label}`);
   }
   if (typeof value.note === 'string' && value.note !== '') lines.push(`Комментарий: ${value.note}`);
   return [{ type: 'text', text: lines.join('\n') }];
@@ -271,6 +273,7 @@ export function apply(ctx) {
                 actionId: { type: 'string' },
                 label: { type: 'string' },
                 title: { type: 'string' },
+                changed: { type: 'boolean' },
               },
               required: ['rowId', 'actionId', 'label', 'title'],
             },
@@ -281,6 +284,12 @@ export function apply(ctx) {
         required: ['submitted', 'callId', 'selections', 'changed'],
       },
       render: (_args, value) => renderAnswerLines(value),
+      presentationMeta: (_args, value) => ({
+        kind: 'dsh-visual-studio/ask',
+        submitted: value.submitted === true,
+        changed: value.changed,
+        selections: Array.isArray(value.selections) ? value.selections : [],
+      }),
     },
     async execute(args, exec) {
       let spec;
@@ -295,10 +304,15 @@ export function apply(ctx) {
         signal: exec.signal,
         timeout: Number.isInteger(config.askTimeoutMs) && config.askTimeoutMs > 0 ? config.askTimeoutMs : undefined,
       });
+      const defaultByRow = new Map(spec.rows.map((row) => [row.id, row.defaultAction]));
+      const selections = (Array.isArray(answer.selections) ? answer.selections : []).map((selection) => ({
+        ...selection,
+        changed: defaultByRow.get(selection.rowId) !== selection.actionId,
+      }));
       return {
         submitted: answer.submitted === true,
         callId: answer.callId,
-        selections: Array.isArray(answer.selections) ? answer.selections : [],
+        selections,
         changed: Number.isInteger(answer.changed) ? answer.changed : 0,
         ...(typeof answer.note === 'string' && answer.note !== ''
           ? { note: answer.note }
