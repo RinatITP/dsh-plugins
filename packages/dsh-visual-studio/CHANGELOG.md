@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.2 — 2026-11-13
+
+- An answered widget is now mirrored into the completed Turn's tail, where Chat
+  keeps content visible: a compact card with the widget title, «Принято ·
+  изменено: N» and an expandable list of the chosen action for every row,
+  changed rows highlighted. The tool-call row inside the collapsed Turn steps
+  keeps its own expandable summary as well.
+- The Host records one small answer record per answered widget (Session, Turn,
+  call id, title, selections, never markup) under
+  `<dshHome>/visual-studio/answers.json`; `GET /plugins/dsh-visual-studio/answers`
+  serves it behind the intent header and admission, so the card survives a page
+  reload and session replay.
+- Turn coordinates come from `Session.snapshotEvents()` and the recorded
+  `tool/call` event; the Client reads the owner `TurnLocation`.
+- 59 unit tests, the repository validator and a live check in a test profile
+  (submit → turn tail card → expand → reload → expand) cover the behaviour.
+
 ## 0.2.1 — 2026-11-13
 
 - An answered `visual_ask` card no longer disappears: it stays in the chat as a

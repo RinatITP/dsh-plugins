@@ -19,6 +19,7 @@ import { createRoutes } from './http.js';
 import { guidelineFor, MODULES } from './guidelines.js';
 import { templateFor, TEMPLATE_MODULES } from './templates.js';
 import { writeProjectCopy } from './project.js';
+import { createAnswersStore } from './answers.js';
 
 export const name = 'dsh-visual-studio';
 
@@ -76,6 +77,36 @@ async function resolveSessionCwd(ctx, exec) {
   return typeof cwd === 'string' && cwd !== '' ? cwd : undefined;
 }
 
+/**
+ * Session id and Turn number of the tool call being executed. The live Session
+ * keeps its events, and the recorded `tool/call` carries both coordinates, so
+ * the turn-tail card can address the answer without a log scan.
+ */
+function turnOfCall(exec) {
+  const session = exec?.agent?.session;
+  const sessionId = typeof session?.id === 'string' ? session.id : undefined;
+  let turn;
+  let events;
+  try {
+    // `snapshotEvents()` is the public event-log accessor of a Session; a plain
+    // `.events` array is accepted as a defensive fallback for older builds.
+    events = typeof session?.snapshotEvents === 'function' ? session.snapshotEvents() : (Array.isArray(session?.events) ? session.events : []);
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      const event = events[index];
+      if (event?.type === 'tool/call' && event?.data?.callId === exec?.callId) {
+        turn = event.data.turn;
+        break;
+      }
+    }
+  } catch {
+    turn = undefined;
+  }
+  if (process.env.DSH_VISUAL_DEBUG === '1') {
+    console.error('[dvs-debug] coords', sessionId, 'turn=', turn, 'events=', Array.isArray(events) ? events.length : typeof events);
+  }
+  return { sessionId, turn: Number.isInteger(turn) ? turn : undefined };
+}
+
 function specFailure(error) {
   if (error instanceof SpecError) return new Error(`${error.code}: ${error.message}`);
   return error;
@@ -113,11 +144,15 @@ export function apply(ctx) {
       : process.env,
   });
   const store = createStore(paths);
+  const answers = createAnswersStore(paths);
   const asks = createAskRegistry({
     timeoutMs: Number.isInteger(config.askTimeoutMs) && config.askTimeoutMs > 0 ? config.askTimeoutMs : undefined,
   });
   void store.ensureReady().catch(() => {
     debug('store-init-failed');
+  });
+  void answers.ensureLoaded().catch(() => {
+    debug('answers-init-failed');
   });
   ctx.effect(() => () => asks.dispose(), 'dsh-visual-studio: dispose pending widgets');
 
@@ -309,6 +344,25 @@ export function apply(ctx) {
         ...selection,
         changed: defaultByRow.get(selection.rowId) !== selection.actionId,
       }));
+      const coordinates = turnOfCall(exec);
+      if (coordinates.sessionId !== undefined && coordinates.turn !== undefined) {
+        try {
+          await answers.record({
+            sessionId: coordinates.sessionId,
+            turn: coordinates.turn,
+            callId: exec.callId,
+            title: spec.title,
+            submitted: answer.submitted === true,
+            changed: Number.isInteger(answer.changed) ? answer.changed : 0,
+            selections,
+          });
+        } catch (error) {
+          if (process.env.DSH_VISUAL_DEBUG === '1') console.error('[dvs-debug] record-failed', error);
+          debug(`answers-record-failed ${error?.code ?? 'UNKNOWN'}`);
+        }
+      } else {
+        debug('answers-coordinates-unavailable');
+      }
       return {
         submitted: answer.submitted === true,
         callId: answer.callId,
@@ -424,6 +478,7 @@ export function apply(ctx) {
   const routes = createRoutes({
     store,
     asks,
+    answers,
     previewKey,
     admit: (req) => ctx.connection.admit(req),
   });

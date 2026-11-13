@@ -1,6 +1,6 @@
 {
   "name": "dsh-visual-studio",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Visual studio for DeepSeek Harness: inline choice widgets in the chat, published interactive visuals with versions in the right sidebar, and a design guideline tool for the agent.",
   "type": "module",
   "license": "MIT",

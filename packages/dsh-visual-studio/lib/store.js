@@ -30,6 +30,7 @@ export function visualStudioHome({ env = process.env, home = homedir() } = {}) {
     root,
     artifacts: join(root, 'artifacts'),
     catalog: join(root, 'catalog.json'),
+    answersFile: join(root, 'answers.json'),
   };
 }
 

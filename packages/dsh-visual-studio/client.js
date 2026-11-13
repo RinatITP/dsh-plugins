@@ -166,6 +166,7 @@ window.__ModuleLoader__.load({
 .dvs-answer-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dvs-answer-label { flex: 0 0 auto; font-weight: 600; color: var(--dsw-alias-brand-primary, #3346c8); white-space: nowrap; }
 .dvs-answer.changed .dvs-answer-label { color: var(--dsw-alias-state-warn-primary, #8a5f14); }
+.dvs-turn-tail { margin: 2px 0 8px; }
 .dvs-badge { display: inline-flex; align-items: center; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--dsw-alias-label-secondary, #78756e); background: var(--dsw-alias-bg-layer-3, #f1f0ed);
   border-radius: 5px; padding: 1px 6px; }
@@ -785,6 +786,88 @@ window.__ModuleLoader__.load({
       };
     }
 
+    /**
+     * Completed Turns hide tool-call bodies, so the answered widget is mirrored
+     * into the Turn tail: this entry stays visible after the Turn ends and lets
+     * the user reopen the recorded answers. Data comes from the Host record
+     * addressed by Session and Turn, never from local component state.
+     */
+    function TurnTailAnswers(props) {
+      const sessionId = typeof props?.sessionId === 'string' ? props.sessionId : '';
+      // The owner supplies a TurnLocation; older drafts passed the number itself.
+      const turnLocation = props?.turn;
+      const turn = Number(turnLocation !== null && typeof turnLocation === 'object'
+        ? turnLocation.turn
+        : turnLocation);
+      const [records, setRecords] = useState(null);
+      const [expanded, setExpanded] = useState(false);
+      useEffect(() => {
+        if (sessionId === '' || !Number.isInteger(turn) || turn <= 0) {
+          setRecords([]);
+          return undefined;
+        }
+        let cancelled = false;
+        requestJson(`/plugins/dsh-visual-studio/answers?session=${encodeURIComponent(sessionId)}&turn=${turn}`)
+          .then((value) => {
+            if (!cancelled) setRecords(Array.isArray(value?.answers) ? value.answers : []);
+          })
+          .catch((error) => {
+            if (!cancelled) setRecords([]);
+          });
+        return () => {
+          cancelled = true;
+        };
+      }, [sessionId, turn]);
+      if (!Array.isArray(records) || records.length === 0) return null;
+      const answered = records.filter((record) => record?.submitted === true);
+      const rows = records.flatMap((record) => (Array.isArray(record?.selections) ? record.selections : []).map((selection) => ({
+        title: String(selection?.title ?? ''),
+        label: String(selection?.label ?? ''),
+        changed: selection?.changed === true,
+      })));
+      const changedTotal = rows.filter((row) => row.changed).length;
+      const title = records.length === 1 && typeof records[0]?.title === 'string' && records[0].title !== ''
+        ? records[0].title
+        : `${t('widget.done')}: ${records.length}`;
+      const toggle = () => setExpanded((current) => !current);
+      const closed = answered.length === 0;
+      return h('div', { className: 'dvs-card dvs-done dvs-turn-tail' },
+        h('div', {
+          className: 'dvs-done-head',
+          role: 'button',
+          tabIndex: 0,
+          'aria-expanded': expanded,
+          onClick: rows.length === 0 ? undefined : toggle,
+          onKeyDown: (event) => {
+            if (rows.length > 0 && (event.key === 'Enter' || event.key === ' ')) {
+              event.preventDefault();
+              toggle();
+            }
+          },
+        },
+        h('div', { className: `dvs-done-icon${closed ? ' closed' : ''}` }, closed ? '—' : '✓'),
+        h('div', { className: 'dvs-done-body' },
+          h('div', { className: 'dvs-done-title' }, title),
+          h('div', { className: 'dvs-done-sub' }, closed
+            ? t('widget.closedBody')
+            : changedTotal > 0
+              ? `${t('widget.done')} · ${t('widget.doneCount').replace('{n}', String(changedTotal))}`
+              : t('widget.done')),
+        ),
+        rows.length > 0 ? h('div', { className: 'dvs-done-chev', 'aria-hidden': 'true' }, expanded ? '▲' : '▼') : null,
+        ),
+        expanded && rows.length > 0
+          ? h('div', { className: 'dvs-answers' }, rows.map((row, index) => h('div', {
+            key: `${row.title}:${index}`,
+            className: `dvs-answer${row.changed ? ' changed' : ''}`,
+          },
+          h('span', { className: 'dvs-answer-title' }, row.title),
+          h('span', { className: 'dvs-answer-label' }, row.label),
+          )))
+          : null,
+      );
+    }
+
     function apply(ctx) {
       bridge.lang = detectLang();
       try {
@@ -812,6 +895,11 @@ window.__ModuleLoader__.load({
         name: 'tool.call.toolview',
         key: 'visual_publish',
       }, VisualPublishCard));
+
+      ctx.slots.inject('conversation.chat.turnTail', () => ctx.slots.register({
+        name: 'conversation.chat.turnTail',
+        id: 'dsh-visual-studio/turn-tail',
+      }, TurnTailAnswers));
 
       ctx.inject(['sidebarRightTabs'], (owner) => {
         const sidebarTabs = owner.get('sidebarRightTabs');

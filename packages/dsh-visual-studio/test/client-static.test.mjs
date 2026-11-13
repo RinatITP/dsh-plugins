@@ -66,3 +66,10 @@ test('host records structured widget metadata for replay', () => {
   assert.match(host, /dsh-visual-studio\/ask/);
   assert.match(host, /•\$\{selection\.changed/);
 });
+
+test('answered widget is mirrored into the visible turn tail', () => {
+  assert.match(client, /conversation\.chat\.turnTail/);
+  assert.match(client, /TurnTailAnswers/);
+  assert.match(client, /dsh-visual-studio\/turn-tail/);
+  assert.match(client, /\/plugins\/dsh-visual-studio\/answers\?session=/);
+});

@@ -7,6 +7,7 @@ import { createStore, visualStudioHome } from '../lib/store.js';
 import { createAskRegistry } from '../lib/ask.js';
 import { createRoutes } from '../lib/http.js';
 import { normalizeAskSpec } from '../lib/spec.js';
+import { createAnswersStore } from '../lib/answers.js';
 
 function fakeRes() {
   const state = { status: 0, headers: {}, body: '' };
@@ -44,8 +45,9 @@ async function withRoutes(run, admit = () => ({ peer: { id: 'peer' } })) {
   try {
     const store = createStore(visualStudioHome({ env: { DSH_HOME: root }, home: root }));
     const asks = createAskRegistry({ timeoutMs: 5000 });
-    const routes = createRoutes({ store, asks, previewKey: 'secret-key', admit });
-    await run({ store, asks, routes, root });
+    const answers = createAnswersStore({ answersFile: join(root, 'answers.json') });
+    const routes = createRoutes({ store, asks, answers, previewKey: 'secret-key', admit });
+    await run({ store, asks, answers, routes, root });
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -181,4 +183,35 @@ test('the plain artifact mode disables scripts instead of sandboxing', async () 
     await route(getRequest(`/plugins/dsh-visual-studio/artifact?id=${artifact.id}&rev=1&k=secret-key`), sandboxed);
     assert.match(sandboxed.state.headers['content-security-policy'], /sandbox allow-scripts/);
   }, () => ({}));
+});
+
+test('answers route serves one Turn and keeps the gate', async () => {
+  await withRoutes(async ({ answers, routes }) => {
+    await answers.record({
+      sessionId: 'session-abc-123',
+      turn: 2,
+      callId: 'call-1',
+      title: 'Что берём в работу?',
+      submitted: true,
+      changed: 1,
+      selections: [{ title: 'Агенты', label: 'Не берём', changed: true }],
+    });
+    const route = routes['/plugins/dsh-visual-studio/answers'];
+
+    const ok = fakeRes();
+    await route(getRequest('/plugins/dsh-visual-studio/answers?session=session-abc-123&turn=2', { 'x-dsh-visual-studio': '1' }), ok);
+    assert.equal(ok.state.status, 200);
+    const value = JSON.parse(ok.state.body).value;
+    assert.equal(value.answers.length, 1);
+    assert.equal(value.answers[0].title, 'Что берём в работу?');
+
+    const noHeader = fakeRes();
+    await route(getRequest('/plugins/dsh-visual-studio/answers?session=session-abc-123&turn=2'), noHeader);
+    assert.equal(noHeader.state.status, 403);
+
+    const wrongTurn = fakeRes();
+    await route(getRequest('/plugins/dsh-visual-studio/answers?session=session-abc-123&turn=9', { 'x-dsh-visual-studio': '1' }), wrongTurn);
+    assert.equal(wrongTurn.state.status, 200);
+    assert.deepEqual(JSON.parse(wrongTurn.state.body).value.answers, []);
+  });
 });

@@ -23,6 +23,7 @@ export const ROUTE_MANIFEST = '/plugins/dsh-visual-studio/manifest';
 export const ROUTE_ARTIFACT = '/plugins/dsh-visual-studio/artifact';
 export const ROUTE_ASK = '/plugins/dsh-visual-studio/ask';
 export const ROUTE_PRINT = '/plugins/dsh-visual-studio/print';
+export const ROUTE_ANSWERS = '/plugins/dsh-visual-studio/answers';
 
 // Same-origin, script-free rendering used only by the print wrapper: the parent
 // page must be able to call contentWindow.print() on a document that cannot run
@@ -215,6 +216,26 @@ function askHandler(asks, admit) {
   };
 }
 
+function answersHandler(answers, admit) {
+  return async function handler(req, res) {
+    if (req.method !== 'GET') return sendJson(res, 405, { ok: false, error: { code: 'METHOD_NOT_ALLOWED' } });
+    if (!intentHeaderOk(req)) return sendJson(res, 403, { ok: false, error: { code: 'FORBIDDEN' } });
+    if (!isAdmitted(admit, req)) return sendJson(res, 401, { ok: false, error: { code: 'UNAUTHENTICATED' } });
+    const url = new URL(req.url ?? '/', 'http://dsh.local');
+    const sessionId = url.searchParams.get('session') ?? '';
+    const turn = Number(url.searchParams.get('turn'));
+    try {
+      const records = await answers.list({ sessionId, turn });
+      return sendJson(res, 200, { ok: true, value: { answers: records } });
+    } catch (error) {
+      if (error?.code === 'INVALID_SESSION' || error?.code === 'INVALID_TURN') {
+        return sendJson(res, 400, { ok: false, error: { code: error.code } });
+      }
+      return sendJson(res, 500, { ok: false, error: { code: 'ANSWERS_UNAVAILABLE' } });
+    }
+  };
+}
+
 function printHandler(store, previewKey, admit) {
   return async function handler(req, res) {
     if (req.method !== 'GET') return sendText(res, 405, 'method-not-allowed');
@@ -261,11 +282,12 @@ function printHandler(store, previewKey, admit) {
  * @param {ReturnType<import('./ask.js').createAskRegistry>} deps.asks
  * @param {(req: object) => unknown} deps.admit
  */
-export function createRoutes({ store, asks, admit, previewKey }) {
+export function createRoutes({ store, asks, answers, admit, previewKey }) {
   return {
     [ROUTE_MANIFEST]: manifestHandler(store, admit, previewKey),
     [ROUTE_ARTIFACT]: artifactHandler(store, previewKey, admit),
     [ROUTE_ASK]: askHandler(asks, admit),
     [ROUTE_PRINT]: printHandler(store, previewKey, admit),
+    [ROUTE_ANSWERS]: answersHandler(answers, admit),
   };
 }
